@@ -1,0 +1,10 @@
+Debug Notes for Seamless Tiling Issue:
+1. Error: RuntimeError: The size of tensor a (126) must match the size of tensor b (122).
+2. Cause: SeamlessConv2d is producing an output tensor larger than the input tensor (126 vs 122), breaking the residual connection in SDXL ResBlocks.
+3. Hypothesis: The manual circular padding + original convolution (with padding=0) is resulting in a slightly larger tensor than the original convolution (with padding=P).
+4. Attempted Fix 1: Added cropping logic to SeamlessConv2d.forward.
+5. Failure 1: The error persisted. Suspect the cropping logic was skipped because the stride check `self.original_conv.stride == (1, 1)` failed (maybe stride is a list or different type).
+6. Fix 2 (Current): 
+   - Relaxed stride check to include `stride[0]==1 and stride[1]==1`.
+   - Added debug prints to trace input/output shapes and padding values.
+7. Next Step: User needs to restart ComfyUI to load the new code.
