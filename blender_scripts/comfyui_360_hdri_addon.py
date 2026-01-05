@@ -139,11 +139,17 @@ def update_world_background(image_path):
     except Exception as e:
         print(f"[ComfyUI-360] Failed to update world: {e}")
 
-def create_landscape_from_heightmap(image_path, texture_path=None):
+def create_landscape_from_heightmap(image_path, texture_path=None, use_pbr=False, roughness_path=None, normal_path=None):
     """Creates a landscape mesh from the provided heightmap image."""
     print(f"[ComfyUI-360] Creating Landscape from: {image_path}")
     if texture_path:
         print(f"[ComfyUI-360] Applying Texture: {texture_path}")
+    if use_pbr:
+        print(f"[ComfyUI-360] PBR Generation Enabled")
+    if roughness_path:
+        print(f"[ComfyUI-360] Applying Roughness Map: {roughness_path}")
+    if normal_path:
+        print(f"[ComfyUI-360] Applying Normal Map: {normal_path}")
     
     if not os.path.exists(image_path):
         print(f"[ComfyUI-360] Error: File not found: {image_path}")
@@ -184,6 +190,15 @@ def create_landscape_from_heightmap(image_path, texture_path=None):
         obj.scale = (plane_width, plane_height, 1)
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         
+        # Ensure UVs are correct (Reset maps the single face to 0-1)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT') # Ensure face is selected
+        bpy.ops.uv.reset()
+        bpy.ops.object.mode_set(mode='OBJECT')
+        
+        # Debug: Check face count
+        print(f"[ComfyUI-360] DEBUG: Plane Face Count: {len(obj.data.polygons)}")
+        
         # 3. Add Subdivision Surface Modifier
         subsurf = obj.modifiers.new(name="Subdivision", type='SUBSURF')
         subsurf.subdivision_type = 'SIMPLE'
@@ -192,16 +207,29 @@ def create_landscape_from_heightmap(image_path, texture_path=None):
         
         # 4. Create Texture for Displacement
         tex_name = f"Tex_{filename}"
-        tex = bpy.data.textures.get(tex_name)
-        if not tex:
-            tex = bpy.data.textures.new(tex_name, type='IMAGE')
+        
+        # Remove existing texture to ensure clean settings
+        if tex_name in bpy.data.textures:
+            bpy.data.textures.remove(bpy.data.textures[tex_name])
+            
+        tex = bpy.data.textures.new(tex_name, type='IMAGE')
         tex.image = img
-        tex.extension = 'EXTEND' # Fix tiling/repeating edges
+        
+        # Force CLIP to prevent tiling artifacts. 
+        tex.extension = 'CLIP' 
+        
+        print(f"[ComfyUI-360] Displacement Texture Extension set to: {tex.extension}")
         
         # 5. Add Displace Modifier
         disp = obj.modifiers.new(name="Displace", type='DISPLACE')
         disp.texture = tex
         disp.texture_coords = 'UV' # Explicitly use UV coordinates
+        
+        # Explicitly set UV layer if available
+        if obj.data.uv_layers:
+            disp.uv_layer = obj.data.uv_layers[0].name
+            print(f"[ComfyUI-360] DEBUG: Using UV Layer: {disp.uv_layer}")
+            
         disp.strength = 2.0 # Default strength
         disp.mid_level = 0.0 # Ground level at black
         
@@ -230,6 +258,7 @@ def create_landscape_from_heightmap(image_path, texture_path=None):
         links.new(node_bsdf.outputs['BSDF'], node_out.inputs['Surface'])
         
         # Texture Logic
+        node_tex = None
         if texture_path and os.path.exists(texture_path):
             tex_filename = os.path.basename(texture_path)
             tex_img = bpy.data.images.get(tex_filename)
@@ -246,7 +275,94 @@ def create_landscape_from_heightmap(image_path, texture_path=None):
             node_tex.extension = 'EXTEND' # Fix tiling/repeating edges
             links.new(node_tex.outputs['Color'], node_bsdf.inputs['Base Color'])
             print(f"[ComfyUI-360] Texture applied to material.")
-        else:
+            
+        # PBR Logic
+        if use_pbr or roughness_path or normal_path:
+            print(f"[ComfyUI-360] Generating PBR Material Nodes...")
+            
+            # 1. Roughness
+            if roughness_path and os.path.exists(roughness_path):
+                # Use provided Roughness Map
+                r_filename = os.path.basename(roughness_path)
+                r_img = bpy.data.images.get(r_filename)
+                if r_img:
+                    if r_img.filepath != roughness_path:
+                        r_img.filepath = roughness_path
+                    r_img.reload()
+                else:
+                    r_img = bpy.data.images.load(roughness_path)
+                
+                # Set Non-Color
+                try:
+                    r_img.colorspace_settings.name = 'Non-Color'
+                except:
+                    pass
+
+                node_r_tex = nodes.new(type='ShaderNodeTexImage')
+                node_r_tex.location = (-400, 200)
+                node_r_tex.image = r_img
+                node_r_tex.extension = 'EXTEND'
+                
+                links.new(node_r_tex.outputs['Color'], node_bsdf.inputs['Roughness'])
+                print(f"[ComfyUI-360] Roughness Map applied.")
+                
+            elif node_tex:
+                # Auto-generate from Texture (Invert/Ramp)
+                # Texture -> ColorRamp -> Roughness
+                node_ramp = nodes.new(type='ShaderNodeValToRGB')
+                node_ramp.location = (-200, 200)
+                # Set ramp to be somewhat rough by default (0.4 to 0.9 range)
+                node_ramp.color_ramp.elements[0].position = 0.0
+                node_ramp.color_ramp.elements[0].color = (0.4, 0.4, 0.4, 1)
+                node_ramp.color_ramp.elements[1].position = 1.0
+                node_ramp.color_ramp.elements[1].color = (0.9, 0.9, 0.9, 1)
+                
+                links.new(node_tex.outputs['Color'], node_ramp.inputs['Fac'])
+                links.new(node_ramp.outputs['Color'], node_bsdf.inputs['Roughness'])
+            
+            # 2. Normal / Bump
+            if normal_path and os.path.exists(normal_path):
+                # Use provided Normal Map
+                n_filename = os.path.basename(normal_path)
+                n_img = bpy.data.images.get(n_filename)
+                if n_img:
+                    if n_img.filepath != normal_path:
+                        n_img.filepath = normal_path
+                    n_img.reload()
+                else:
+                    n_img = bpy.data.images.load(normal_path)
+                
+                # Set Non-Color
+                try:
+                    n_img.colorspace_settings.name = 'Non-Color'
+                except:
+                    pass
+
+                node_n_tex = nodes.new(type='ShaderNodeTexImage')
+                node_n_tex.location = (-400, -200)
+                node_n_tex.image = n_img
+                node_n_tex.extension = 'EXTEND'
+                
+                node_normal_map = nodes.new(type='ShaderNodeNormalMap')
+                node_normal_map.location = (-200, -200)
+                node_normal_map.inputs['Strength'].default_value = 1.0
+                
+                links.new(node_n_tex.outputs['Color'], node_normal_map.inputs['Color'])
+                links.new(node_normal_map.outputs['Normal'], node_bsdf.inputs['Normal'])
+                print(f"[ComfyUI-360] Normal Map applied.")
+                
+            elif node_tex:
+                # Auto-generate from Texture (Bump)
+                # Texture -> Bump -> Normal
+                node_bump = nodes.new(type='ShaderNodeBump')
+                node_bump.location = (-200, -200)
+                node_bump.inputs['Strength'].default_value = 0.3
+                node_bump.inputs['Distance'].default_value = 0.1
+                
+                links.new(node_tex.outputs['Color'], node_bump.inputs['Height'])
+                links.new(node_bump.outputs['Normal'], node_bsdf.inputs['Normal'])
+                
+        if not node_tex:
             # Default color if no texture
             node_bsdf.inputs['Base Color'].default_value = (0.2, 0.8, 0.2, 1) # Greenish
             
@@ -304,15 +420,36 @@ def process_queue():
         print(f"[ComfyUI-360] DEBUG: Processing message: '{msg}'")
         
         if msg.startswith("HEIGHTMAP:"):
-            # Parse format: HEIGHTMAP:<path>|TEXTURE:<path>
-            parts = msg.split("|TEXTURE:")
-            height_path = parts[0].replace("HEIGHTMAP:", "").strip()
-            texture_path = parts[1].strip() if len(parts) > 1 else None
+            # Parse format: HEIGHTMAP:<path>|TEXTURE:<path>|PBR:<true/false>|ROUGHNESS:<path>|NORMAL:<path>
+            
+            parts = msg.split('|')
+            height_path = ""
+            texture_path = None
+            use_pbr = False
+            roughness_path = None
+            normal_path = None
+            
+            for part in parts:
+                if part.startswith("HEIGHTMAP:"):
+                    height_path = part.replace("HEIGHTMAP:", "").strip()
+                elif part.startswith("TEXTURE:"):
+                    texture_path = part.replace("TEXTURE:", "").strip()
+                elif part.startswith("PBR:"):
+                    pbr_val = part.replace("PBR:", "").strip().lower()
+                    use_pbr = (pbr_val == "true")
+                elif part.startswith("ROUGHNESS:"):
+                    roughness_path = part.replace("ROUGHNESS:", "").strip()
+                elif part.startswith("NORMAL:"):
+                    normal_path = part.replace("NORMAL:", "").strip()
             
             print(f"[ComfyUI-360] DEBUG: Parsed Heightmap: {height_path}")
             print(f"[ComfyUI-360] DEBUG: Parsed Texture: {texture_path}")
+            print(f"[ComfyUI-360] DEBUG: Use PBR: {use_pbr}")
+            print(f"[ComfyUI-360] DEBUG: Roughness: {roughness_path}")
+            print(f"[ComfyUI-360] DEBUG: Normal: {normal_path}")
             
-            create_landscape_from_heightmap(height_path, texture_path)
+            if height_path:
+                create_landscape_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path)
         else:
             # Default to HDRI update for backward compatibility or plain paths
             update_world_background(msg)

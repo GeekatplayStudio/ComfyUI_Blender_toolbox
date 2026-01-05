@@ -87,9 +87,12 @@ class PreviewHeightmapInBlender:
         return {
             "required": {
                 "images": ("IMAGE", ),
+                "generate_pbr": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "texture": ("IMAGE", ),
+                "roughness_map": ("IMAGE", ),
+                "normal_map": ("IMAGE", ),
             }
         }
 
@@ -102,7 +105,7 @@ class PreviewHeightmapInBlender:
     def IS_CHANGED(s, **kwargs):
         return float("nan")
 
-    def send_heightmap(self, images, texture=None):
+    def send_heightmap(self, images, generate_pbr=True, texture=None, roughness_map=None, normal_map=None):
         # Save to temp dir
         output_dir = folder_paths.get_temp_directory()
         filename = "ComfyUI_Heightmap_Temp.png"
@@ -126,18 +129,52 @@ class PreviewHeightmapInBlender:
             tex_np = (np.clip(tex_np, 0, 1) * 255).astype(np.uint8)
             imageio.imwrite(texture_filepath, tex_np)
 
+        # Handle Roughness
+        roughness_filepath = ""
+        if roughness_map is not None:
+            roughness_filename = "ComfyUI_Roughness_Temp.png"
+            roughness_filepath = os.path.join(output_dir, roughness_filename)
+            
+            r_np = roughness_map[0].cpu().numpy()
+            r_np = (np.clip(r_np, 0, 1) * 255).astype(np.uint8)
+            imageio.imwrite(roughness_filepath, r_np)
+
+        # Handle Normal
+        normal_filepath = ""
+        if normal_map is not None:
+            normal_filename = "ComfyUI_Normal_Temp.png"
+            normal_filepath = os.path.join(output_dir, normal_filename)
+            
+            n_np = normal_map[0].cpu().numpy()
+            n_np = (np.clip(n_np, 0, 1) * 255).astype(np.uint8)
+            imageio.imwrite(normal_filepath, n_np)
+
         # Send to Blender
         host = '127.0.0.1'
         port = 8119 # Changed port to avoid zombie threads from previous sessions
         
-        # Message format: HEIGHTMAP:<height_path>|TEXTURE:<texture_path>
+        # Message format: HEIGHTMAP:<height_path>|TEXTURE:<texture_path>|PBR:<true/false>|ROUGHNESS:<path>|NORMAL:<path>
         message = f"HEIGHTMAP:{filepath}"
         if texture_filepath:
             message += f"|TEXTURE:{texture_filepath}"
         
+        if generate_pbr:
+            message += "|PBR:true"
+        else:
+            message += "|PBR:false"
+            
+        if roughness_filepath:
+            message += f"|ROUGHNESS:{roughness_filepath}"
+        if normal_filepath:
+            message += f"|NORMAL:{normal_filepath}"
+        
         print(f"DEBUG: [PreviewHeightmapInBlender] Heightmap saved to: {filepath}")
         if texture_filepath:
             print(f"DEBUG: [PreviewHeightmapInBlender] Texture saved to: {texture_filepath}")
+        if roughness_filepath:
+            print(f"DEBUG: [PreviewHeightmapInBlender] Roughness saved to: {roughness_filepath}")
+        if normal_filepath:
+            print(f"DEBUG: [PreviewHeightmapInBlender] Normal saved to: {normal_filepath}")
         
         print(f"DEBUG: [PreviewHeightmapInBlender] Connecting to {host}:{port}...")
         print(f"DEBUG: [PreviewHeightmapInBlender] Sending message: '{message}'")
