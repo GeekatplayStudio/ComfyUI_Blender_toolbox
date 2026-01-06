@@ -136,9 +136,9 @@ class OllamaLightingEstimator:
                     intensity = float(data.get("intensity", 1.0))
                     color = data.get("color", "#FFFFFF")
                     
-                    print(f"DEBUG: [OllamaLightingEstimator] Parsed: Az={azimuth}, El={elevation}, Int={intensity}, Col={color}")
                     return (azimuth, elevation, intensity, color)
-                elseprint("No JSON found in response")
+                else:
+                    print("No JSON found in response")
                     return (0.0, 45.0, 1.0, "#FFFFFF")
             except json.JSONDecodeError:
                 print(f"Failed to decode JSON: {text_response}")
@@ -162,7 +162,6 @@ class OllamaLightingEstimator:
                 col_match = re.search(r'(?:color|Color)["\s:]+"?(#[A-Fa-f0-9]{6})"?', text_response)
                 if col_match: color = col_match.group(1)
                 
-                print(f"DEBUG: [OllamaLightingEstimator] Regex Fallback: Az={azimuth}, El={elevation}, Int={intensity}, Col={color}")
                 return (azimuth, elevation, intensity, color)
                 
         except Et(f"Error calling Ollama: {e}")

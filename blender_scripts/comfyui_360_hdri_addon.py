@@ -228,9 +228,6 @@ def create_landscape_from_heightmap(image_path, texture_path=None, use_pbr=False
         bpy.ops.uv.reset()
         bpy.ops.object.mode_set(mode='OBJECT')
         
-        # Debug: Check face count
-        print(f"[ComfyUI-360] DEBUG: Plane Face Count: {len(obj.data.polygons)}")
-        
         # 3. Add Subdivision Surface Modifier
         subsurf = obj.modifiers.new(name="Subdivision", type='SUBSURF')
         subsurf.subdivision_type = 'SIMPLE'
@@ -260,7 +257,6 @@ def create_landscape_from_heightmap(image_path, texture_path=None, use_pbr=False
         # Explicitly set UV layer if available
         if obj.data.uv_layers:
             disp.uv_layer = obj.data.uv_layers[0].name
-            print(f"[ComfyUI-360] DEBUG: Using UV Layer: {disp.uv_layer}")
             
         disp.strength = 2.0 # Default strength
         disp.mid_level = 0.0 # Ground level at black
@@ -487,13 +483,9 @@ def process_queue():
         
     while not _ACTION_QUEUE.empty():
         msg = _ACTION_QUEUE.get()
-        print(f"[ComfyUI-360] DEBUG: Processing message: '{msg}'")
+        print(f"[ComfyUI-360] Processing message.")
         
         if msg.startswith("LIGHTING:"):
-            print(f"[ComfyUI-360] DEBUG: Raw Lighting Message: '{msg}'")
-            # Parse format: LIGHTING:azimuth=<val>|elevation=<val>|intensity=<val>|color=<hex>
-            parts = msg.replace("LIGHTING:", "").split('|')
-            azimuth = 0.0
             elevation = 45.0
             intensity = 1.0
             color = "#FFFFFF"
@@ -546,12 +538,6 @@ def process_queue():
             print(f"[ComfyUI-360] DEBUG: Parsed Texture: {texture_path}")
             print(f"[ComfyUI-360] DEBUG: Use PBR: {use_pbr}")
             print(f"[ComfyUI-360] DEBUG: Roughness: {roughness_path}")
-            print(f"[ComfyUI-360] DEBUG: Normal: {normal_path}")
-            
-            if height_path:
-                create_landscape_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path)
-        else:
-            # Default to HDRI update for backward compatibility or plain paths
             update_world_background(msg)
             
     return 1.0 # Run every 1.0 seconds

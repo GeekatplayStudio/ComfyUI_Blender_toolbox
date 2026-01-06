@@ -174,10 +174,9 @@ class PreviewHeightmapInBlender:
                 s.settimeout(5) # Increased timeout
                 s.connect((host, port))
                 s.sendall(message.encode('utf-8'))
-                print(f"DEBUG: [PreviewHeightmapInBlender] Successfully sent data to Blender.")
         except ConnectionRefusedError:
             print(f"CONNECTION ERROR: Could not connect to Blender at {host}:{port}.")
-            print("DEBUG: Is the Blender listener running? Check the Blender console.")
+            print("Is the Blender listener running? Check the Blender console.")
         except Exception as e:
             print(f"Error sending to Blender: {e}")
             import traceback
@@ -206,12 +205,8 @@ class SyncLightingToBlender:
         host = '127.0.0.1'
         port = 8119
         
-        print(f"DEBUG: [SyncLightingToBlender] Inputs received: Az={azimuth}, El={elevation}, Int={intensity}, Col={color_hex}")
-        
         # Message format: LIGHTING:azimuth=<val>|elevation=<val>|intensity=<val>|color=<hex>
         message = f"LIGHTING:azimuth={azimuth}|elevation={elevation}|intensity={intensity}|color={color_hex}"
-        
-        print(f"DEBUG: [SyncLightingToBlender] Sending: {message}")
         
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
