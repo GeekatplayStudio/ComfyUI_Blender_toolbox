@@ -164,5 +164,6 @@ class OllamaLightingEstimator:
                 
                 return (azimuth, elevation, intensity, color)
                 
-        except Et(f"Error calling Ollama: {e}")
+        except Exception as e:
+            print(f"Error calling Ollama: {e}")
             return (0.0, 45.0, 1.0, "#FFFFFF")
