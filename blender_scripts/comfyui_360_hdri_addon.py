@@ -1,3 +1,6 @@
+# (c) Geekatplay Studio
+# ComfyUI-360-HDRI-Suite
+
 bl_info = {
     "name": "ComfyUI 360 HDRI Sync",
     "author": "ComfyUI-360-HDRI-Suite",
@@ -14,6 +17,7 @@ import socket
 import threading
 import os
 import queue
+import math
 
 # Global variables for thread management
 _SERVER_THREAD = None
@@ -120,6 +124,34 @@ def update_world_background(image_path):
         # Link Background -> Output
         if not any(l.from_node == bg_node and l.to_node == out_node for l in links):
             links.new(bg_node.outputs['Background'], out_node.inputs['Surface'])
+
+        # 6. Fix Mapping (Distortion at Poles)
+        # If the image is not 2:1, we can try to adjust the mapping, but usually it's better to just warn.
+        # However, we can add a Mapping node to allow rotation which is often needed.
+        
+        mapping_node = None
+        tex_coord_node = None
+        
+        for node in nodes:
+            if node.type == 'MAPPING':
+                mapping_node = node
+            if node.type == 'TEX_COORD':
+                tex_coord_node = node
+                
+        if not mapping_node:
+            mapping_node = nodes.new('ShaderNodeMapping')
+            mapping_node.location = (-500, 0)
+            
+        if not tex_coord_node:
+            tex_coord_node = nodes.new('ShaderNodeTexCoord')
+            tex_coord_node.location = (-700, 0)
+            
+        # Link Coord -> Mapping -> Env
+        if not any(l.from_node == tex_coord_node and l.to_node == mapping_node for l in links):
+            links.new(tex_coord_node.outputs['Generated'], mapping_node.inputs['Vector'])
+            
+        if not any(l.from_node == mapping_node and l.to_node == env_node for l in links):
+            links.new(mapping_node.outputs['Vector'], env_node.inputs['Vector'])
 
         print(f"[ComfyUI-360] Successfully set {filename} as World Background.")
         
@@ -410,6 +442,44 @@ def server_loop(stop_event):
             print(f"[ComfyUI-360] This usually means another instance of Blender is already running the listener.")
             print(f"[ComfyUI-360] Please close other Blender instances or stop the listener in them.\n")
 
+def update_lighting(azimuth, elevation, intensity, color_hex):
+    print(f"[ComfyUI-360] Updating Lighting: Az={azimuth}, El={elevation}, Int={intensity}, Col={color_hex}")
+    
+    # 1. Find or Create Sun
+    sun = None
+    for obj in bpy.data.objects:
+        if obj.type == 'LIGHT' and obj.data.type == 'SUN':
+            sun = obj
+            break
+            
+    if not sun:
+        bpy.ops.object.light_add(type='SUN', location=(0, 0, 10))
+        sun = bpy.context.active_object
+        sun.name = "ComfyUI_Sun"
+        
+    # 2. Set Rotation
+    # Blender Sun points down (-Z) by default.
+    # Elevation 90 = Straight down (Zenith) -> Rot X = 0
+    # Elevation 0 = Horizon -> Rot X = 90
+    # Azimuth 0 = North (-Y) -> Rot Z = 0
+    
+    sun.rotation_euler = (math.radians(90 - elevation), 0, math.radians(azimuth))
+    
+    # 3. Set Intensity
+    sun.data.energy = intensity
+    
+    # 4. Set Color
+    if color_hex.startswith("#"):
+        color_hex = color_hex[1:]
+    
+    if len(color_hex) == 6:
+        r = int(color_hex[0:2], 16) / 255.0
+        g = int(color_hex[2:4], 16) / 255.0
+        b = int(color_hex[4:6], 16) / 255.0
+        sun.data.color = (r, g, b)
+        
+    print("[ComfyUI-360] Lighting updated.")
+
 def process_queue():
     """Timer function to process the action queue on the main thread."""
     if not _ACTION_QUEUE.empty():
@@ -419,7 +489,37 @@ def process_queue():
         msg = _ACTION_QUEUE.get()
         print(f"[ComfyUI-360] DEBUG: Processing message: '{msg}'")
         
-        if msg.startswith("HEIGHTMAP:"):
+        if msg.startswith("LIGHTING:"):
+            print(f"[ComfyUI-360] DEBUG: Raw Lighting Message: '{msg}'")
+            # Parse format: LIGHTING:azimuth=<val>|elevation=<val>|intensity=<val>|color=<hex>
+            parts = msg.replace("LIGHTING:", "").split('|')
+            azimuth = 0.0
+            elevation = 45.0
+            intensity = 1.0
+            color = "#FFFFFF"
+            
+            for part in parts:
+                if part.startswith("azimuth="):
+                    try: azimuth = float(part.replace("azimuth=", ""))
+                    except: pass
+                elif part.startswith("elevation="):
+                    try: elevation = float(part.replace("elevation=", ""))
+                    except: pass
+                elif part.startswith("intensity="):
+                    try: intensity = float(part.replace("intensity=", ""))
+                    except: pass
+                elif part.startswith("color="):
+                    color = part.replace("color=", "")
+            
+            # Update UI properties
+            bpy.context.scene.comfy360_light_azimuth = azimuth
+            bpy.context.scene.comfy360_light_elevation = elevation
+            bpy.context.scene.comfy360_light_intensity = intensity
+            bpy.context.scene.comfy360_light_color = color
+            
+            update_lighting(azimuth, elevation, intensity, color)
+            
+        elif msg.startswith("HEIGHTMAP:"):
             # Parse format: HEIGHTMAP:<path>|TEXTURE:<path>|PBR:<true/false>|ROUGHNESS:<path>|NORMAL:<path>
             
             parts = msg.split('|')
@@ -522,6 +622,21 @@ class COMFY360_OT_ImportSky(bpy.types.Operator):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
+class COMFY360_OT_ApplyLighting(bpy.types.Operator):
+    """Apply the current lighting settings from the UI"""
+    bl_idname = "comfy360.apply_lighting"
+    bl_label = "Apply Lighting"
+
+    def execute(self, context):
+        scene = context.scene
+        update_lighting(
+            scene.comfy360_light_azimuth,
+            scene.comfy360_light_elevation,
+            scene.comfy360_light_intensity,
+            scene.comfy360_light_color
+        )
+        return {'FINISHED'}
+
 class COMFY360_PT_Panel(bpy.types.Panel):
     """Creates a Panel in the View3D UI"""
     bl_label = "ComfyUI 360 Sync"
@@ -532,7 +647,8 @@ class COMFY360_PT_Panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        is_running = context.scene.get("comfy360_is_running", False)
+        scene = context.scene
+        is_running = scene.get("comfy360_is_running", False)
         
         # Check actual thread state
         thread_alive = False
@@ -550,7 +666,7 @@ class COMFY360_PT_Panel(bpy.types.Panel):
                 box.operator("comfy360.test_connection", text="Debug: Test Connection", icon='CONSOLE')
                 
                 # Show last received file
-                last_file = context.scene.get("comfy360_last_file", "None")
+                last_file = scene.get("comfy360_last_file", "None")
                 if last_file != "None":
                     box.label(text=f"Last: {last_file}", icon='IMAGE_DATA')
             else:
@@ -568,14 +684,25 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         layout.separator()
         
         box2 = layout.box()
-        box2.label(text="Manual Import", icon='IMPORT')
-        box2.operator("comfy360.import_sky", text="Load Sky File...", icon='FILE_FOLDER')
+        box2.label(text="Lighting Settings", icon='LIGHT')
+        box2.prop(scene, "comfy360_light_azimuth", text="Azimuth")
+        box2.prop(scene, "comfy360_light_elevation", text="Elevation")
+        box2.prop(scene, "comfy360_light_intensity", text="Intensity")
+        box2.prop(scene, "comfy360_light_color", text="Color")
+        box2.operator("comfy360.apply_lighting", text="Apply Lighting", icon='LIGHT_SUN')
+
+        layout.separator()
+        
+        box3 = layout.box()
+        box3.label(text="Manual Import", icon='IMPORT')
+        box3.operator("comfy360.import_sky", text="Load Sky File...", icon='FILE_FOLDER')
 
 classes = (
     COMFY360_OT_StartListener,
     COMFY360_OT_StopListener,
     COMFY360_OT_ImportSky,
     COMFY360_OT_TestConnection,
+    COMFY360_OT_ApplyLighting,
     COMFY360_PT_Panel,
 )
 
@@ -592,6 +719,13 @@ def register():
         name="Last Received File",
         default="None"
     )
+    
+    # Lighting Properties
+    bpy.types.Scene.comfy360_light_azimuth = bpy.props.FloatProperty(name="Azimuth", default=0.0, min=0.0, max=360.0)
+    bpy.types.Scene.comfy360_light_elevation = bpy.props.FloatProperty(name="Elevation", default=45.0, min=0.0, max=90.0)
+    bpy.types.Scene.comfy360_light_intensity = bpy.props.FloatProperty(name="Intensity", default=1.0, min=0.0, max=10.0)
+    bpy.types.Scene.comfy360_light_color = bpy.props.StringProperty(name="Color", default="#FFFFFF")
+    
     print("[ComfyUI-360] Addon Registered Successfully")
 
 def unregister():
@@ -600,6 +734,10 @@ def unregister():
     
     del bpy.types.Scene.comfy360_is_running
     del bpy.types.Scene.comfy360_last_file
+    del bpy.types.Scene.comfy360_light_azimuth
+    del bpy.types.Scene.comfy360_light_elevation
+    del bpy.types.Scene.comfy360_light_intensity
+    del bpy.types.Scene.comfy360_light_color
     
     global _STOP_EVENT
     _STOP_EVENT.set()

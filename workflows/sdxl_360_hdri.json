@@ -1,28 +1,36 @@
 {
   "id": "a1b0dd24-cc00-41b0-905b-83402dc4b56e",
   "revision": 0,
-  "last_node_id": 13,
-  "last_link_id": 18,
+  "last_node_id": 25,
+  "last_link_id": 33,
   "nodes": [
     {
-      "id": 4,
+      "id": 3,
       "type": "CLIPTextEncode",
       "pos": [
         400,
-        400
+        150
       ],
       "size": [
         400,
         200
       ],
       "flags": {},
-      "order": 4,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 3
+          "link": 2
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 19
         }
       ],
       "outputs": [
@@ -30,78 +38,18 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            7
+            6
           ]
         }
       ],
-      "title": "Negative Prompt",
+      "title": "Positive Prompt",
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.7.0",
         "Node name for S&R": "CLIPTextEncode"
       },
       "widgets_values": [
-        "seams, distortion, blur, low quality, text, watermark"
-      ]
-    },
-    {
-      "id": 6,
-      "type": "KSampler",
-      "pos": [
-        850,
-        50
-      ],
-      "size": [
-        315,
-        262
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 5
-        },
-        {
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 6
-        },
-        {
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 7
-        },
-        {
-          "name": "latent_image",
-          "type": "LATENT",
-          "link": 8
-        }
-      ],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            9
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "KSampler"
-      },
-      "widgets_values": [
-        123456789,
-        "fixed",
-        25,
-        7,
-        "euler",
-        "normal",
-        1
+        "360 degree equirectangular panorama, hdri sky, sunny day, clouds, high resolution, golden hour"
       ]
     },
     {
@@ -116,7 +64,7 @@
         106
       ],
       "flags": {},
-      "order": 8,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -135,6 +83,8 @@
         }
       ],
       "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
         "Node name for S&R": "SaveFakeHDRI"
       },
       "widgets_values": [
@@ -155,7 +105,7 @@
         58
       ],
       "flags": {},
-      "order": 10,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
@@ -166,6 +116,8 @@
       ],
       "outputs": [],
       "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
         "Node name for S&R": "PreviewInBlender"
       },
       "widgets_values": []
@@ -182,7 +134,7 @@
         474
       ],
       "flags": {},
-      "order": 9,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
@@ -211,7 +163,7 @@
         46
       ],
       "flags": {},
-      "order": 7,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -222,7 +174,7 @@
         {
           "name": "vae",
           "type": "VAE",
-          "link": 18
+          "link": 26
         }
       ],
       "outputs": [
@@ -243,94 +195,56 @@
       "widgets_values": []
     },
     {
-      "id": 5,
-      "type": "EmptyLatentImage",
+      "id": 15,
+      "type": "OllamaVision",
       "pos": [
-        58.264462809917354,
-        210.74380165289244
+        411.93082889633797,
+        656.0375189316461
       ],
       "size": [
-        315,
-        106
+        400,
+        268
       ],
       "flags": {},
-      "order": 0,
+      "order": 6,
       "mode": 0,
-      "inputs": [],
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 18
+        }
+      ],
       "outputs": [
         {
-          "name": "LATENT",
-          "type": "LATENT",
+          "name": "STRING",
+          "type": "STRING",
           "links": [
-            8
+            19,
+            24
           ]
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "EmptyLatentImage"
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
+        "Node name for S&R": "OllamaVision"
       },
       "widgets_values": [
-        2048,
-        1024,
-        1
-      ]
-    },
-    {
-      "id": 1,
-      "type": "CheckpointLoaderSimple",
-      "pos": [
-        59.090909090909086,
-        59.91735537190082
-      ],
-      "size": [
-        315,
-        98
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            1
-          ]
-        },
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            2,
-            3
-          ]
-        },
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            17
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "CheckpointLoaderSimple"
-      },
-      "widgets_values": [
-        "sd_xl_base_1.0.safetensors"
+        "Describe the image.",
+        "http://127.0.0.1:11434",
+        "llava",
+        0.2,
+        "photorealistic, 8k, high quality, masterpiece, ",
+        ", highly detailed, hdr, 360 panorama"
       ]
     },
     {
       "id": 2,
       "type": "SimpleSeamlessTile",
       "pos": [
-        511.03305785123956,
-        -273.19008264462803
+        435.03305785123956,
+        -9.190082644628049
       ],
       "size": [
         270,
@@ -356,31 +270,33 @@
         }
       ],
       "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
         "Node name for S&R": "SimpleSeamlessTile"
       },
       "widgets_values": [
-        "x"
+        "both"
       ]
     },
     {
-      "id": 13,
+      "id": 23,
       "type": "SeamlessTileVAE",
       "pos": [
-        508.11264707815644,
-        -166.38396867165955
+        430.96887307468995,
+        -128.5870519824284
       ],
       "size": [
         270,
         58
       ],
       "flags": {},
-      "order": 5,
+      "order": 4,
       "mode": 0,
       "inputs": [
         {
           "name": "vae",
           "type": "VAE",
-          "link": 17
+          "link": 25
         }
       ],
       "outputs": [
@@ -388,11 +304,13 @@
           "name": "VAE",
           "type": "VAE",
           "links": [
-            18
+            26
           ]
         }
       ],
       "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
         "Node name for S&R": "SeamlessTileVAE"
       },
       "widgets_values": [
@@ -400,11 +318,207 @@
       ]
     },
     {
-      "id": 3,
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -584.7107438016529,
+        -2.892561983471083
+      ],
+      "size": [
+        315,
+        98
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2,
+            3
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            25,
+            27
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "sd_xl_base_1.0.safetensors"
+      ]
+    },
+    {
+      "id": 24,
+      "type": "ImageTo360Latent",
+      "pos": [
+        8.497468116012058,
+        92.36600759832237
+      ],
+      "size": [
+        356.7125,
+        126
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 28
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 27
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            29
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
+        "Node name for S&R": "ImageTo360Latent"
+      },
+      "widgets_values": [
+        2048,
+        1024,
+        "center"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "KSampler",
+      "pos": [
+        850,
+        50
+      ],
+      "size": [
+        315,
+        262
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 5
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 7
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 29
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        123456789,
+        "fixed",
+        25,
+        7,
+        "euler",
+        "normal",
+        0.8
+      ]
+    },
+    {
+      "id": 14,
+      "type": "LoadImage",
+      "pos": [
+        -516.457600855727,
+        465.91355198949725
+      ],
+      "size": [
+        282.798828125,
+        314.00000000000006
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            17,
+            18,
+            28
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "hous2.png",
+        "image"
+      ]
+    },
+    {
+      "id": 4,
       "type": "CLIPTextEncode",
       "pos": [
         400,
-        150
+        400
       ],
       "size": [
         400,
@@ -417,7 +531,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 2
+          "link": 3
         }
       ],
       "outputs": [
@@ -425,18 +539,309 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            6
+            7
           ]
         }
       ],
-      "title": "Positive Prompt",
+      "title": "Negative Prompt",
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.7.0",
         "Node name for S&R": "CLIPTextEncode"
       },
       "widgets_values": [
-        "360 degree equirectangular panorama, hdri sky, sunny day, clouds, high resolution, rain"
+        "seams, distortion, blur, low quality, text, watermark, blur"
+      ]
+    },
+    {
+      "id": 18,
+      "type": "PreviewAny",
+      "pos": [
+        687.7473578219573,
+        1252.2375189316465
+      ],
+      "size": [
+        210,
+        166
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 22
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 17,
+      "type": "PreviewAny",
+      "pos": [
+        437.6019032765031,
+        1250.3011552952826
+      ],
+      "size": [
+        210,
+        166
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 21
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 19,
+      "type": "PreviewAny",
+      "pos": [
+        687.3928123674112,
+        1036.2375189316442
+      ],
+      "size": [
+        210,
+        166
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 23
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 16,
+      "type": "PreviewAny",
+      "pos": [
+        433.5564487310486,
+        1025.537518931646
+      ],
+      "size": [
+        210,
+        166
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 20
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 20,
+      "type": "PreviewAny",
+      "pos": [
+        837.4291760037754,
+        693.9375189316429
+      ],
+      "size": [
+        508,
+        220
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 24
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 25,
+      "type": "SyncLightingToBlender",
+      "pos": [
+        91.29432762014441,
+        1029.8004704082407
+      ],
+      "size": [
+        270,
+        130
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "azimuth",
+          "type": "FLOAT",
+          "widget": {
+            "name": "azimuth"
+          },
+          "link": 30
+        },
+        {
+          "name": "elevation",
+          "type": "FLOAT",
+          "widget": {
+            "name": "elevation"
+          },
+          "link": 31
+        },
+        {
+          "name": "intensity",
+          "type": "FLOAT",
+          "widget": {
+            "name": "intensity"
+          },
+          "link": 32
+        },
+        {
+          "name": "color_hex",
+          "type": "STRING",
+          "widget": {
+            "name": "color_hex"
+          },
+          "link": 33
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
+        "Node name for S&R": "SyncLightingToBlender"
+      },
+      "widgets_values": [
+        0,
+        45,
+        1,
+        "#FFFFFF"
+      ]
+    },
+    {
+      "id": 13,
+      "type": "OllamaLightingEstimator",
+      "pos": [
+        78.87297765666908,
+        789.9218164523072
+      ],
+      "size": [
+        270,
+        142
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "azimuth",
+          "type": "FLOAT",
+          "links": [
+            20,
+            30
+          ]
+        },
+        {
+          "name": "elevation",
+          "type": "FLOAT",
+          "links": [
+            21,
+            31
+          ]
+        },
+        {
+          "name": "intensity",
+          "type": "FLOAT",
+          "links": [
+            22,
+            32
+          ]
+        },
+        {
+          "name": "color_hex",
+          "type": "STRING",
+          "links": [
+            23,
+            33
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
+        "Node name for S&R": "OllamaLightingEstimator"
+      },
+      "widgets_values": [
+        "http://127.0.0.1:11434",
+        "llava"
       ]
     }
   ],
@@ -490,14 +895,6 @@
       "CONDITIONING"
     ],
     [
-      8,
-      5,
-      0,
-      6,
-      3,
-      "LATENT"
-    ],
-    [
       9,
       6,
       0,
@@ -531,29 +928,149 @@
     ],
     [
       17,
+      14,
+      0,
+      13,
+      0,
+      "IMAGE"
+    ],
+    [
+      18,
+      14,
+      0,
+      15,
+      0,
+      "IMAGE"
+    ],
+    [
+      19,
+      15,
+      0,
+      3,
+      1,
+      "STRING"
+    ],
+    [
+      20,
+      13,
+      0,
+      16,
+      0,
+      "FLOAT"
+    ],
+    [
+      21,
+      13,
+      1,
+      17,
+      0,
+      "FLOAT"
+    ],
+    [
+      22,
+      13,
+      2,
+      18,
+      0,
+      "FLOAT"
+    ],
+    [
+      23,
+      13,
+      3,
+      19,
+      0,
+      "STRING"
+    ],
+    [
+      24,
+      15,
+      0,
+      20,
+      0,
+      "STRING"
+    ],
+    [
+      25,
       1,
       2,
-      13,
+      23,
       0,
       "VAE"
     ],
     [
-      18,
-      13,
+      26,
+      23,
       0,
       7,
       1,
       "VAE"
+    ],
+    [
+      27,
+      1,
+      2,
+      24,
+      1,
+      "VAE"
+    ],
+    [
+      28,
+      14,
+      0,
+      24,
+      0,
+      "IMAGE"
+    ],
+    [
+      29,
+      24,
+      0,
+      6,
+      3,
+      "LATENT"
+    ],
+    [
+      30,
+      13,
+      0,
+      25,
+      0,
+      "FLOAT"
+    ],
+    [
+      31,
+      13,
+      1,
+      25,
+      1,
+      "FLOAT"
+    ],
+    [
+      32,
+      13,
+      2,
+      25,
+      2,
+      "FLOAT"
+    ],
+    [
+      33,
+      13,
+      3,
+      25,
+      3,
+      "STRING"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 1,
+      "scale": 0.6830134553650705,
       "offset": [
-        307.8873529218435,
-        534.3839686716595
+        997.1262393220042,
+        431.46098992233874
       ]
     },
     "workflowRendererVersion": "LG",

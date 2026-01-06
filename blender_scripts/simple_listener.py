@@ -1,3 +1,6 @@
+# (c) Geekatplay Studio
+# ComfyUI-360-HDRI-Suite
+
 import bpy
 import socket
 import threading

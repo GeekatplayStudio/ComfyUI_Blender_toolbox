@@ -1,3 +1,6 @@
+# (c) Geekatplay Studio
+# ComfyUI-360-HDRI-Suite
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,9 +43,6 @@ class SeamlessConv2d(nn.Module):
         # 1. Get padding from original conv
         # Note: original_conv.padding is a tuple (padH, padW) or int
         padding = self.original_conv.padding
-        
-        # DEBUG PRINTS
-        # print(f"SeamlessConv2d: Input {input.shape}, Padding {padding}, Stride {self.original_conv.stride}, Kernel {self.original_conv.kernel_size}")
 
         # 2. Apply circular padding
         # This increases the spatial dimensions
@@ -75,9 +75,6 @@ class SeamlessConv2d(nn.Module):
             
             # DEBUG
             # print(f"SeamlessConv2d: Result raw {result.shape}")
-
-            # 4. Fix Output Shape Mismatch (The cause of the error)
-            # The error "size of tensor a (126) must match ... (122)" happens because
             # our manual padding might be slightly different than what the model expects
             # for the residual connection (skip connection).
             # If we padded too much, the output is bigger than the input to the residual add.
@@ -176,7 +173,6 @@ class SeamlessConv2d(nn.Module):
 
         finally:
             # Restore original state to avoid side effects if this layer is used elsewhere
-            self.original_conv.padding = original_padding_val
             self.original_conv.padding_mode = original_padding_mode
 
 class SimpleSeamlessTile:

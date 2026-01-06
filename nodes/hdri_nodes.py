@@ -1,3 +1,6 @@
+# (c) Geekatplay Studio
+# ComfyUI-360-HDRI-Suite
+
 import torch
 import numpy as np
 import imageio
@@ -97,3 +100,99 @@ class SaveFakeHDRI:
             last_filepath = filepath
 
         return { "ui": { "images": results }, "result": (last_filepath,) }
+
+class ImageTo360Latent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "vae": ("VAE",),
+                "width": ("INT", {"default": 2048, "min": 512, "max": 8192, "step": 64}),
+                "height": ("INT", {"default": 1024, "min": 256, "max": 4096, "step": 64}),
+                "crop_method": (["center", "stretch", "pad"],),
+            }
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "process"
+    CATEGORY = "360_HDRI"
+
+    def process(self, image, vae, width, height, crop_method):
+        # image is [B, H, W, C]
+        B, H, W, C = image.shape
+        
+        # 1. Resize/Crop
+        # We need to process each image in the batch, but usually batch size is 1 for this workflow.
+        # We'll use torch.nn.functional.interpolate for resizing.
+        
+        # Permute to [B, C, H, W] for torch operations
+        img_t = image.permute(0, 3, 1, 2)
+        
+        if crop_method == "stretch":
+            img_resized = torch.nn.functional.interpolate(img_t, size=(height, width), mode="bilinear", align_corners=False)
+        
+        elif crop_method == "center":
+            # Calculate aspect ratios
+            target_aspect = width / height
+            current_aspect = W / H
+            
+            if current_aspect > target_aspect:
+                # Image is wider than target: Crop width
+                new_w = int(H * target_aspect)
+                start_w = (W - new_w) // 2
+                img_cropped = img_t[:, :, :, start_w:start_w+new_w]
+            else:
+                # Image is taller than target: Crop height
+                new_h = int(W / target_aspect)
+                start_h = (H - new_h) // 2
+                img_cropped = img_t[:, :, start_h:start_h+new_h, :]
+                
+            img_resized = torch.nn.functional.interpolate(img_cropped, size=(height, width), mode="bilinear", align_corners=False)
+            
+        elif crop_method == "pad":
+            # Calculate aspect ratios
+            target_aspect = width / height
+            current_aspect = W / H
+            
+            if current_aspect > target_aspect:
+                # Image is wider: Pad height
+                # Resize width to target width, scale height proportionally
+                scale = width / W
+                scaled_h = int(H * scale)
+                img_scaled = torch.nn.functional.interpolate(img_t, size=(scaled_h, width), mode="bilinear", align_corners=False)
+                
+                # Pad height
+                pad_h = height - scaled_h
+                pad_top = pad_h // 2
+                pad_bottom = pad_h - pad_top
+                # Pad: (left, right, top, bottom)
+                img_resized = torch.nn.functional.pad(img_scaled, (0, 0, pad_top, pad_bottom), mode='constant', value=0)
+                
+            else:
+                # Image is taller: Pad width
+                scale = height / H
+                scaled_w = int(W * scale)
+                img_scaled = torch.nn.functional.interpolate(img_t, size=(height, scaled_w), mode="bilinear", align_corners=False)
+                
+                # Pad width
+                pad_w = width - scaled_w
+                pad_left = pad_w // 2
+                pad_right = pad_w - pad_left
+                img_resized = torch.nn.functional.pad(img_scaled, (pad_left, pad_right, 0, 0), mode='constant', value=0)
+
+        # 2. VAE Encode
+        # Permute back to [B, H, W, C] for VAE? No, VAE usually expects [B, C, H, W] or [B, H, W, C]?
+        # ComfyUI VAE encode expects [B, H, W, C] in the range 0..1?
+        # Let's check standard VAEEncode node.
+        # It takes pixels.
+        
+        # Convert back to [B, H, W, C]
+        pixels = img_resized.permute(0, 2, 3, 1)
+        
+        # VAE Encode
+        # The VAE encode method in ComfyUI returns a tensor [B, C, H, W]
+        # But the KSampler expects a dictionary {"samples": tensor}
+        
+        t = vae.encode(pixels[:,:,:,:3])
+        return ({"samples": t}, )

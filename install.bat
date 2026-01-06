@@ -1,4 +1,6 @@
 @echo off
+REM (c) Geekatplay Studio
+REM ComfyUI-360-HDRI-Suite
 setlocal enabledelayedexpansion
 
 echo ========================================================

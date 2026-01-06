@@ -1,3 +1,6 @@
+# (c) Geekatplay Studio
+# ComfyUI-360-HDRI-Suite
+
 import os
 import subprocess
 import sys
@@ -42,9 +45,9 @@ def main():
         print("Installing requirements...")
         run_command(f"{sys.executable} -m pip install -r {req_path}")
     
-    # 3. Explicitly install imageio[ffmpeg], imageio[freeimage] and numpy
-    print("Installing imageio[ffmpeg], imageio[freeimage] and numpy...")
-    run_command(f"{sys.executable} -m pip install imageio[ffmpeg] imageio[freeimage] numpy")
+    # 3. Explicitly install imageio[ffmpeg], imageio[freeimage], numpy and requests
+    print("Installing imageio[ffmpeg], imageio[freeimage], numpy and requests...")
+    run_command(f"{sys.executable} -m pip install imageio[ffmpeg] imageio[freeimage] numpy requests")
 
     # 3b. Download FreeImage binaries (required for EXR)
     print("Downloading FreeImage binaries...")
@@ -71,6 +74,15 @@ def main():
         except SystemExit:
             print("Warning: Failed to clone ComfyUI-Seamless-Tiling. Continuing installation...")
 
+    # 5b. Clone ComfyUI_IPAdapter_plus (Required for accurate terrain replication)
+    ipadapter_path = custom_nodes_path / "ComfyUI_IPAdapter_plus"
+    if not ipadapter_path.exists():
+        print("Cloning ComfyUI_IPAdapter_plus...")
+        try:
+            run_command("git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git", cwd=custom_nodes_path)
+        except SystemExit:
+            print("Warning: Failed to clone ComfyUI_IPAdapter_plus.")
+
     # 6. Create models/loras and download LoRA
     loras_path = comfyui_path / "models" / "loras"
     loras_path.mkdir(parents=True, exist_ok=True)
@@ -85,7 +97,84 @@ def main():
         except Exception as e:
             print(f"Failed to download LoRA: {e}")
 
-    # 7. Symlink or copy the suite
+    # 6b. Download IPAdapter Models (Required for Terrain Workflow)
+    ipadapter_models_path = comfyui_path / "models" / "ipadapter"
+    ipadapter_models_path.mkdir(parents=True, exist_ok=True)
+    
+    clip_vision_path = comfyui_path / "models" / "clip_vision"
+    clip_vision_path.mkdir(parents=True, exist_ok=True)
+    
+    # IPAdapter Plus SDXL Model
+    ipa_model_url = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors"
+    ipa_model_file = ipadapter_models_path / "ip-adapter-plus_sdxl_vit-h.safetensors"
+    
+    if not ipa_model_file.exists():
+        print("Downloading IPAdapter Plus SDXL Model...")
+        try:
+            urllib.request.urlretrieve(ipa_model_url, ipa_model_file)
+            print("IPAdapter Model downloaded.")
+        except Exception as e:
+            print(f"Failed to download IPAdapter Model: {e}")
+            
+    # CLIP Vision Model (ViT-H)
+    clip_vision_url = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors"
+    clip_vision_file = clip_vision_path / "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    
+    if not clip_vision_file.exists():
+        print("Downloading CLIP Vision Model...")
+        try:
+            urllib.request.urlretrieve(clip_vision_url, clip_vision_file)
+            print("CLIP Vision Model downloaded.")
+        except Exception as e:
+            print(f"Failed to download CLIP Vision Model: {e}")
+
+    # 7. Setup Ollama
+    print("\n--- Setting up Ollama ---")
+    ollama_installed = False
+    try:
+        subprocess.check_call("ollama --version", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("Ollama is already installed.")
+        ollama_installed = True
+    except subprocess.CalledProcessError:
+        print("Ollama not found.")
+        if sys.platform == "win32":
+            print("Attempting to install Ollama via winget...")
+            try:
+                run_command("winget install Ollama.Ollama")
+                ollama_installed = True
+            except Exception as e:
+                print(f"Failed to install Ollama via winget: {e}")
+                print("Please install Ollama manually from https://ollama.com/download")
+        else:
+            print("Please install Ollama manually from https://ollama.com/download")
+
+    if ollama_installed:
+        # Check if running
+        try:
+            import requests
+            try:
+                requests.get("http://127.0.0.1:11434")
+                print("Ollama service is running.")
+            except requests.exceptions.ConnectionError:
+                print("Ollama service is NOT running. Attempting to start...")
+                if sys.platform == "win32":
+                    subprocess.Popen("ollama serve", shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                else:
+                    subprocess.Popen(["ollama", "serve"])
+                print("Started Ollama in background.")
+        except ImportError:
+            print("Requests library not installed yet (will be installed with requirements). Skipping service check.")
+
+        # Pull llava model
+        print("Pulling 'llava' model (this may take a while)...")
+        try:
+            run_command("ollama pull llava")
+            print("Model 'llava' pulled successfully.")
+        except Exception as e:
+            print(f"Failed to pull model: {e}")
+            print("You may need to run 'ollama pull llava' manually.")
+
+    # 8. Symlink or copy the suite
     target_suite_path = custom_nodes_path / "ComfyUI-360-HDRI-Suite"
     
     if target_suite_path.exists():

@@ -1,3 +1,6 @@
+# (c) Geekatplay Studio
+# ComfyUI-360-HDRI-Suite
+
 import socket
 import os
 import folder_paths
@@ -62,9 +65,7 @@ class PreviewInBlender:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(2)
-                print(f"DEBUG: Connecting to {host}:{port}...")
                 s.connect((host, port))
-                print(f"DEBUG: Connected. Sending data...")
                 s.sendall(file_path.encode('utf-8'))
                 print(f"Successfully sent path to Blender: {file_path}")
         except ConnectionRefusedError:
@@ -168,17 +169,6 @@ class PreviewHeightmapInBlender:
         if normal_filepath:
             message += f"|NORMAL:{normal_filepath}"
         
-        print(f"DEBUG: [PreviewHeightmapInBlender] Heightmap saved to: {filepath}")
-        if texture_filepath:
-            print(f"DEBUG: [PreviewHeightmapInBlender] Texture saved to: {texture_filepath}")
-        if roughness_filepath:
-            print(f"DEBUG: [PreviewHeightmapInBlender] Roughness saved to: {roughness_filepath}")
-        if normal_filepath:
-            print(f"DEBUG: [PreviewHeightmapInBlender] Normal saved to: {normal_filepath}")
-        
-        print(f"DEBUG: [PreviewHeightmapInBlender] Connecting to {host}:{port}...")
-        print(f"DEBUG: [PreviewHeightmapInBlender] Sending message: '{message}'")
-        
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(5) # Increased timeout
@@ -193,4 +183,42 @@ class PreviewHeightmapInBlender:
             import traceback
             traceback.print_exc()
 
+        return {}
+
+class SyncLightingToBlender:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "azimuth": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 360.0}),
+                "elevation": ("FLOAT", {"default": 45.0, "min": 0.0, "max": 90.0}),
+                "intensity": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0}),
+                "color_hex": ("STRING", {"default": "#FFFFFF"}),
+            }
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "sync_lighting"
+    OUTPUT_NODE = True
+    CATEGORY = "360_HDRI"
+
+    def sync_lighting(self, azimuth, elevation, intensity, color_hex):
+        host = '127.0.0.1'
+        port = 8119
+        
+        print(f"DEBUG: [SyncLightingToBlender] Inputs received: Az={azimuth}, El={elevation}, Int={intensity}, Col={color_hex}")
+        
+        # Message format: LIGHTING:azimuth=<val>|elevation=<val>|intensity=<val>|color=<hex>
+        message = f"LIGHTING:azimuth={azimuth}|elevation={elevation}|intensity={intensity}|color={color_hex}"
+        
+        print(f"DEBUG: [SyncLightingToBlender] Sending: {message}")
+        
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(5)
+                s.connect((host, port))
+                s.sendall(message.encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending to Blender: {e}")
+            
         return {}

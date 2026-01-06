@@ -1,3 +1,4 @@
 imageio[ffmpeg]
 imageio[freeimage]
 numpy
+requests

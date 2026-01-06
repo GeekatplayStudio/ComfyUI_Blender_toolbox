@@ -1,3 +1,6 @@
+# (c) Geekatplay Studio
+# ComfyUI-360-HDRI-Suite
+
 import torch
 import numpy as np
 
@@ -76,3 +79,127 @@ class SimplePBRGenerator:
         metallic = metallic.repeat(1, 1, 1, 3)
         
         return (roughness, metallic, normal_map)
+
+class TerrainPromptMaker:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "description": ("STRING", {"multiline": True, "forceInput": True}),
+                "terrain_type": (["General", "Mountains", "Canyon", "Desert", "Islands"],),
+                "input_view": (["Top Down / Map", "Side View / Photo"],),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("positive_prompt", "negative_prompt")
+    FUNCTION = "create_prompt"
+    CATEGORY = "360_HDRI/Terrain"
+
+    def create_prompt(self, description, terrain_type, input_view):
+        # Stronger keywords for orthographic view to avoid isometric results
+        base_prompt = "orthographic nadir view, digital elevation model (DEM), grayscale heightmap, top-down satellite imagery, flat 2d texture, vertical displacement map, white peaks black valleys, high contrast, 8k, highly detailed"
+        
+        if input_view == "Side View / Photo":
+            base_prompt += ", transform perspective to top down, reimagine as satellite map, bird's eye view"
+        
+        context_prompt = ""
+        if terrain_type == "Mountains":
+            context_prompt = "mountain range, peaks, ridges, valleys, erosion"
+        elif terrain_type == "Canyon":
+            context_prompt = "deep canyon, river bed, cliffs, erosion patterns"
+        elif terrain_type == "Desert":
+            context_prompt = "sand dunes, ripples, vast empty landscape"
+        elif terrain_type == "Islands":
+            context_prompt = "archipelago, coastlines, water surrounding land"
+            
+        # Combine
+        positive = f"{base_prompt}, {context_prompt}, {description}"
+        
+        # Stronger negatives to kill perspective
+        negative = "isometric, perspective, 3d render, tilted, diagonal angle, horizon, sky, clouds, shadows, lighting, water reflections, noise, text, labels, buildings, roads, color, rgb, gradient background, photo, photorealistic"
+        
+        if input_view == "Side View / Photo":
+            negative += ", ground level view, eye level, landscape photography, horizon line"
+            
+        return (positive, negative)
+
+class SimpleHeightmapNormalizer:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"images": ("IMAGE",)}}
+    
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "normalize"
+    CATEGORY = "360_HDRI/Terrain"
+    
+    def normalize(self, images):
+        # Normalize batch to 0.0 - 1.0 range to maximize displacement detail
+        results = []
+        for img in images:
+            # Force Grayscale if RGB
+            if img.shape[-1] == 3:
+                # Luminance formula
+                gray = img[..., 0] * 0.299 + img[..., 1] * 0.587 + img[..., 2] * 0.114
+                gray = gray.unsqueeze(-1) # [H, W, 1]
+                # Repeat to 3 channels for compatibility with other nodes/previews
+                img = gray.repeat(1, 1, 3)
+                
+            min_val = torch.min(img)
+            max_val = torch.max(img)
+            if max_val > min_val:
+                norm = (img - min_val) / (max_val - min_val)
+            else:
+                norm = img
+            results.append(norm)
+        return (torch.stack(results),)
+
+class TerrainTexturePromptMaker:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "description": ("STRING", {"multiline": True, "forceInput": True}),
+                "terrain_type": (["General", "Mountains", "Canyon", "Desert", "Islands"],),
+                "input_view": (["Top Down / Map", "Side View / Photo"],),
+            },
+            "optional": {
+                "heightmap_description": ("STRING", {"multiline": True, "forceInput": True}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("positive_prompt", "negative_prompt")
+    FUNCTION = "create_prompt"
+    CATEGORY = "360_HDRI/Terrain"
+
+    def create_prompt(self, description, terrain_type, input_view, heightmap_description=""):
+        # Keywords for color/albedo texture
+        base_prompt = "orthographic nadir view, top-down satellite photography, albedo texture map, photorealistic terrain texture, 8k, highly detailed, seamless texture, flat lighting, no shadows"
+        
+        if input_view == "Side View / Photo":
+            base_prompt += ", transform perspective to top down, reimagine as satellite map, bird's eye view"
+            
+        context_prompt = ""
+        if terrain_type == "Mountains":
+            context_prompt = "snowy peaks, rocky ridges, green valleys, alpine vegetation"
+        elif terrain_type == "Canyon":
+            context_prompt = "red rock, sedimentary layers, dry river bed, scrub brush"
+        elif terrain_type == "Desert":
+            context_prompt = "golden sand, ripples, dunes, dry landscape, sparse vegetation"
+        elif terrain_type == "Islands":
+            context_prompt = "tropical vegetation, sandy beaches, turquoise water, coral reefs"
+            
+        # Combine
+        positive = f"{base_prompt}, {context_prompt}, {description}"
+        
+        if heightmap_description:
+            positive += f", based on heightmap features: {heightmap_description}"
+        
+        # Negatives to avoid heightmap look or perspective
+        negative = "heightmap, grayscale, depth map, isometric, perspective, 3d render, tilted, horizon, sky, clouds, strong shadows, text, labels, buildings, roads, blue tint"
+        
+        if input_view == "Side View / Photo":
+            negative += ", ground level view, eye level, landscape photography, horizon line"
+            
+        return (positive, negative)
