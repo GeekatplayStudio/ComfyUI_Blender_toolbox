@@ -23,8 +23,8 @@ import math
 _SERVER_THREAD = None
 _STOP_EVENT = threading.Event()
 _ACTION_QUEUE = queue.Queue()
-HOST = '127.0.0.1'
-PORT = 8119 # Changed port to avoid zombie threads from previous sessions
+DEFAULT_HOST = '127.0.0.1'
+DEFAULT_PORT = 8119 # Default port
 
 def update_world_background(image_path):
     """Updates the Blender World Background with the provided image path."""
@@ -407,14 +407,14 @@ def create_landscape_from_heightmap(image_path, texture_path=None, use_pbr=False
     except Exception as e:
         print(f"[ComfyUI-360] Failed to create landscape: {e}")
 
-def server_loop(stop_event):
+def server_loop(stop_event, host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            s.bind((HOST, PORT))
+            s.bind((host, port))
             s.listen()
             s.settimeout(1.0)
-            print(f"[ComfyUI-360] Listener started on {HOST}:{PORT}")
+            print(f"[ComfyUI-360] Listener started on {host}:{port}")
             
             while not stop_event.is_set():
                 try:
@@ -433,7 +433,7 @@ def server_loop(stop_event):
                 except Exception as e:
                     print(f"[ComfyUI-360] Server error: {e}")
         except OSError as e:
-            print(f"\n[ComfyUI-360] CRITICAL ERROR: Could not bind to port {PORT}")
+            print(f"\n[ComfyUI-360] CRITICAL ERROR: Could not bind to port {port}")
             print(f"[ComfyUI-360] Error details: {e}")
             print(f"[ComfyUI-360] This usually means another instance of Blender is already running the listener.")
             print(f"[ComfyUI-360] Please close other Blender instances or stop the listener in them.\n")
@@ -486,6 +486,8 @@ def process_queue():
         print(f"[ComfyUI-360] Processing message.")
         
         if msg.startswith("LIGHTING:"):
+            parts = msg.replace("LIGHTING:", "").split('|')
+            azimuth = 0.0
             elevation = 45.0
             intensity = 1.0
             color = "#FFFFFF"
@@ -540,6 +542,11 @@ def process_queue():
             print(f"[ComfyUI-360] DEBUG: Roughness: {roughness_path}")
             update_world_background(msg)
             
+        else:
+            # Standard image path (HDRI or Preview)
+            print(f"[ComfyUI-360] Handling standard image: {msg}")
+            update_world_background(msg)
+            
     return 1.0 # Run every 1.0 seconds
 
 class COMFY360_OT_TestConnection(bpy.types.Operator):
@@ -548,8 +555,10 @@ class COMFY360_OT_TestConnection(bpy.types.Operator):
     bl_label = "Test Connection"
 
     def execute(self, context):
+        port = context.scene.comfy360_listener_port
+        host = context.scene.comfy360_listener_ip
         print("[ComfyUI-360] DEBUG: Test Connection Triggered.")
-        print(f"[ComfyUI-360] DEBUG: Host={HOST}, Port={PORT}")
+        print(f"[ComfyUI-360] DEBUG: Host={host}, Port={port}")
         if _SERVER_THREAD and _SERVER_THREAD.is_alive():
              print("[ComfyUI-360] DEBUG: Server Thread is ALIVE.")
         else:
@@ -568,8 +577,10 @@ class COMFY360_OT_StartListener(bpy.types.Operator):
             self.report({'INFO'}, "Listener already running")
             return {'FINISHED'}
         
+        port = context.scene.comfy360_listener_port
+        host = context.scene.comfy360_listener_ip
         _STOP_EVENT.clear()
-        _SERVER_THREAD = threading.Thread(target=server_loop, args=(_STOP_EVENT,), daemon=True)
+        _SERVER_THREAD = threading.Thread(target=server_loop, args=(_STOP_EVENT, host, port), daemon=True)
         _SERVER_THREAD.start()
         
         context.scene.comfy360_is_running = True
@@ -635,6 +646,8 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
         is_running = scene.get("comfy360_is_running", False)
+        port = scene.get("comfy360_listener_port", DEFAULT_PORT)
+        host = scene.get("comfy360_listener_ip", DEFAULT_HOST)
         
         # Check actual thread state
         thread_alive = False
@@ -647,7 +660,7 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         if is_running:
             if thread_alive:
                 row = box.row()
-                row.label(text=f"Status: Listening on {PORT}...", icon='REC')
+                row.label(text=f"Status: Listening on {host}:{port}...", icon='REC')
                 box.operator("comfy360.stop_listener", text="Stop Listener", icon='PAUSE')
                 box.operator("comfy360.test_connection", text="Debug: Test Connection", icon='CONSOLE')
                 
@@ -664,7 +677,9 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         else:
             row = box.row()
             row.label(text="Status: Stopped", icon='X')
-            box.operator("comfy360.start_listener", text=f"Start Listener (Port {PORT})", icon='PLAY')
+            box.prop(scene, "comfy360_listener_ip", text="Host")
+            box.prop(scene, "comfy360_listener_port", text="Port")
+            box.operator("comfy360.start_listener", text=f"Start Listener", icon='PLAY')
             box.operator("comfy360.test_connection", text="Debug: Test Connection", icon='CONSOLE')
             
         layout.separator()
@@ -701,6 +716,18 @@ def register():
         name="ComfyUI Listener Running",
         default=False
     )
+    bpy.types.Scene.comfy360_listener_ip = bpy.props.StringProperty(
+        name="Listener Host",
+        default=DEFAULT_HOST,
+        description="IP to listen on (127.0.0.1 for local, 0.0.0.0 for all interfaces)"
+    )
+    bpy.types.Scene.comfy360_listener_port = bpy.props.IntProperty(
+        name="Listener Port",
+        default=DEFAULT_PORT,
+        min=1024,
+        max=65535,
+        description="Port to listen for ComfyUI connections"
+    )
     bpy.types.Scene.comfy360_last_file = bpy.props.StringProperty(
         name="Last Received File",
         default="None"
@@ -719,6 +746,8 @@ def unregister():
         bpy.utils.unregister_class(cls)
     
     del bpy.types.Scene.comfy360_is_running
+    del bpy.types.Scene.comfy360_listener_ip
+    del bpy.types.Scene.comfy360_listener_port
     del bpy.types.Scene.comfy360_last_file
     del bpy.types.Scene.comfy360_light_azimuth
     del bpy.types.Scene.comfy360_light_elevation

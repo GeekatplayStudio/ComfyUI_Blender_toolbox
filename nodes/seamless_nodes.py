@@ -35,145 +35,84 @@ class SeamlessConv2d(nn.Module):
         super().__init__()
         self.original_conv = original_conv
         self.axis = axis
+    
+    @property
+    def padding(self):
+        return self.original_conv.padding
+
+    @property
+    def stride(self):
+        return self.original_conv.stride
+        
+    @property
+    def kernel_size(self):
+        return self.original_conv.kernel_size
+        
+    @property
+    def dilation(self):
+        return self.original_conv.dilation
         
     def forward(self, input):
         # We need to apply circular padding manually before the convolution
-        # But we must respect the original convolution's parameters
         
         # 1. Get padding from original conv
-        # Note: original_conv.padding is a tuple (padH, padW) or int
         padding = self.original_conv.padding
+        padding_mode = self.original_conv.padding_mode
+        
+        # Calculate expected output size to handle any potential mismatches
+        # This ensures we don't break skip connections
+        H, W = input.shape[2], input.shape[3]
+        
+        # Handle int/tuple parameters
+        def get_param(p):
+            return (p, p) if isinstance(p, int) else (p[0], p[1])
+            
+        pad_h, pad_w = get_param(padding)
+        kernel_h, kernel_w = get_param(self.original_conv.kernel_size)
+        stride_h, stride_w = get_param(self.original_conv.stride)
+        dilation_h, dilation_w = get_param(self.original_conv.dilation)
+        
+        # Standard Conv2d output size formula
+        out_h = int((H + 2 * pad_h - dilation_h * (kernel_h - 1) - 1) / stride_h + 1)
+        out_w = int((W + 2 * pad_w - dilation_w * (kernel_w - 1) - 1) / stride_w + 1)
 
         # 2. Apply circular padding
-        # This increases the spatial dimensions
         padded_input = seamless_padding(input, padding, self.axis)
         
         # 3. Run the original convolution
-        # IMPORTANT: We must temporarily set the original conv's padding to 0
-        # because we already padded the input manually.
-        # If we don't, it will pad AGAIN (with zeros), changing the size and ruining the seamless effect.
-        
-        original_padding_mode = self.original_conv.padding_mode
-        original_padding_val = self.original_conv.padding
-        
+        # We temporarily set padding to 0 because we padded manually
         try:
-            # We need to handle tuple padding correctly
-            # If padding is 'same' or 'valid', we can't just set it to (0,0) easily if it's a string
-            # But usually in SDXL it's tuple or int.
-            
-            if isinstance(original_padding_val, str):
-                 # If it's 'same', we need to calculate manual padding to match 'same' behavior
-                 # But we are doing circular padding.
-                 # For now, let's assume standard int/tuple padding.
-                 pass
-            
             self.original_conv.padding = (0, 0)
-            self.original_conv.padding_mode = 'zeros'
+            self.original_conv.padding_mode = 'zeros' # Correct mode for manual padding
             
-            # Run the convolution
             result = self.original_conv(padded_input)
             
-            # DEBUG
-            # print(f"SeamlessConv2d: Result raw {result.shape}")
-            # our manual padding might be slightly different than what the model expects
-            # for the residual connection (skip connection).
-            # If we padded too much, the output is bigger than the input to the residual add.
+            # 4. Crop to expected size if necessary
+            # Sometimes manual padding + stride can result in slightly different sizes 
+            # or extra pixels if not perfectly divisible, or if we just need to be safe.
+            curr_h, curr_w = result.shape[2], result.shape[3]
             
-            # We need to crop the result to match the expected output size.
-            # Expected output size is usually the same as input size (for stride=1)
-            # or input/2 (for stride=2).
-            
-            # Let's calculate expected output size based on the ORIGINAL input size (before padding)
-            # Input: [B, C, H, W]
-            # Output H = (H + 2*padH - kernelH) / strideH + 1
-            
-            # But wait, we want the output to be seamless.
-            # If we crop it, we lose the seamlessness?
-            # No, the seamlessness comes from the input padding being circular.
-            # The output size should match what the original layer WOULD have produced
-            # if it had circular padding support.
-            
-            # The issue is likely that we are padding *more* than the original layer did?
-            # No, we use self.original_padding.
-            
-            # Let's look at the error again: 126 vs 122. Difference is 4.
-            # This suggests we have 2 extra pixels on each side (2*2=4).
-            # This happens if we pad manually AND the conv layer pads again.
-            # But we set padding=(0,0).
-            
-            # Wait! If the original layer had padding=(1,1), we added 1 pixel border.
-            # Then we ran conv with padding=(0,0).
-            # The output size should be correct.
-            
-            # UNLESS... the original layer was using padding_mode='replicate' or something
-            # that we overrode? No, we handle that.
-            
-            # The most likely cause is that `self.original_conv` is being called by something else
-            # or our `try...finally` block is not thread-safe or re-entrant safe?
-            # No, ComfyUI is single threaded for execution usually.
-            
-            # Actually, there is a subtle issue with `F.pad`.
-            # If we use `seamless_padding`, we add pixels.
-            # If the original conv had padding=1, kernel=3, stride=1.
-            # Input 128. Pad -> 130. Conv(valid) -> 128. Correct.
-            
-            # What if the original conv had padding=0?
-            # Input 128. Pad -> 128. Conv(valid) -> 126 (loss of 2).
-            # But if padding was 0, we shouldn't pad?
-            # seamless_padding checks this.
-            
-            # Let's look at the error: 126 vs 122.
-            # If we produced 126, but expected 122.
-            # That means we are 4 pixels too large.
-            
-            # This happens if we pad (2,2) when we shouldn't?
-            # Or if we pad (1,1) and the conv ALSO pads (1,1)?
-            # That would give +2 input size -> +2 output size?
-            
-            # Ah! `self.original_conv.padding = (0, 0)` modifies the OBJECT.
-            # If this object is shared (reused) in the model, and we are in a loop...
-            # But we restore it in `finally`.
-            
-            # WAIT. The error is `RuntimeError: The size of tensor a (126) must match the size of tensor b (122)`.
-            # This is a residual connection addition failure: `x + layer(x)`.
-            # `x` is 122. `layer(x)` is 126.
-            # So our layer is producing an output that is TOO BIG.
-            
-            # Why is it too big?
-            # Maybe `seamless_padding` is adding padding when `original_padding` is 0?
-            # No, `seamless_padding` uses `original_padding`.
-            
-            # Maybe the original layer uses `padding='same'`?
-            # If so, `original_padding` might be a string or calculated dynamically?
-            # In SDXL, most are explicit ints.
-            
-            # Let's try to force the output to match the input size if stride is 1.
-            # This is a hack but might solve the "off by a few pixels" error.
-            
-            stride = self.original_conv.stride
-            if isinstance(stride, int):
-                stride = (stride, stride)
+            if curr_h != out_h or curr_w != out_w:
+                # print(f"SeamlessConv2d mismatch: Got {curr_h}x{curr_w}, expected {out_h}x{out_w}")
+                
+                # Center crop behavior usually makes sense contextually
+                h_diff = curr_h - out_h
+                w_diff = curr_w - out_w
+                
+                if h_diff >= 0 and w_diff >= 0:
+                    h_start = h_diff // 2
+                    w_start = w_diff // 2
+                    result = result[:, :, h_start:h_start+out_h, w_start:w_start+out_w]
+                else:
+                    # If we are somehow smaller, we have a bigger problem (should not happen with circular pad logic)
+                    pass
 
-            if stride == (1, 1):
-                if result.shape[2] != input.shape[2] or result.shape[3] != input.shape[3]:
-                    # Crop center
-                    diff_h = result.shape[2] - input.shape[2]
-                    diff_w = result.shape[3] - input.shape[3]
-                    
-                    if diff_h > 0 or diff_w > 0:
-                        # Crop symmetrically
-                        h_start = diff_h // 2
-                        w_start = diff_w // 2
-                        h_end = result.shape[2] - (diff_h - h_start)
-                        w_end = result.shape[3] - (diff_w - w_start)
-                        result = result[:, :, h_start:h_end, w_start:w_end]
-                        # print(f"SeamlessConv2d: Cropped to {result.shape}")
-            
             return result
 
         finally:
-            # Restore original state to avoid side effects if this layer is used elsewhere
-            self.original_conv.padding_mode = original_padding_mode
+            # CRITICAL: Restore original state
+            self.original_conv.padding = padding
+            self.original_conv.padding_mode = padding_mode
 
 class SimpleSeamlessTile:
     @classmethod

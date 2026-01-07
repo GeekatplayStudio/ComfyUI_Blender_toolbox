@@ -8,6 +8,19 @@ from PIL import Image
 import io
 import base64
 import json
+import re
+
+def tensor_to_base64(image_tensor):
+    """
+    Converts a ComfyUI image tensor (batch) to a base64 encoded PNG string.
+    Takes the first image from the batch.
+    """
+    i = 255. * image_tensor[0].cpu().numpy()
+    img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+    
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 class OllamaVision:
     @classmethod
@@ -23,6 +36,7 @@ class OllamaVision:
             "optional": {
                 "prefix": ("STRING", {"multiline": True, "default": "photorealistic, 8k, high quality, masterpiece, "}),
                 "suffix": ("STRING", {"multiline": True, "default": ", highly detailed, hdr, 360 panorama"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             }
         }
 
@@ -30,31 +44,23 @@ class OllamaVision:
     FUNCTION = "analyze_image"
     CATEGORY = "Ollama"
 
-    def analyze_image(self, images, prompt, ollama_url, model, temperature, prefix="", suffix=""):
-        # Take the first image from the batch
-        image = images[0]
-        
-        # Convert tensor to PIL Image
-        i = 255. * image.cpu().numpy()
-        img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-        
-        # Convert to base64
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        
-        # Prepare payload
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "images": [img_str],
-            "stream": False,
-            "options": {
-                "temperature": temperature
-            }
-        }
-        
+    def analyze_image(self, images, prompt, ollama_url, model, temperature, seed, prefix="", suffix=""):
         try:
+            # Convert image to base64
+            img_str = tensor_to_base64(images)
+            
+            # Prepare payload
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "images": [img_str],
+                "stream": False,
+                "options": {
+                    "temperature": temperature,
+                    "seed": seed
+                }
+            }
+            
             response = requests.post(f"{ollama_url}/api/generate", json=payload)
             response.raise_for_status()
             result = response.json()
@@ -75,6 +81,8 @@ class OllamaLightingEstimator:
                 "images": ("IMAGE",),
                 "ollama_url": ("STRING", {"default": "http://127.0.0.1:11434"}),
                 "model": ("STRING", {"default": "llava"}),
+                "temperature": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 1.0, "step": 0.1}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             }
         }
 
@@ -83,7 +91,7 @@ class OllamaLightingEstimator:
     FUNCTION = "estimate_lighting"
     CATEGORY = "Ollama"
 
-    def estimate_lighting(self, images, ollama_url, model):
+    def estimate_lighting(self, images, ollama_url, model, temperature, seed):
         # Prompt designed to get structured JSON output
         prompt = """Analyze the lighting in this image. 
         Estimate the sun position (azimuth and elevation), light intensity, and light color.
@@ -96,27 +104,21 @@ class OllamaLightingEstimator:
         Example: {"azimuth": 45.0, "elevation": 30.0, "intensity": 1.5, "color": "#FFD700"}
         """
         
-        # Reuse the logic from OllamaVision (could refactor, but keeping it simple for now)
-        image = images[0]
-        i = 255. * image.cpu().numpy()
-        img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-        
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "images": [img_str],
-            "stream": False,
-            "format": "json", # Force JSON mode if supported by model/ollama version
-            "options": {
-                "temperature": 0.1 # Low temp for deterministic output
-            }
-        }
-        
         try:
+            img_str = tensor_to_base64(images)
+            
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "images": [img_str],
+                "stream": False,
+                "format": "json", # Force JSON mode if supported by model/ollama version
+                "options": {
+                    "temperature": temperature,
+                    "seed": seed
+                }
+            }
+            
             response = requests.post(f"{ollama_url}/api/generate", json=payload)
             response.raise_for_status()
             result = response.json()
@@ -138,16 +140,31 @@ class OllamaLightingEstimator:
                     
                     return (azimuth, elevation, intensity, color)
                 else:
-                    print("No JSON found in response")
-                    return (0.0, 45.0, 1.0, "#FFFFFF")
+                    print("No JSON found in response, falling back to regex.")
+                    raise json.JSONDecodeError("No parsed JSON", text_response, 0)
             except json.JSONDecodeError:
-                print(f"Failed to decode JSON: {text_response}")
+                print(f"OllamaLightingEstimator: JSON decode failed. Response was: {text_response}")
                 # Try a fallback regex parsing if JSON fails
-                import re
                 azimuth = 0.0
                 elevation = 45.0
                 intensity = 1.0
                 color = "#FFFFFF"
+                
+                # Regex patterns
+                az_match = re.search(r'"?azimuth"?\s*[:=]\s*(\d+(?:\.\d+)?)', text_response, re.IGNORECASE)
+                if az_match: azimuth = float(az_match.group(1))
+
+                el_match = re.search(r'"?elevation"?\s*[:=]\s*(\d+(?:\.\d+)?)', text_response, re.IGNORECASE)
+                if el_match: elevation = float(el_match.group(1))
+
+                int_match = re.search(r'"?intensity"?\s*[:=]\s*(\d+(?:\.\d+)?)', text_response, re.IGNORECASE)
+                if int_match: intensity = float(int_match.group(1))
+                
+                col_match = re.search(r'"?color"?\s*[:=]\s*"?([^"\s,]+)"?', text_response, re.IGNORECASE)
+                if col_match: color = col_match.group(1)
+                
+                print(f"OllamaLightingEstimator: Regex Fallback -> Az:{azimuth}, El:{elevation}, In:{intensity}, Col:{color}")
+                return (azimuth, elevation, intensity, color)
                 
                 # More robust regex to handle "Azimuth: 45" or "azimuth": 45
                 az_match = re.search(r'(?:azimuth|Azimuth)["\s:]+([\d\.]+)', text_response)
@@ -167,3 +184,4 @@ class OllamaLightingEstimator:
         except Exception as e:
             print(f"Error calling Ollama: {e}")
             return (0.0, 45.0, 1.0, "#FFFFFF")
+

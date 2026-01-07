@@ -466,8 +466,8 @@
         -234.66515538872457
       ],
       "size": [
-        231.702734375,
-        26
+        315,
+        82
       ],
       "flags": {},
       "order": 14,
@@ -483,7 +483,10 @@
       "properties": {
         "Node name for S&R": "PreviewInBlender"
       },
-      "widgets_values": []
+      "widgets_values": [
+        "127.0.0.1",
+        8119
+      ]
     },
     {
       "id": 9,

@@ -48,6 +48,8 @@ class PreviewInBlender:
         return {
             "required": {
                 "file_path": ("STRING", {"forceInput": True}),
+                "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
+                "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
             }
         }
 
@@ -56,9 +58,9 @@ class PreviewInBlender:
     OUTPUT_NODE = True
     CATEGORY = "360_HDRI"
 
-    def send_to_blender(self, file_path):
-        host = '127.0.0.1'
-        port = 8119 # Changed port to avoid zombie threads from previous sessions
+    def send_to_blender(self, file_path, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+        host = blender_ip_address
+        port = blender_listen_port
         
         print(f"Sending {file_path} to Blender...")
         
@@ -68,13 +70,17 @@ class PreviewInBlender:
                 s.connect((host, port))
                 s.sendall(file_path.encode('utf-8'))
                 print(f"Successfully sent path to Blender: {file_path}")
-        except ConnectionRefusedError:
-            print(f"CONNECTION ERROR: Could not connect to Blender at {host}:{port}.")
-            print("1. Make sure Blender is running.")
-            print("2. Make sure the 'ComfyUI 360 HDRI' addon is enabled.")
-            print("3. Click 'Start Listener' in the ComfyUI tab in Blender's N-Panel.")
+        except (ConnectionRefusedError, OSError) as e:
+            # Check for WinError 10061 specifically if it's an OSError
+            if isinstance(e, ConnectionRefusedError) or (hasattr(e, 'winerror') and e.winerror == 10061):
+                print(f"CONNECTION ERROR: Could not connect to Blender at {host}:{port}.")
+                print("1. Make sure Blender is running.")
+                print("2. Make sure the 'ComfyUI 360 HDRI' addon is enabled.")
+                print("3. Click 'Start Listener' in the ComfyUI tab in Blender's N-Panel.")
+            else:
+                print(f"Error sending to Blender: {e}")
         except Exception as e:
-            print(f"Error sending to Blender: {e}")
+            print(f"Uncaught Error sending to Blender: {e}")
 
         return {}
 
@@ -89,6 +95,8 @@ class PreviewHeightmapInBlender:
             "required": {
                 "images": ("IMAGE", ),
                 "generate_pbr": ("BOOLEAN", {"default": True}),
+                "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
+                "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
             },
             "optional": {
                 "texture": ("IMAGE", ),
@@ -106,7 +114,7 @@ class PreviewHeightmapInBlender:
     def IS_CHANGED(s, **kwargs):
         return float("nan")
 
-    def send_heightmap(self, images, generate_pbr=True, texture=None, roughness_map=None, normal_map=None):
+    def send_heightmap(self, images, generate_pbr=True, texture=None, roughness_map=None, normal_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
         # Save to temp dir
         output_dir = folder_paths.get_temp_directory()
         filename = "ComfyUI_Heightmap_Temp.png"
@@ -151,8 +159,8 @@ class PreviewHeightmapInBlender:
             imageio.imwrite(normal_filepath, n_np)
 
         # Send to Blender
-        host = '127.0.0.1'
-        port = 8119 # Changed port to avoid zombie threads from previous sessions
+        host = blender_ip_address
+        port = blender_listen_port
         
         # Message format: HEIGHTMAP:<height_path>|TEXTURE:<texture_path>|PBR:<true/false>|ROUGHNESS:<path>|NORMAL:<path>
         message = f"HEIGHTMAP:{filepath}"
@@ -193,6 +201,8 @@ class SyncLightingToBlender:
                 "elevation": ("FLOAT", {"default": 45.0, "min": 0.0, "max": 90.0}),
                 "intensity": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0}),
                 "color_hex": ("STRING", {"default": "#FFFFFF"}),
+                "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
+                "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
             }
         }
 
@@ -201,9 +211,9 @@ class SyncLightingToBlender:
     OUTPUT_NODE = True
     CATEGORY = "360_HDRI"
 
-    def sync_lighting(self, azimuth, elevation, intensity, color_hex):
-        host = '127.0.0.1'
-        port = 8119
+    def sync_lighting(self, azimuth, elevation, intensity, color_hex, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+        host = blender_ip_address
+        port = blender_listen_port
         
         # Message format: LIGHTING:azimuth=<val>|elevation=<val>|intensity=<val>|color=<hex>
         message = f"LIGHTING:azimuth={azimuth}|elevation={elevation}|intensity={intensity}|color={color_hex}"

@@ -42,12 +42,14 @@ def main():
     # 2. Install standard requirements
     req_path = suite_root / "requirements.txt"
     if req_path.exists():
-        print("Installing requirements...")
-        run_command(f"{sys.executable} -m pip install -r {req_path}")
-    
-    # 3. Explicitly install imageio[ffmpeg], imageio[freeimage], numpy and requests
-    print("Installing imageio[ffmpeg], imageio[freeimage], numpy and requests...")
-    run_command(f"{sys.executable} -m pip install imageio[ffmpeg] imageio[freeimage] numpy requests")
+        print(f"Installing requirements from {req_path}...")
+        try:
+            run_command(f'"{sys.executable}" -m pip install -r "{req_path}"')
+        except Exception as e:
+            print(f"Warning: Failed to install requirements via pip: {e}")
+            print("Please ensure you have internet access and pip is configured correctly.")
+
+    print("Installation complete.")
 
     # 3b. Download FreeImage binaries (required for EXR)
     print("Downloading FreeImage binaries...")
