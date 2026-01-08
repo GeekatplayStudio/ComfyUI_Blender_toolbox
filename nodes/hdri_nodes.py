@@ -414,3 +414,53 @@ class Rotate360Image:
         out_image = sampled.permute(0, 2, 3, 1)
         
         return (out_image,)
+
+# New Node for Mask Generation
+class GeneratePoleMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "center_x": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "center_y": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "scale": ("FLOAT", {"default": 1.5, "min": 0.0, "max": 5.0, "step": 0.1}),
+                "power": ("FLOAT", {"default": 0.5, "min": 0.1, "max": 10.0, "step": 0.1}),
+                "invert": (["false", "true"],),
+            }
+        }
+
+    RETURN_TYPES = ("MASK",)
+    FUNCTION = "generate"
+    CATEGORY = "360_HDRI"
+
+    def generate(self, image, center_x, center_y, scale, power, invert):
+        # image: [B, H, W, C]
+        B, H, W, C = image.shape
+        device = image.device
+        
+        cx = W * center_x
+        cy = H * center_y
+        
+        x = torch.linspace(0, W - 1, W, device=device)
+        y = torch.linspace(0, H - 1, H, device=device)
+        grid_y, grid_x = torch.meshgrid(y, x, indexing='ij')
+        
+        # Euclidean distance from center
+        dist = torch.sqrt((grid_x - cx)**2 + (grid_y - cy)**2)
+        
+        # Max distance reference (shortest side * 0.5 * scale)
+        ref_size = min(H, W) * 0.5
+        max_dist = ref_size * scale
+        
+        # Normalize: 1.0 at center, 0.0 at max_dist
+        mask = 1.0 - (dist / max_dist)
+        mask = torch.clamp(mask, 0.0, 1.0)
+        
+        # Apply falloff power (gamma) -> Higher power = sharper falloff (smaller white circle)
+        mask = torch.pow(mask, power)
+        
+        if invert == "true":
+            mask = 1.0 - mask
+            
+        return (mask,)

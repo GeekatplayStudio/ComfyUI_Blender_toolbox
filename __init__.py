@@ -1,7 +1,7 @@
 # (c) Geekatplay Studio
 # ComfyUI-360-HDRI-Suite
 
-from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image
+from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image, GeneratePoleMask
 from .nodes.seamless_nodes import SimpleSeamlessTile, Heal360Seam, SeamlessTileVAE
 from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, SyncLightingToBlender
 from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker
@@ -12,6 +12,7 @@ NODE_CLASS_MAPPINGS = {
     "SaveFakeHDRI": SaveFakeHDRI,
     "ImageTo360Latent": ImageTo360Latent,
     "Rotate360Image": Rotate360Image,
+    "GeneratePoleMask": GeneratePoleMask,
     "SimpleSeamlessTile": SimpleSeamlessTile,
     "SeamlessTileVAE": SeamlessTileVAE,
     "Heal360Seam": Heal360Seam,
@@ -31,6 +32,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveFakeHDRI": "Save Fake HDRI (EXR)",
     "ImageTo360Latent": "Image to 360 Latent (Resize & Stretch)",
     "Rotate360Image": "Rotate 360 Image (Pitch/Yaw/Roll)",
+    "GeneratePoleMask": "Generate Pole Mask",
     "SimpleSeamlessTile": "Simple Seamless Tile (Model)",
     "SeamlessTileVAE": "Seamless Tile (VAE)",
     "Heal360Seam": "Heal 360 Seam (Post-Process)",

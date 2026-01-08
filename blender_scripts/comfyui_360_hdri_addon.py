@@ -540,7 +540,9 @@ def process_queue():
             print(f"[ComfyUI-360] DEBUG: Parsed Texture: {texture_path}")
             print(f"[ComfyUI-360] DEBUG: Use PBR: {use_pbr}")
             print(f"[ComfyUI-360] DEBUG: Roughness: {roughness_path}")
-            update_world_background(msg)
+            
+            # Call function to create terrain
+            create_terrain_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path)
             
         else:
             # Standard image path (HDRI or Preview)
@@ -548,6 +550,130 @@ def process_queue():
             update_world_background(msg)
             
     return 1.0 # Run every 1.0 seconds
+
+
+def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False, roughness_path=None, normal_path=None):
+    print(f"[ComfyUI-360] Creating PBR Terrain...")
+
+    if not os.path.exists(height_path):
+        print(f"[ComfyUI-360] Error: Heightmap not found: {height_path}")
+        return
+
+    # 1. Clean up old terrain
+    if "ComfyTermain" in bpy.data.objects:
+        bpy.data.objects.remove(bpy.data.objects["ComfyTermain"], do_unlink=True)
+
+    # 2. Add Plane
+    bpy.ops.mesh.primitive_plane_add(size=10, location=(0, 0, 0))
+    obj = bpy.context.active_object
+    obj.name = "ComfyTermain"
+
+    # 3. Add Subdivision Surface modifier
+    mod = obj.modifiers.new(name="Subdivision", type='SUBSURF')
+    
+    # Adaptive subdivision requires experimental feature set in Cycles usually, 
+    # but for standard preview we use Simple levels
+    mod.subdivision_type = 'SIMPLE'
+    mod.levels = 6
+    mod.render_levels = 8
+
+    # 4. Add Displace modifier
+    disp = obj.modifiers.new(name="Displacement", type='DISPLACE')
+    
+    # Create texture for displacement
+    tex_name = "ComfyHeightTex"
+    if tex_name in bpy.data.textures:
+        bpy.data.textures.remove(bpy.data.textures[tex_name])
+        
+    tex = bpy.data.textures.new(name=tex_name, type='IMAGE')
+    try:
+        img = bpy.data.images.load(height_path)
+        img.colorspace_settings.name = 'Non-Color' # Important for data
+        tex.image = img
+    except Exception as e:
+        print(f"Error loading heightmap image: {e}")
+        return
+
+    disp.texture = tex
+    disp.mid_level = 0.0 # Black is bottom
+    disp.strength = 2.0 # Height scale
+
+    # 5. Setup Material (PBR)
+    mat_name = "ComfyTerrainMat"
+    if mat_name in bpy.data.materials:
+        bpy.data.materials.remove(bpy.data.materials[mat_name])
+        
+    mat = bpy.data.materials.new(name=mat_name)
+    mat.use_nodes = True
+    obj.data.materials.append(mat)
+    
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear() # Start fresh
+
+    # Nodes
+    output = nodes.new('ShaderNodeOutputMaterial')
+    output.location = (300, 0)
+    
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
+    
+    links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+    
+    # Texture Mapping (Common)
+    coord = nodes.new('ShaderNodeTexCoord')
+    coord.location = (-800, 0)
+    mapping = nodes.new('ShaderNodeMapping')
+    mapping.location = (-600, 0)
+    links.new(coord.outputs['UV'], mapping.inputs['Vector'])
+
+    # A. Texture (Color)
+    if texture_path and os.path.exists(texture_path):
+        tex_node = nodes.new('ShaderNodeTexImage')
+        tex_node.location = (-300, 200)
+        try:
+            t_img = bpy.data.images.load(texture_path)
+            tex_node.image = t_img
+            links.new(mapping.outputs['Vector'], tex_node.inputs['Vector'])
+            links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
+        except: pass
+    else:
+        # Default Green
+        bsdf.inputs['Base Color'].default_value = (0.05, 0.2, 0.05, 1)
+
+    # B. Roughness
+    if use_pbr and roughness_path and os.path.exists(roughness_path):
+        r_node = nodes.new('ShaderNodeTexImage')
+        r_node.location = (-300, -100)
+        r_node.image = bpy.data.images.load(roughness_path)
+        r_node.image.colorspace_settings.name = 'Non-Color'
+        links.new(mapping.outputs['Vector'], r_node.inputs['Vector'])
+        links.new(r_node.outputs['Color'], bsdf.inputs['Roughness'])
+    else:
+        bsdf.inputs['Roughness'].default_value = 0.8
+
+    # C. Normal Map
+    if use_pbr and normal_path and os.path.exists(normal_path):
+        n_node = nodes.new('ShaderNodeTexImage')
+        n_node.location = (-600, -300)
+        n_node.image = bpy.data.images.load(normal_path)
+        n_node.image.colorspace_settings.name = 'Non-Color'
+        
+        norm_map = nodes.new('ShaderNodeNormalMap')
+        norm_map.location = (-300, -300)
+        norm_map.inputs['Strength'].default_value = 1.0
+        
+        links.new(mapping.outputs['Vector'], n_node.inputs['Vector'])
+        links.new(n_node.outputs['Color'], norm_map.inputs['Color'])
+        links.new(norm_map.outputs['Normal'], bsdf.inputs['Normal'])
+
+    # Select Object
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    
+    # Smooth Shading
+    bpy.ops.object.shade_smooth()
+
 
 class COMFY360_OT_TestConnection(bpy.types.Operator):
     """Test the connection by printing to console"""

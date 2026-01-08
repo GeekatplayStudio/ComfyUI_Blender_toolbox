@@ -98,26 +98,26 @@ class TerrainPromptMaker:
 
     def create_prompt(self, description, terrain_type, input_view):
         # Stronger keywords for orthographic view to avoid isometric results
-        base_prompt = "orthographic nadir view, digital elevation model (DEM), grayscale heightmap, top-down satellite imagery, flat 2d texture, vertical displacement map, white peaks black valleys, high contrast, 8k, highly detailed"
+        base_prompt = "orthographic top-down depth map, height map, greyscale digital elevation model (DEM), satellite topography, nadir view, flat projection, vertical displacement data, white represents high elevation, black represents low elevation, no shadows, no lighting, 2d texture"
         
         if input_view == "Side View / Photo":
-            base_prompt += ", transform perspective to top down, reimagine as satellite map, bird's eye view"
+            base_prompt += ", convert to top-down map, flatten perspective, orthogonal projection"
         
         context_prompt = ""
         if terrain_type == "Mountains":
-            context_prompt = "mountain range, peaks, ridges, valleys, erosion"
+            context_prompt = "rugged mountain range, distinct peaks, ridge lines, glacial valleys, geological formations"
         elif terrain_type == "Canyon":
-            context_prompt = "deep canyon, river bed, cliffs, erosion patterns"
+            context_prompt = "deep canyon network, steep cliffs, river meanders, eroded plateau"
         elif terrain_type == "Desert":
-            context_prompt = "sand dunes, ripples, vast empty landscape"
+            context_prompt = "rolling sand dunes, aeolian landforms, ripples, arid landscape"
         elif terrain_type == "Islands":
-            context_prompt = "archipelago, coastlines, water surrounding land"
+            context_prompt = "volcanic island chain, atolls, coastal shelf, sea level gradient"
             
         # Combine
         positive = f"{base_prompt}, {context_prompt}, {description}"
         
         # Stronger negatives to kill perspective
-        negative = "isometric, perspective, 3d render, tilted, diagonal angle, horizon, sky, clouds, shadows, lighting, water reflections, noise, text, labels, buildings, roads, color, rgb, gradient background, photo, photorealistic"
+        negative = "color, rgb, perspective, 3d render, isometric, tilted view, horizon, sky, clouds, cast shadows, sun lighting, glossy, water reflections, noise, text, watermark, labels, grid lines, roads, buildings, trees, vegetation, photo, photorealistic, side view"
         
         if input_view == "Side View / Photo":
             negative += ", ground level view, eye level, landscape photography, horizon line"
