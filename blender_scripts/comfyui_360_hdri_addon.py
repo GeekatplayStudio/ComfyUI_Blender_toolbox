@@ -570,7 +570,8 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
 
     # 2. Add High-Res Grid (fixes "segments" issue by providing pre-subdivided geometry)
     # 256 subdivisions = ~65k faces base. + Subsurf level 2 = ~1M faces render.
-    bpy.ops.mesh.primitive_grid_add(x_subdivisions=256, y_subdivisions=256, size=10, location=(0, 0, 0))
+    # explicit 'calc_uvs=True' ensures we have a UV map for displacement
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=256, y_subdivisions=256, size=10, location=(0, 0, 0), calc_uvs=True)
     obj = bpy.context.active_object
     obj.name = "ComfyTermain"
 
@@ -606,6 +607,12 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
     disp.texture = tex
     disp.mid_level = 0.0 # Black is bottom
     disp.strength = 2.0 # Height scale
+    
+    # CRITICAL FIX: Explicitly use UV coordinates for displacement.
+    # Without this, it defaults to Local coords which may map only the center fraction of the mesh (causing edge stretching).
+    disp.texture_coords = 'UV'
+    if obj.data.uv_layers:
+        disp.uv_layer = obj.data.uv_layers[0].name
 
     # 5. Setup Material (PBR)
     mat_name = "ComfyTerrainMat"
