@@ -33,11 +33,11 @@
         { "name": "STRING", "type": "STRING", "links": [2] }
       ],
       "widgets_values": [
-        "Describe the landscape geography, mountains, valleys, and terrain features. Do not describe colors or sky.", 
+        "Analyze the topography of this image. Describe the layout of high and low areas for a top-down map. Do not use perspective words. Focus on the geometry of ridges and valleys.", 
         "http://127.0.0.1:11434", 
         "llava", 
         0.2, 
-        "Top down aerial 3D heightmap depth map, greyscale, highly detailed 16-bit, ", 
+        "Satellite view, top down orthographic Digital Elevation Model (DEM), heightmap, depth map, greyscale, 16-bit, vertical view, terrain only, ", 
         ", smooth gradients, no noise, white is high, black is low.",
         0,
         "fixed"
@@ -101,7 +101,7 @@
       "outputs": [
         { "name": "CONDITIONING", "type": "CONDITIONING", "links": [9] }
       ],
-      "widgets_values": ["color, texture, rock texture, grass texture, noise, dither, distortion, sky, clouds, water, buildings"]
+      "widgets_values": ["perspective, horizon, sky, clouds, atmosphere, tilt, oblique, side view, render, photography, shadow, lighting, water, buildings, color, texture"]
     },
     {
       "id": 7,
