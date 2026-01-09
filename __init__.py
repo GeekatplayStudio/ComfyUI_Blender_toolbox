@@ -4,13 +4,13 @@
 ComfyUI-360-HDRI-Suite
 ======================
 A suite of nodes for creating 360-degree HDRI panoramas and 3D terrain heightmaps in ComfyUI.
-Includes Blender integration for live preview and scene synchronization.
+Includes Blender integration for live preview, PBR maps generation, and scene synchronization.
 """
 
 from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image, GeneratePoleMask
 from .nodes.seamless_nodes import SimpleSeamlessTile, Heal360Seam, SeamlessTileVAE
 from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, SyncLightingToBlender
-from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker
+from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker, TerrainHeightFieldPromptMaker, ColorToHeightmap
 from .nodes.texture_nodes import TextureScrambler
 from .nodes.ollama_nodes import OllamaVision, OllamaLightingEstimator
 
@@ -28,6 +28,8 @@ NODE_CLASS_MAPPINGS = {
     "SimplePBRGenerator": SimplePBRGenerator,
     "TerrainPromptMaker": TerrainPromptMaker,
     "TerrainTexturePromptMaker": TerrainTexturePromptMaker,
+    "TerrainHeightFieldPromptMaker": TerrainHeightFieldPromptMaker,
+    "ColorToHeightmap": ColorToHeightmap,
     "SimpleHeightmapNormalizer": SimpleHeightmapNormalizer,
     "TextureScrambler": TextureScrambler,
     "OllamaVision": OllamaVision,
@@ -48,6 +50,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SimplePBRGenerator": "Simple PBR Generator",
     "TerrainPromptMaker": "Terrain Prompt Maker (Ollama)",
     "TerrainTexturePromptMaker": "Terrain Texture Prompt Maker (Ollama)",
+    "TerrainHeightFieldPromptMaker": "Terrain HeightField Prompt Maker (Linear)",
+    "ColorToHeightmap": "Color to Heightmap (Grayscale)",
     "SimpleHeightmapNormalizer": "Simple Heightmap Normalizer",
     "TextureScrambler": "Texture Scrambler (Style Transfer)",
     "OllamaVision": "Ollama Vision Analysis",

@@ -68,6 +68,14 @@ Sends a heightmap (and optional texture/PBR maps) to Blender to generate a real 
 - **`smoothing_amount`**: (Float) Applies Gaussian Blur to the heightmap. Value of `1.0` - `3.0` removes sharp spikes and high-frequency noise from textures.
 - **`edge_falloff`**: (Float) Fades the terrain height to zero at the edges. Value `0.1` - `0.2` creates a nice "Mountain Island" effect.
 - **`rotation`**: (Enum) Rotates the heightmap (0, 90, 180, 270) to fix orientation issues (e.g. if terrain looks "sideways").
+- **`roughness_min / max`**: (Float) Remaps the roughness map values to control PBR material shininess.
+    - `roughness_min`: Floor for the shininess (0.0 = wet/mirror, 1.0 = matte). Increase to 0.2-0.4 to prevent overly "plastic" looks.
+    - `roughness_max`: Ceiling for the matte look.
+
+### Terrain Tools
+- **`Terrain HeightField PromptMaker`**: Generates highly specific technical prompts for generating "Pure" 16-bit linear heightfields (Displacement Maps) without lighting, texture, or shadows.
+- **`Color To Heightmap`**: Converts RGB satellite images or textures into proper heightmaps. Includes Invert, Auto-Levels, and Gamma Correction to ensure the data is displacement-ready.
+- **`Terrain Texture Prompt Maker`**: Helper for generating satellite/top-down texture prompts.
 
 ## License
 

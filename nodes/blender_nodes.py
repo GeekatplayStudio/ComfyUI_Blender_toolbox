@@ -104,11 +104,14 @@ class PreviewHeightmapInBlender:
                 "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
                 "edge_falloff": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "rotation": (["0", "90", "180", "270"], ),
+                "roughness_min": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "roughness_max": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
             },
             "optional": {
                 "texture": ("IMAGE", ),
                 "roughness_map": ("IMAGE", ),
                 "normal_map": ("IMAGE", ),
+                "metallic_map": ("IMAGE", ),
             }
         }
 
@@ -122,7 +125,7 @@ class PreviewHeightmapInBlender:
     def IS_CHANGED(s, **kwargs):
         return float("nan")
 
-    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, auto_level_height=True, height_gamma=1.0, smoothing_amount=1.0, edge_falloff=0.0, rotation="0", texture=None, roughness_map=None, normal_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, auto_level_height=True, height_gamma=1.0, smoothing_amount=1.0, edge_falloff=0.0, rotation="0", roughness_min=0.0, roughness_max=1.0, texture=None, roughness_map=None, normal_map=None, metallic_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
         # Save to temp dir
         output_dir = folder_paths.get_temp_directory()
         filename = "ComfyUI_Heightmap_Temp.png"
@@ -247,12 +250,22 @@ class PreviewHeightmapInBlender:
             n_np = normal_map[0].cpu().numpy()
             n_np = (np.clip(n_np, 0, 1) * 255).astype(np.uint8)
             imageio.imwrite(normal_filepath, n_np)
+            
+        # Handle Metallic
+        metallic_filepath = ""
+        if metallic_map is not None:
+            metallic_filename = "ComfyUI_Metallic_Temp.png"
+            metallic_filepath = os.path.join(output_dir, metallic_filename)
+            
+            m_np = metallic_map[0].cpu().numpy()
+            m_np = (np.clip(m_np, 0, 1) * 255).astype(np.uint8)
+            imageio.imwrite(metallic_filepath, m_np)
 
         # Send to Blender
         host = blender_ip_address
         port = blender_listen_port
         
-        # Message format: HEIGHTMAP:<height_path>|TEXTURE:<texture_path>|PBR:<true/false>|ROUGHNESS:<path>|NORMAL:<path>
+        # Message format: HEIGHTMAP:<height_path>|TEXTURE:<texture_path>|PBR:<true/false>|ROUGHNESS:<path>|NORMAL:<path>|METALLIC:<path>
         message = f"HEIGHTMAP:{filepath}"
         if texture_filepath:
             message += f"|TEXTURE:{texture_filepath}"
@@ -266,6 +279,12 @@ class PreviewHeightmapInBlender:
             message += f"|ROUGHNESS:{roughness_filepath}"
         if normal_filepath:
             message += f"|NORMAL:{normal_filepath}"
+        if metallic_filepath:
+            message += f"|METALLIC:{metallic_filepath}"
+            
+        # Send Roughness Min/Max
+        message += f"|ROUGHNESS_MIN:{roughness_min:.3f}"
+        message += f"|ROUGHNESS_MAX:{roughness_max:.3f}"
         
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

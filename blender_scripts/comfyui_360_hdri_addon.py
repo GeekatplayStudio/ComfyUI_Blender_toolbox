@@ -305,10 +305,34 @@ def create_landscape_from_heightmap(image_path, texture_path=None, use_pbr=False
             print(f"[ComfyUI-360] Texture applied to material.")
             
         # PBR Logic
-        if use_pbr or roughness_path or normal_path:
+        if use_pbr or roughness_path or normal_path or metallic_path:
             print(f"[ComfyUI-360] Generating PBR Material Nodes...")
             
-            # 1. Roughness
+            # 1. Metallic
+            if metallic_path and os.path.exists(metallic_path):
+                # Use provided Metallic Map
+                m_filename = os.path.basename(metallic_path)
+                m_img = bpy.data.images.get(m_filename)
+                if m_img:
+                    if m_img.filepath != metallic_path:
+                        m_img.filepath = metallic_path
+                    m_img.reload()
+                else:
+                    m_img = bpy.data.images.load(metallic_path)
+                
+                # Set Non-Color
+                try: m_img.colorspace_settings.name = 'Non-Color'
+                except: pass
+
+                node_m_tex = nodes.new(type='ShaderNodeTexImage')
+                node_m_tex.location = (-400, 400)
+                node_m_tex.image = m_img
+                node_m_tex.extension = 'EXTEND'
+                
+                links.new(node_m_tex.outputs['Color'], node_bsdf.inputs['Metallic'])
+                print(f"[ComfyUI-360] Metallic Map applied.")
+            
+            # 2. Roughness
             if roughness_path and os.path.exists(roughness_path):
                 # Use provided Roughness Map
                 r_filename = os.path.basename(roughness_path)
@@ -331,8 +355,23 @@ def create_landscape_from_heightmap(image_path, texture_path=None, use_pbr=False
                 node_r_tex.image = r_img
                 node_r_tex.extension = 'EXTEND'
                 
-                links.new(node_r_tex.outputs['Color'], node_bsdf.inputs['Roughness'])
-                print(f"[ComfyUI-360] Roughness Map applied.")
+                # Add Color Ramp to fix "too shiny" low roughness values (User feedback)
+                # Remap 0.0 (Perfectly Shiny) -> Min Roughness
+                # Remap 1.0 (Matte) -> Max Roughness
+                node_r_ramp = nodes.new(type='ShaderNodeValToRGB')
+                node_r_ramp.location = (-200, 200)
+                
+                # Element 0: Black input (0.0) -> Output Min Value
+                node_r_ramp.color_ramp.elements[0].position = 0.0
+                node_r_ramp.color_ramp.elements[0].color = (roughness_min, roughness_min, roughness_min, 1) 
+                
+                # Element 1: White input (1.0) -> Output Max Value
+                node_r_ramp.color_ramp.elements[1].position = 1.0
+                node_r_ramp.color_ramp.elements[1].color = (roughness_max, roughness_max, roughness_max, 1)
+                
+                links.new(node_r_tex.outputs['Color'], node_r_ramp.inputs['Fac'])
+                links.new(node_r_ramp.outputs['Color'], node_bsdf.inputs['Roughness'])
+                print(f"[ComfyUI-360] Roughness Map applied with Correction Range [{roughness_min}, {roughness_max}].")
                 
             elif node_tex:
                 # Auto-generate from Texture (Invert/Ramp)
@@ -348,7 +387,7 @@ def create_landscape_from_heightmap(image_path, texture_path=None, use_pbr=False
                 links.new(node_tex.outputs['Color'], node_ramp.inputs['Fac'])
                 links.new(node_ramp.outputs['Color'], node_bsdf.inputs['Roughness'])
             
-            # 2. Normal / Bump
+            # 3. Normal / Bump
             if normal_path and os.path.exists(normal_path):
                 # Use provided Normal Map
                 n_filename = os.path.basename(normal_path)
@@ -522,6 +561,9 @@ def process_queue():
             use_pbr = False
             roughness_path = None
             normal_path = None
+            metallic_path = None
+            roughness_min = 0.0
+            roughness_max = 1.0
             
             for part in parts:
                 if part.startswith("HEIGHTMAP:"):
@@ -535,14 +577,23 @@ def process_queue():
                     roughness_path = part.replace("ROUGHNESS:", "").strip()
                 elif part.startswith("NORMAL:"):
                     normal_path = part.replace("NORMAL:", "").strip()
+                elif part.startswith("METALLIC:"):
+                    metallic_path = part.replace("METALLIC:", "").strip()
+                elif part.startswith("ROUGHNESS_MIN:"):
+                    try: roughness_min = float(part.replace("ROUGHNESS_MIN:", ""))
+                    except: pass
+                elif part.startswith("ROUGHNESS_MAX:"):
+                    try: roughness_max = float(part.replace("ROUGHNESS_MAX:", ""))
+                    except: pass
             
             print(f"[ComfyUI-360] DEBUG: Parsed Heightmap: {height_path}")
             print(f"[ComfyUI-360] DEBUG: Parsed Texture: {texture_path}")
             print(f"[ComfyUI-360] DEBUG: Use PBR: {use_pbr}")
-            print(f"[ComfyUI-360] DEBUG: Roughness: {roughness_path}")
+            print(f"[ComfyUI-360] DEBUG: Roughness: {roughness_path} (Range: {roughness_min}-{roughness_max})")
+            print(f"[ComfyUI-360] DEBUG: Metallic: {metallic_path}")
             
             # Call function to create terrain
-            create_terrain_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path)
+            create_terrain_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path, metallic_path, roughness_min, roughness_max)
             
         else:
             # Standard image path (HDRI or Preview)
@@ -552,7 +603,7 @@ def process_queue():
     return 1.0 # Run every 1.0 seconds
 
 
-def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False, roughness_path=None, normal_path=None):
+def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False, roughness_path=None, normal_path=None, metallic_path=None, roughness_min=0.0, roughness_max=1.0):
     """
     Creates a 3D terrain mesh from a heightmap image using a high-density grid.
     Applies displacement, PBR texture materials, and sets up the scene.

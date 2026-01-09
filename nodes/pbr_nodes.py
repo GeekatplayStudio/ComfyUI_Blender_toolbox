@@ -203,3 +203,104 @@ class TerrainTexturePromptMaker:
             negative += ", ground level view, eye level, landscape photography, horizon line"
             
         return (positive, negative)
+
+class TerrainHeightFieldPromptMaker:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "description": ("STRING", {"multiline": True, "forceInput": True}),
+                "terrain_type": (["General", "Mountains", "Canyon", "Desert", "Islands"],),
+                "detail_level": (["High Frequency (Detailed)", "Low Frequency (Smooth shapes)"],),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("positive_prompt", "negative_prompt")
+    FUNCTION = "create_prompt"
+    CATEGORY = "360_HDRI/Terrain"
+
+    def create_prompt(self, description, terrain_type, detail_level):
+        # Extremely sterile, technical keywords for pure height data
+        base_prompt = (
+            "16-bit grayscale displacement map, linear height field data, pure elevation gradient, "
+            "top-down orthographic projection, nadir view, "
+            "black represents lowest elevation (0.0), white represents highest elevation (1.0), "
+            "smooth continuous gradients, no lighting, no shadows, no ambient occlusion, no albedo"
+        )
+        
+        context_prompt = ""
+        if terrain_type == "Mountains":
+            context_prompt = "eroded mountain peaks, ridge lines, glacial valleys, dendritic drainage patterns"
+        elif terrain_type == "Canyon":
+            context_prompt = "steep canyon walls, river beds, plateaus, terrace erosion"
+        elif terrain_type == "Desert":
+            context_prompt = "parabolic dunes, ripples, smooth hills, arid flats"
+        elif terrain_type == "Islands":
+            context_prompt = "volcanic cone, coastal shelf falloff, atoll ring, gradient to sea level"
+            
+        detail_prompt = ""
+        if detail_level == "High Frequency (Detailed)":
+            detail_prompt = "high frequency noise, jagged rocks, erosion details, sharp features"
+        else:
+            detail_prompt = "low frequency shapes, smooth rolling geometry, large scale forms, soft transitions"
+            
+        positive = f"{base_prompt}, {context_prompt}, {detail_prompt}, {description}"
+        
+        # Aggressive negation of anything that looks like a "picture"
+        negative = (
+            "color, rgb, texture, rock texture, grass, snow, water, trees, vegetation, photo, photorealistic, "
+            "satellite image, shadows, lighting, sun, shading, ambient occlusion, noise, grain, dither, "
+            "perspective, isometric, tilted, horizon, sky, clouds, buildings, roads, labels, text, watermark"
+        )
+            
+        return (positive, negative)
+
+class ColorToHeightmap:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE", ),
+                "invert": ("BOOLEAN", {"default": False}),
+                "auto_levels": ("BOOLEAN", {"default": True}),
+                "gamma": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 5.0, "step": 0.05}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", )
+    RETURN_NAMES = ("heightmap", )
+    FUNCTION = "convert"
+    CATEGORY = "360_HDRI/Terrain"
+
+    def convert(self, images, invert, auto_levels, gamma):
+        results = []
+        for img in images:
+            # 1. Grayscale Conversion (Luminance)
+            # weights: 0.299 R + 0.587 G + 0.114 B
+            if img.shape[-1] >= 3:
+                gray = img[..., 0] * 0.299 + img[..., 1] * 0.587 + img[..., 2] * 0.114
+            else:
+                gray = img[..., 0]
+                
+            # 2. Invert
+            if invert:
+                gray = 1.0 - gray
+                
+            # 3. Auto Levels (Normalize full range 0-1)
+            if auto_levels:
+                min_val = torch.min(gray)
+                max_val = torch.max(gray)
+                if max_val > min_val:
+                    gray = (gray - min_val) / (max_val - min_val)
+                    
+            # 4. Gamma Correction
+            if gamma != 1.0:
+                # Add epsilon to avoid log(0) issues if any, though pow shouldn't mind 0
+                gray = torch.pow(gray, 1.0 / gamma)
+                
+            # Expand to 3 channels (H, W) -> (H, W, 3)
+            res = gray.unsqueeze(-1).repeat(1, 1, 3)
+            results.append(res)
+            
+        return (torch.stack(results), )
