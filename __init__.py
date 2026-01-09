@@ -1,5 +1,11 @@
 # (c) Geekatplay Studio
 # ComfyUI-360-HDRI-Suite
+"""
+ComfyUI-360-HDRI-Suite
+======================
+A suite of nodes for creating 360-degree HDRI panoramas and 3D terrain heightmaps in ComfyUI.
+Includes Blender integration for live preview and scene synchronization.
+"""
 
 from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image, GeneratePoleMask
 from .nodes.seamless_nodes import SimpleSeamlessTile, Heal360Seam, SeamlessTileVAE

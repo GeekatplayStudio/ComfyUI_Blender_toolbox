@@ -31,6 +31,11 @@ def seamless_padding(input, padding, axis):
         return F.pad(input, (pad_w, pad_w, pad_h, pad_h), mode='circular')
 
 class SeamlessConv2d(nn.Module):
+    """
+    A wrapper around torch.nn.Conv2d that applies circular padding before convolution.
+    This enables seamless tiling logic while tricking the model inspector (via properties)
+    to treat it as a standard Conv2d layer (fixing AttributeErrors in KSampler).
+    """
     def __init__(self, original_conv, axis):
         super().__init__()
         self.original_conv = original_conv

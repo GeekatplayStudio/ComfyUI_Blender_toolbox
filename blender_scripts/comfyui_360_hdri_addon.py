@@ -553,6 +553,11 @@ def process_queue():
 
 
 def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False, roughness_path=None, normal_path=None):
+    """
+    Creates a 3D terrain mesh from a heightmap image using a high-density grid.
+    Applies displacement, PBR texture materials, and sets up the scene.
+    Solution to "segmented" terrain by using primitive_grid_add instead of plane.
+    """
     print(f"[ComfyUI-360] Creating PBR Terrain...")
 
     if not os.path.exists(height_path):

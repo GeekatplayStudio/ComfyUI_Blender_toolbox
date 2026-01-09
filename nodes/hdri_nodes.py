@@ -417,6 +417,10 @@ class Rotate360Image:
 
 # New Node for Mask Generation
 class GeneratePoleMask:
+    """
+    Generates a radial gradient mask centered at a specific point.
+    Useful for masking the poles (zenith/nadir) of an image for targeted inpainting/healing.
+    """
     @classmethod
     def INPUT_TYPES(s):
         return {
