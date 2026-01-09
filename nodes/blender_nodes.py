@@ -97,6 +97,8 @@ class PreviewHeightmapInBlender:
                 "images": ("IMAGE", ),
                 "generate_pbr": ("BOOLEAN", {"default": True}),
                 "use_texture_as_heightmap": ("BOOLEAN", {"default": False}),
+                "auto_level_height": ("BOOLEAN", {"default": True}),
+                "height_gamma": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 5.0, "step": 0.1}),
                 "smoothing_amount": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.5}),
                 "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
                 "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
@@ -117,7 +119,7 @@ class PreviewHeightmapInBlender:
     def IS_CHANGED(s, **kwargs):
         return float("nan")
 
-    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, smoothing_amount=1.0, texture=None, roughness_map=None, normal_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, auto_level_height=True, height_gamma=1.0, smoothing_amount=1.0, texture=None, roughness_map=None, normal_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
         # Save to temp dir
         output_dir = folder_paths.get_temp_directory()
         filename = "ComfyUI_Heightmap_Temp.png"
@@ -131,12 +133,31 @@ class PreviewHeightmapInBlender:
             # Y = 0.299 R + 0.587 G + 0.114 B
             if img_np.shape[2] == 3:
                 img_gray = np.dot(img_np[...,:3], [0.299, 0.587, 0.114])
-                # Expand back to 3 channels for simple saving or keep as single
-                img_np = np.stack((img_gray,)*3, axis=-1)
+                # Keep as single channel for analysis
+                img_np = img_gray 
             elif img_np.shape[2] == 4: # Handle RGBA
                 img_gray = np.dot(img_np[...,:3], [0.299, 0.587, 0.114])
-                img_alpha = img_np[..., 3]
-                img_np = np.stack((img_gray, img_gray, img_gray, img_alpha), axis=-1)
+                img_np = img_gray
+            
+            # --- ANALYSIS & CORRECTION ---
+            # 1. Auto-Levels (Normalize)
+            if auto_level_height:
+                h_min = np.min(img_np)
+                h_max = np.max(img_np)
+                if h_max > h_min: # Prevent divide by zero
+                    img_np = (img_np - h_min) / (h_max - h_min)
+                    print(f"[ComfyUI-360] Auto-Leveled Heightmap: Old Range [{h_min:.3f}, {h_max:.3f}] -> [0.0, 1.0]")
+            
+            # 2. Gamma Correction
+            # Gamma < 1.0 brightens shadows (lifts lows)
+            # Gamma > 1.0 darkens lows (accentuates peaks)
+            if height_gamma != 1.0:
+               img_np = np.power(img_np, 1.0 / height_gamma)
+               print(f"[ComfyUI-360] Applied Gamma Correction: {height_gamma}")
+            
+            # Expand back to 3 channels for saving logic below
+            img_np = np.stack((img_np,)*3, axis=-1)
+                
         else:
             # Use provided heightmap images
             img_np = images[0].cpu().numpy() # [H, W, C]
