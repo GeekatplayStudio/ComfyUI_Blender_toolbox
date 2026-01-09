@@ -100,6 +100,8 @@ class PreviewHeightmapInBlender:
                 "auto_level_height": ("BOOLEAN", {"default": True}),
                 "height_gamma": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 5.0, "step": 0.1}),
                 "smoothing_amount": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.5}),
+                "edge_falloff": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "rotation": (["0", "90", "180", "270"], ),
                 "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
                 "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
             },
@@ -110,7 +112,8 @@ class PreviewHeightmapInBlender:
             }
         }
 
-    RETURN_TYPES = ()
+    RETURN_TYPES = ("IMAGE", )
+    RETURN_NAMES = ("heightmap", )
     FUNCTION = "send_heightmap"
     OUTPUT_NODE = True
     CATEGORY = "360_HDRI"
@@ -119,7 +122,7 @@ class PreviewHeightmapInBlender:
     def IS_CHANGED(s, **kwargs):
         return float("nan")
 
-    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, auto_level_height=True, height_gamma=1.0, smoothing_amount=1.0, texture=None, roughness_map=None, normal_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, auto_level_height=True, height_gamma=1.0, smoothing_amount=1.0, edge_falloff=0.0, rotation="0", texture=None, roughness_map=None, normal_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
         # Save to temp dir
         output_dir = folder_paths.get_temp_directory()
         filename = "ComfyUI_Heightmap_Temp.png"
@@ -182,11 +185,37 @@ class PreviewHeightmapInBlender:
             except Exception as e:
                 print(f"[ComfyUI-360] Warning: Smoothing failed: {e}")
 
-        # Apply Normalization after smoothing to ensure we use full range 0-255 (Optional but requested "normalize")
-        # However, purely normalizing might re-introduce contrast we just blurred out if we aren't careful, 
-        # but users often want full height range.
-        # Let's keep it simple: just smoothing for now as that fixes "spikes".
-        
+        # Apply Rotation if requested
+        if rotation != "0":
+            k = int(int(rotation) / 90)
+            img_np = np.rot90(img_np, k=k, axes=(0, 1)) # Rotate H, W dimensions
+
+        # Apply Edge Falloff (Mountain slope)
+        if edge_falloff > 0.0:
+            H, W = img_np.shape[:2]
+            # Create gradients 0..1..0
+            
+            # X Gradient
+            x = np.linspace(0, 1, W)
+            # ramp goes 0->1, stays 1, then 1->0
+            ramp_x = np.minimum(x/edge_falloff, (1.0-x)/edge_falloff)
+            ramp_x = np.clip(ramp_x, 0, 1)
+            
+            # Y Gradient
+            y = np.linspace(0, 1, H)
+            ramp_y = np.minimum(y/edge_falloff, (1.0-y)/edge_falloff)
+            ramp_y = np.clip(ramp_y, 0, 1)
+            
+            # Combine
+            mask = np.outer(ramp_y, ramp_x)
+            
+            # Apply to all channels
+            img_np = (img_np.astype(np.float32) * mask[..., None]).astype(np.uint8)
+
+        # Output Image Logic
+        # Convert back to tensor (1, H, W, 3) 0-1 range
+        out_tensor = torch.from_numpy(img_np.astype(np.float32) / 255.0).unsqueeze(0)
+
         imageio.imwrite(filepath, img_np)
         
         # Handle Texture
@@ -251,7 +280,7 @@ class PreviewHeightmapInBlender:
             import traceback
             traceback.print_exc()
 
-        return {}
+        return (out_tensor, )
 
 class SyncLightingToBlender:
     @classmethod
