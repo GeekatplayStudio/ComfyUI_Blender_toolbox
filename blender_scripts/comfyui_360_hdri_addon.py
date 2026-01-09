@@ -563,19 +563,21 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
     if "ComfyTermain" in bpy.data.objects:
         bpy.data.objects.remove(bpy.data.objects["ComfyTermain"], do_unlink=True)
 
-    # 2. Add Plane
-    bpy.ops.mesh.primitive_plane_add(size=10, location=(0, 0, 0))
+    # 2. Add High-Res Grid (fixes "segments" issue by providing pre-subdivided geometry)
+    # 256 subdivisions = ~65k faces base. + Subsurf level 2 = ~1M faces render.
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=256, y_subdivisions=256, size=10, location=(0, 0, 0))
     obj = bpy.context.active_object
     obj.name = "ComfyTermain"
 
-    # 3. Add Subdivision Surface modifier
+    # 3. Add Subdivision Surface modifier (Smoothing)
     mod = obj.modifiers.new(name="Subdivision", type='SUBSURF')
     
-    # Adaptive subdivision requires experimental feature set in Cycles usually, 
-    # but for standard preview we use Simple levels
+    # Use Simple subdivision to keep grid alignment but increase density
     mod.subdivision_type = 'SIMPLE'
-    mod.levels = 6
-    mod.render_levels = 8
+    # Base 256x256 * 4^1 = 512x512 resolution in viewport
+    mod.levels = 1 
+    # Base 256x256 * 4^2 = 1024x1024 resolution in render
+    mod.render_levels = 2
 
     # 4. Add Displace modifier
     disp = obj.modifiers.new(name="Displacement", type='DISPLACE')
@@ -589,6 +591,8 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
     try:
         img = bpy.data.images.load(height_path)
         img.colorspace_settings.name = 'Non-Color' # Important for data
+        tex.extension = 'EXTEND' # Prevents border artifacts
+        tex.use_interpolation = True # Smooth steps
         tex.image = img
     except Exception as e:
         print(f"Error loading heightmap image: {e}")
