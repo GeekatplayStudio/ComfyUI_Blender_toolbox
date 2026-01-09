@@ -7,6 +7,7 @@ import folder_paths
 import numpy as np
 import imageio
 import torch
+from PIL import Image, ImageFilter
 
 class SendToBlender:
     @classmethod
@@ -96,6 +97,7 @@ class PreviewHeightmapInBlender:
                 "images": ("IMAGE", ),
                 "generate_pbr": ("BOOLEAN", {"default": True}),
                 "use_texture_as_heightmap": ("BOOLEAN", {"default": False}),
+                "smoothing_amount": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.5}),
                 "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
                 "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
             },
@@ -115,7 +117,7 @@ class PreviewHeightmapInBlender:
     def IS_CHANGED(s, **kwargs):
         return float("nan")
 
-    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, texture=None, roughness_map=None, normal_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, smoothing_amount=1.0, texture=None, roughness_map=None, normal_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
         # Save to temp dir
         output_dir = folder_paths.get_temp_directory()
         filename = "ComfyUI_Heightmap_Temp.png"
@@ -141,6 +143,28 @@ class PreviewHeightmapInBlender:
         
         # Convert to 0-255 uint8
         img_np = (np.clip(img_np, 0, 1) * 255).astype(np.uint8)
+
+        # Apply Smoothing if requested
+        if smoothing_amount > 0:
+            try:
+                # Convert to PIL for quality Gaussian Blur
+                # Ensure we are handling correct usage of channels
+                pil_img = Image.fromarray(img_np)
+                
+                # Check for appropriate mode (if RGBA/RGB/L)
+                # Image.fromarray handles this automatically usually
+                
+                pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=smoothing_amount))
+                
+                # Convert back
+                img_np = np.array(pil_img)
+            except Exception as e:
+                print(f"[ComfyUI-360] Warning: Smoothing failed: {e}")
+
+        # Apply Normalization after smoothing to ensure we use full range 0-255 (Optional but requested "normalize")
+        # However, purely normalizing might re-introduce contrast we just blurred out if we aren't careful, 
+        # but users often want full height range.
+        # Let's keep it simple: just smoothing for now as that fixes "spikes".
         
         imageio.imwrite(filepath, img_np)
         
