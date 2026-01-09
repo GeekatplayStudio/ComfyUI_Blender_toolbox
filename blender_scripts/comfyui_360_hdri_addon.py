@@ -565,15 +565,16 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
         return
 
     # 1. Clean up old terrain
-    if "ComfyTermain" in bpy.data.objects:
-        bpy.data.objects.remove(bpy.data.objects["ComfyTermain"], do_unlink=True)
+    for name in ["ComfyTermain", "ComfyTerrain"]:
+        if name in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
 
     # 2. Add High-Res Grid (fixes "segments" issue by providing pre-subdivided geometry)
     # 256 subdivisions = ~65k faces base. + Subsurf level 2 = ~1M faces render.
     # explicit 'calc_uvs=True' ensures we have a UV map for displacement
     bpy.ops.mesh.primitive_grid_add(x_subdivisions=256, y_subdivisions=256, size=10, location=(0, 0, 0), calc_uvs=True)
     obj = bpy.context.active_object
-    obj.name = "ComfyTermain"
+    obj.name = "ComfyTerrain"
 
     # 3. Add Subdivision Surface modifier (Smoothing)
     mod = obj.modifiers.new(name="Subdivision", type='SUBSURF')
