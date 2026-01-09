@@ -100,10 +100,10 @@ class PreviewHeightmapInBlender:
                 "auto_level_height": ("BOOLEAN", {"default": True}),
                 "height_gamma": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 5.0, "step": 0.1}),
                 "smoothing_amount": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.5}),
-                "edge_falloff": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
-                "rotation": (["0", "90", "180", "270"], ),
                 "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
                 "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
+                "edge_falloff": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "rotation": (["0", "90", "180", "270"], ),
             },
             "optional": {
                 "texture": ("IMAGE", ),
