@@ -5,6 +5,24 @@
   "last_link_id": 58,
   "nodes": [
     {
+      "id": 100,
+      "type": "Note",
+      "pos": [
+        -600,
+        -200
+      ],
+      "size": [
+        400,
+        420
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "widgets_values": [
+        "Heightmap Settings Guide\n\n1. Use Texture as Heightmap: Enable to generate from texture.\n2. Auto Level: Normalizes height 0-100%.\n3. Height Gamma: <1.0 lifts valleys, >1.0 sharpens peaks.\n4. Smoothing: 1.0-3.0 fixes sharp spikes.\n5. Edge Falloff: 0.1-0.2 creates mountains/islands.\n6. Rotation: Fixes sideways orientation."
+      ]
+    },
+    {
       "id": 12,
       "type": "CLIPTextEncode",
       "pos": [
