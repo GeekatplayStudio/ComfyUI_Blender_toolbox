@@ -37,9 +37,9 @@
         "http://127.0.0.1:11434", 
         "llava", 
         0.2, 
-        0, 
         "Top down aerial 3D heightmap depth map, greyscale, highly detailed 16-bit, ", 
-        ", smooth gradients, no noise, white is high, black is low."
+        ", smooth gradients, no noise, white is high, black is low.",
+        0
       ]
     },
     {
