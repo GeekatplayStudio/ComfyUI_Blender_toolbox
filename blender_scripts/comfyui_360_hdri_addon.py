@@ -595,6 +595,45 @@ def process_queue():
             # Call function to create terrain
             create_terrain_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path, metallic_path, roughness_min, roughness_max)
             
+        elif msg.startswith("MODEL:"):
+            model_path = msg.replace("MODEL:", "").strip()
+            print(f"[ComfyUI-360] Importing Model: {model_path}")
+            
+            # Import GLTF/GLB
+            if os.path.exists(model_path):
+                # Clear existing ComfyUI_Landscape or other imported objects if desired?
+                # For now, let's keep it additive or maybe clear previous selection.
+                # Or create a dedicated collection?
+                
+                # Let's try to just import.
+                try:
+                    # Note: bpy.ops.import_scene.gltf might need the addon enabled, but it's usually standard in 2.8+
+                    bpy.ops.import_scene.gltf(filepath=model_path)
+                    
+                    # Get imported objects (they are selected by default after import)
+                    imported_obs = bpy.context.selected_objects
+                    if imported_obs:
+                        print(f"[ComfyUI-360] Imported {len(imported_obs)} objects.")
+                        # Rename main parent or group? 
+                        # Optionally Frame Selected
+                        for area in bpy.context.screen.areas:
+                            if area.type == 'VIEW_3D':
+                                for region in area.regions:
+                                    if region.type == 'WINDOW':
+                                        with bpy.context.temp_override(area=area, region=region):
+                                            bpy.ops.view3d.view_selected(use_all_regions=False)
+                                        break
+                                break
+                                
+                except Exception as e:
+                    print(f"[ComfyUI-360] Error importing GLB: {e}")
+                    # Fallback for OBJ
+                    if model_path.lower().endswith(".obj"):
+                         try: bpy.ops.import_scene.obj(filepath=model_path)
+                         except: pass
+            else:
+                print(f"[ComfyUI-360] Model file not found: {model_path}")
+            
         else:
             # Standard image path (HDRI or Preview)
             print(f"[ComfyUI-360] Handling standard image: {msg}")

@@ -9,7 +9,7 @@ Includes Blender integration for live preview, PBR maps generation, and scene sy
 
 from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image, GeneratePoleMask
 from .nodes.seamless_nodes import SimpleSeamlessTile, Heal360Seam, SeamlessTileVAE
-from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, SyncLightingToBlender
+from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, SyncLightingToBlender, PreviewModelInBlender, PreviewMeshInBlender
 from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker, TerrainHeightFieldPromptMaker, ColorToHeightmap
 from .nodes.texture_nodes import TextureScrambler
 from .nodes.ollama_nodes import OllamaVision, OllamaLightingEstimator
@@ -24,6 +24,8 @@ NODE_CLASS_MAPPINGS = {
     "Heal360Seam": Heal360Seam,
     "PreviewInBlender": PreviewInBlender,
     "PreviewHeightmapInBlender": PreviewHeightmapInBlender,
+    "PreviewModelInBlender": PreviewModelInBlender,
+    "PreviewMeshInBlender": PreviewMeshInBlender,
     "SyncLightingToBlender": SyncLightingToBlender,
     "SimplePBRGenerator": SimplePBRGenerator,
     "TerrainPromptMaker": TerrainPromptMaker,
@@ -46,6 +48,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Heal360Seam": "Heal 360 Seam (Post-Process)",
     "PreviewInBlender": "Preview in Blender (360 Sky)",
     "PreviewHeightmapInBlender": "Preview Heightmap in Blender",
+    "PreviewModelInBlender": "Preview Model in Blender (GLB)",
+    "PreviewMeshInBlender": "Preview Mesh in Blender (Send)",
     "SyncLightingToBlender": "Sync Lighting to Blender",
     "SimplePBRGenerator": "Simple PBR Generator",
     "TerrainPromptMaker": "Terrain Prompt Maker (Ollama)",

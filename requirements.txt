@@ -3,3 +3,5 @@ imageio[freeimage]
 numpy
 requests
 pillow
+trimesh
+scipy

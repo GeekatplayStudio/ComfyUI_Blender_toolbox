@@ -85,6 +85,47 @@ class PreviewInBlender:
 
         return {}
 
+class PreviewModelInBlender:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model_path": ("STRING", {"forceInput": True}),
+                "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
+                "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
+            }
+        }
+    
+    RETURN_TYPES = ()
+    FUNCTION = "send_model"
+    OUTPUT_NODE = True
+    CATEGORY = "360_HDRI"
+    
+    def send_model(self, model_path, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+         # Message format: MODEL:<path>
+         message = f"MODEL:{model_path}"
+         
+         host = blender_ip_address
+         port = blender_listen_port
+         
+         print(f"Sending Model {model_path} to Blender...")
+         
+         try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2)
+                s.connect((host, port))
+                s.sendall(message.encode('utf-8'))
+                print(f"Successfully sent model path to Blender: {model_path}")
+         except (ConnectionRefusedError, OSError) as e:
+            if isinstance(e, ConnectionRefusedError) or (hasattr(e, 'winerror') and e.winerror == 10061):
+                print(f"CONNECTION ERROR: Could not connect to Blender at {host}:{port}.")
+            else:
+                print(f"Error sending to Blender: {e}")
+         except Exception as e:
+            print(f"Uncaught Error sending to Blender: {e}")
+            
+         return {}
+
 class PreviewHeightmapInBlender:
     def __init__(self):
         self.output_dir = folder_paths.get_temp_directory()
@@ -301,6 +342,130 @@ class PreviewHeightmapInBlender:
 
         return (out_tensor, )
 
+class PreviewMeshInBlender:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mesh": ("MESH", ),
+                "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
+                "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
+            }
+        }
+    
+    RETURN_TYPES = ()
+    FUNCTION = "send_mesh"
+    OUTPUT_NODE = True
+    CATEGORY = "360_HDRI"
+    
+    def send_mesh(self, mesh, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+        # 1. Convert MESH to GLB
+        import trimesh
+        
+        output_dir = folder_paths.get_temp_directory()
+        filename = "ComfyUI_Mesh_Temp.glb"
+        filepath = os.path.join(output_dir, filename)
+        
+        final_mesh = None
+        
+        # --- Type Detection Strategy ---
+        
+        # Case A: Trimesh Object
+        if isinstance(mesh, trimesh.Trimesh):
+            final_mesh = mesh
+        
+        # Case B: List of meshes (batch) -> Take first
+        elif isinstance(mesh, list) and len(mesh) > 0:
+             if isinstance(mesh[0], trimesh.Trimesh):
+                 final_mesh = mesh[0]
+             
+             # Case B2: List of tuples [(verts, faces)] (Common batch format)
+             elif isinstance(mesh[0], tuple) and len(mesh[0]) >= 2:
+                 verts = mesh[0][0]
+                 faces = mesh[0][1]
+                 
+                 if isinstance(verts, torch.Tensor): verts = verts.cpu().numpy()
+                 if isinstance(faces, torch.Tensor): faces = faces.cpu().numpy()
+                 
+                 # Squeeze dimensions if needed (e.g. (1, N, 3) -> (N, 3))
+                 print(f"[ComfyUI-360] Debug Case B2 - Raw Shapes - Verts: {verts.shape}, Faces: {faces.shape}")
+                 if verts.ndim > 2:
+                     verts = verts.reshape(-1, 3)
+                 if faces.ndim > 2:
+                     faces = faces.reshape(-1, 3)
+                 print(f"[ComfyUI-360] Debug Case B2 - Processed Shapes - Verts: {verts.shape}, Faces: {faces.shape}")
+                 
+                 final_mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False, validate=False)
+
+             # Case C: Tensor tuple (verts, faces) - unpacked list [verts, faces]
+             # Common in some nodes: mesh = [vertices, faces]
+             elif isinstance(mesh[0], torch.Tensor) or isinstance(mesh[0], np.ndarray):
+                 # Assume mesh = [vertices, faces]
+                 if len(mesh) >= 2:
+                     verts = mesh[0]
+                     faces = mesh[1]
+                     
+                     if isinstance(verts, torch.Tensor): verts = verts.cpu().numpy()
+                     if isinstance(faces, torch.Tensor): faces = faces.cpu().numpy()
+                     
+                     # Force squeeze/reshape to (N, 3)
+                     print(f"[ComfyUI-360] Debug - Raw Shapes - Verts: {verts.shape}, Faces: {faces.shape}")
+                     
+                     if verts.ndim > 2:
+                         verts = verts.reshape(-1, 3)
+                     if faces.ndim > 2:
+                         faces = faces.reshape(-1, 3)
+                         
+                     print(f"[ComfyUI-360] Debug - Processed Shapes - Verts: {verts.shape}, Faces: {faces.shape}")
+                     
+                     # Validate faces indices
+                     if faces.size > 0:
+                         max_idx = faces.max()
+                         if max_idx >= len(verts):
+                             print(f"[ComfyUI-360] Warning: Face index {max_idx} >= Vertices count {len(verts)}. mesh may be corrupt.")
+
+                     final_mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False, validate=False)
+        
+        # Case D: Object with .vertices .faces (SimpleNamespace or custom class)
+        elif hasattr(mesh, 'vertices') and hasattr(mesh, 'faces'):
+             verts = mesh.vertices
+             faces = mesh.faces
+             if isinstance(verts, torch.Tensor): verts = verts.cpu().numpy()
+             if isinstance(faces, torch.Tensor): faces = faces.cpu().numpy()
+             final_mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False, validate=False)
+
+        # Case E: Dictionary (Hunyuan3D VoxelToMesh outputs a list of meshes or single?)
+        # Let's hope for the best.
+        
+        if final_mesh is None:
+             print(f"[ComfyUI-360] Error: Unknown MESH format: {type(mesh)}")
+             print(f"Content: {mesh}")
+             return {}
+             
+        # 2. Export
+        try:
+            final_mesh.export(filepath)
+            print(f"[ComfyUI-360] Saved Temp Mesh to {filepath}")
+        except Exception as e:
+            print(f"[ComfyUI-360] Error exporting GLB: {e}")
+            return {}
+
+        # 3. Send
+        message = f"MODEL:{filepath}"
+        host = blender_ip_address
+        port = blender_listen_port
+        
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(5)
+                s.connect((host, port))
+                s.sendall(message.encode('utf-8'))
+                print(f"Successfully sent MESH to Blender.")
+        except Exception as e:
+            print(f"Error sending to Blender: {e}")
+            
+        return {}
+        
 class SyncLightingToBlender:
     @classmethod
     def INPUT_TYPES(s):
