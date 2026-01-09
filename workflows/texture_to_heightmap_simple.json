@@ -1,0 +1,66 @@
+{
+  "last_node_id": 100,
+  "last_link_id": 100,
+  "nodes": [
+    {
+      "id": 100,
+      "type": "Note",
+      "pos": [100, 100],
+      "size": [400, 300],
+      "flags": {},
+      "widgets_values": [
+        "HEIGHTMAP & TEXTURE GENERATION WORKFLOW\n\nThis workflow is designed to ensure your Texture and Heightmap match perfectly.\n\nMETHOD:\n1. Load your Top-Down Texture.\n2. Use a Preprocessor (Depth) to generate a heightmap from it.\n   (Requires ComfyUI-Manager & ControlNet Preprocessors installed)\n\nOR if you want to Generate Top Down:\n1. Generate Heightmap first (Prompt: 'Top down heightmap...').\n2. Use that Heightmap as ControlNet input for the Texture generation."
+      ]
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [100, 450],
+      "size": [315, 314],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        { "name": "IMAGE", "type": "IMAGE", "links": [1] },
+        { "name": "MASK", "type": "MASK", "links": null }
+      ],
+      "widgets_values": ["example_texture.png", "image"]
+    },
+    {
+      "id": 2,
+      "type": "PreviewHeightmapInBlender",
+      "pos": [900, 450],
+      "size": [400, 300],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        { "name": "images", "type": "IMAGE", "link": 1 },
+        { "name": "texture", "type": "IMAGE", "link": 1 }
+      ],
+      "outputs": [
+          { "name": "heightmap", "type": "IMAGE", "links": [] }
+      ],
+      "widgets_values": [
+        true,   
+        true,   
+        true,   
+        1.0,    
+        1.0,    
+        "127.0.0.1", 
+        8119,   
+        0.2,    
+        "0"     
+      ]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "IMAGE"],
+    [2, 1, 0, 2, 1, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
