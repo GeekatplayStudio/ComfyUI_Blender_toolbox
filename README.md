@@ -139,6 +139,10 @@ Sends an image to Blender and displaces a plane geometry to visualize 3D terrain
 *Category: `Geekatplay Studio/360 HDRI`*
 Sends a `.glb` or `.gltf` file path to Blender for immediate loading.
 
+#### **Preview Mesh in Blender (Send)**
+*Category: `Geekatplay Studio/360 HDRI`*
+Directly sends raw mesh data (vertices/faces) to Blender. Useful for procedural geometry nodes or converting `MESH` types.
+
 #### **Sync Lighting to Blender**
 *Category: `Geekatplay Studio/360 HDRI`*
 Updates Blender's lighting creation based on estimated parameters.
