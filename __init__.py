@@ -13,7 +13,7 @@ from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, Sy
 from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker, TerrainHeightFieldPromptMaker, ColorToHeightmap
 from .nodes.texture_nodes import TextureScrambler
 from .nodes.ollama_nodes import OllamaVision, OllamaLightingEstimator
-from .nodes.gemini_nodes import GeminiSeamlessTiler, GeminiPBRExtractor, GeminiChannelPacker, GeminiComparator
+from .nodes.gemini_nodes import GeminiSeamlessTiler, GeminiPBRExtractor, GeminiChannelPacker, GeminiComparator, GeminiMaterialSaver
 
 NODE_CLASS_MAPPINGS = {
     "SaveFakeHDRI": SaveFakeHDRI,
@@ -41,6 +41,7 @@ NODE_CLASS_MAPPINGS = {
     "GeminiPBRExtractor": GeminiPBRExtractor,
     "GeminiChannelPacker": GeminiChannelPacker,
     "GeminiComparator": GeminiComparator,
+    "GeminiMaterialSaver": GeminiMaterialSaver,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -65,10 +66,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "TextureScrambler": "Texture Scrambler (Style Transfer)",
     "OllamaVision": "Ollama Vision Analysis",
     "OllamaLightingEstimator": "Ollama Lighting Estimator",
-    "GeminiSeamlessTiler": "Gemini Seamless Tiler",
-    "GeminiPBRExtractor": "Gemini PBR Extractor",
-    "GeminiChannelPacker": "Gemini Channel Packer",
-    "GeminiComparator": "Gemini Image Comparator",
+    "GeminiSeamlessTiler": "Seamless Tile (Simple)",
+    "GeminiPBRExtractor": "PBR Extractor (Ubisoft CHORD)",
+    "GeminiChannelPacker": "Channel Packer",
+    "GeminiComparator": "Image Comparator",
+    "GeminiMaterialSaver": "Save Material (PBR)",
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']

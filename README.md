@@ -1,82 +1,183 @@
 # ComfyUI-360-HDRI-Suite
 
-A suite of ComfyUI nodes designed for working with 360° HDRI images, seamless textures, and Ollama-based vision analysis.
+A comprehensive suite of ComfyUI nodes designed for 360° HDRI panorama creation, Seamless Texture generation, PBR Material extraction (including Ubisoft CHORD support), and Blender synchronization.
 
-## Features
+## 🚀 Features at a Glance
 
-- **360 HDRI Tools**:
-  - `Save Fake HDRI (EXR)`: Save images as EXR format.
-  - `Image to 360 Latent`: Resize and encode images specifically for 360 outputs.
-  - `Heal 360 Seam`: Post-processing to fix seams in 360 images.
-  - `Preview in Blender`: Preview generated 360 skies directly in Blender (requires addon).
-  - `Sync Lighting to Blender`: Synchronize estimated lighting to Blender.
+*   **PBR Material Extraction**: Turn any image into High-Quality PBR maps (Albedo, Normal, Roughness, Depth, Metallic) using **Ubisoft CHORD** AI.
+*   **360° Workflow**: Tools to resize, heal seams, and generate masks specifically for equirectangular images.
+*   **Seamless Tiling**: Two methods—Image-based edge blending and Model-based circular padding for true seamless generation.
+*   **Blender Bridge**: Live preview of your HDRI skies, Terrain heightmaps, and 3D Models directly in Blender.
+*   **Ollama Vision**: Analyze images and suggest lighting/sun positions using local LLMs.
 
-- **Seamless Textures**:
-  - `Simple Seamless Tile`: Make images seamlessly tileable.
-  - `Seamless Tile (VAE)`: VAE-based tiling.
+---
 
-- **PBR & Textures**:
-  - `Simple PBR Generator`: Generate PBR maps from images.
-  - `Texture Scrambler`: Style transfer utility.
-  - `Terrain tools`: Helpers for generating terrain prompts and heightmaps.
+## 📦 Installation
 
-- **Ollama Integration**:
-  - `Ollama Vision Analysis`: Use local LLMs to describe images or generate prompts from images.
-  - `Ollama Lighting Estimator`: Estimate sun position and lighting from an image using LLMs.
+### 1. Install ComfyUI
+Ensure you have [ComfyUI](https://github.com/comfyanonymous/ComfyUI) installed.
 
-## Installation
+### 2. Clone Repository
+Navigate to your `ComfyUI/custom_nodes/` folder and run:
+```bash
+git clone https://github.com/GeekAtPlay/ComfyUI-360-HDRI-Suite
+```
 
-1.  **Install ComfyUI**: Ensure you have ComfyUI installed and working.
-2.  **Clone the Repository**:
-    Navigate to your `ComfyUI/custom_nodes/` folder and clone this repository:
-    ```bash
-    git clone https://github.com/GeekAtPlay/ComfyUI-360-HDRI-Suite
-    ```
-3.  **Install Dependencies**:
-    The dependencies should install automatically upon restart if you are using the Manager, or you can run:
-    ```bash
-    install.bat
-    ```
-    (Windows)
+### 3. Install Dependencies & Models
+This suite contains standard nodes and the advanced AI PBR Extractor. The standard dependencies are installed automatically by ComfyUI Manager.
 
-## Ollama Setup (Required for Ollama Nodes)
+**IMPORTANT: To enable the PBR Extractor (Ubisoft CHORD), you must run the installer manually:**
 
-To use the Ollama nodes (`Ollama Vision Analysis` and `Ollama Lighting Estimator`), you must have **Ollama** installed and running.
+**Windows:**
+Double-click `installer\install_pbr_extractor.bat`.
 
-1.  Download and install Ollama from [ollama.com](https://ollama.com).
-2.  Pull a vision-capable model, for example **LLaVA**:
-    ```bash
-    ollama run llava
-    ```
-3.  Ensure the Ollama server is running (default: `http://127.0.0.1:11434`).
+**Manual / Linux / Mac:**
+```bash
+python installer/install_pbr_extractor.py
+```
 
-## Blender Integration (Optional)
+> **License Note**: The Ubisoft CHORD model is gated. You must accept the license at [Hugging Face](https://huggingface.co/Ubisoft/ubisoft-laforge-chord).
+> If the installer fails to download the model due to authentication, download `chord_v1.safetensors` manually and place it in `ComfyUI/models/gemini_pbr/`.
 
-To use the Blender preview nodes:
-1.  Install the Blender addon located in `blender_scripts/`.
-2.  Ensure Blender is running and the addon is enabled/listening when using the Preview nodes.
+---
 
-### Preview Heightmap in Blender
-Sends a heightmap (and optional texture/PBR maps) to Blender to generate a real 3D terrain mesh.
+## 📚 Node Reference Guide
 
-**Parameters:**
-- **`use_texture_as_heightmap`**: (Boolean) If enabled, uses the connected `texture` input as the source for the heightmap (converting it to grayscale) instead of the `images` input. useful if you only have a texture.
-- **`auto_level_height`**: (Boolean) Automatically stretches the heightmap data to the full 0-255 range. Prevents flat terrains from low-contrast images.
-- **`height_gamma`**: (Float) Adjusts the curve of the heightmap.
-    - Values < 1.0 (e.g. 0.6) lift mid-tones (fix deep holes).
-    - Values > 1.0 (e.g. 1.4) darken mid-tones (accentuate peaks).
-- **`smoothing_amount`**: (Float) Applies Gaussian Blur to the heightmap. Value of `1.0` - `3.0` removes sharp spikes and high-frequency noise from textures.
-- **`edge_falloff`**: (Float) Fades the terrain height to zero at the edges. Value `0.1` - `0.2` creates a nice "Mountain Island" effect.
-- **`rotation`**: (Enum) Rotates the heightmap (0, 90, 180, 270) to fix orientation issues (e.g. if terrain looks "sideways").
-- **`roughness_min / max`**: (Float) Remaps the roughness map values to control PBR material shininess.
-    - `roughness_min`: Floor for the shininess (0.0 = wet/mirror, 1.0 = matte). Increase to 0.2-0.4 to prevent overly "plastic" looks.
-    - `roughness_max`: Ceiling for the matte look.
+### 🧱 PBR & Texture Tools
 
-### Terrain Tools
-- **`Terrain HeightField PromptMaker`**: Generates highly specific technical prompts for generating "Pure" 16-bit linear heightfields (Displacement Maps) without lighting, texture, or shadows.
-- **`Color To Heightmap`**: Converts RGB satellite images or textures into proper heightmaps. Includes Invert, Auto-Levels, and Gamma Correction to ensure the data is displacement-ready.
-- **`Terrain Texture Prompt Maker`**: Helper for generating satellite/top-down texture prompts.
+#### **PBR Extractor (Ubisoft CHORD)**
+*Category: `360_HDRI/Gemini`*
+Extracts full PBR material maps from a single image using the state-of-the-art **Ubisoft LaForge CHORD** model.
+- **Inputs**: `albedo_image`.
+- **Outputs**: `Albedo`, `Normal`, `Roughness`, `Depth`, `Metallic`.
+- **Fallback**: If the model is missing, it automatically switches to a lightweight algorithmic mode (Sobel/Luminance) so your workflow never breaks.
 
-## License
+#### **Save Material (PBR)**
+*Category: `360_HDRI/Gemini`*
+Batch saver for PBR maps. Saves all connected maps (Albedo, Normal, Roughness, etc.) into a dedicated subfolder with standardized naming.
+- **Inputs**: All map types + `folder_name` (e.g., "MyTexturePack").
 
-(c) Geekatplay Studio
+#### **Channel Packer**
+*Category: `360_HDRI/Gemini`*
+Combines 3 or 4 grayscale images into a single RGB(A) image. Essential for Game Engine workflows (ORM textures).
+- **Structure**: Red, Green, Blue, Alpha inputs.
+
+#### **Image Comparator**
+*Category: `360_HDRI/Gemini`*
+Simple utility to view two images side-by-side or vertically to compare changes.
+
+#### **Simple PBR Generator**
+*Category: `360_HDRI`*
+A lightweight alternative to CHORD. Generates basic Normal and Roughness maps using image processing algorithms.
+
+#### **Texture Scrambler (Style Transfer)**
+*Category: `360_HDRI/Utils`*
+Randomizes texture phase to "scramble" structure while keeping style. Useful for style transfer inputs.
+
+---
+
+### 🔄 Seamless Tiling Tools
+
+#### **Seamless Tile (Simple)**
+*Category: `360_HDRI/Gemini`*
+**Post-Processing**. Takes an existing image and blends the edges (Overlay or Blend mode) to make it tileable.
+- Fast and effective for simple textures.
+
+#### **Simple Seamless Tile (Model)**
+*Category: `360_HDRI`*
+**Generation**. Patches the Diffusion Model (U-Net) to use "Circular Padding".
+- Connect this to your model *before* the KSampler.
+- Makes the AI *generate* a seamless image natively.
+
+#### **Seamless Tile (VAE)**
+*Category: `360_HDRI`*
+**Decoding**. Patches the VAE decoder to fix seams that appear during decoding.
+
+#### **Heal 360 Seam**
+*Category: `360_HDRI`*
+**Post-Processing**. Specifically designed for Equirectangular (360°) images. Blends the left/right seam to fix "lines" in the sky.
+
+---
+
+### 🌐 360° HDRI Tools
+
+#### **Save Fake HDRI (EXR)**
+*Category: `360_HDRI`*
+Saves an LDR image as an `.exr` file (32-bit float fake), compatible with 3D software lighting.
+
+#### **Image to 360 Latent**
+*Category: `360_HDRI`*
+Resizes and masks latents specifically for 2:1 aspect ratio generation.
+
+#### **Rotate 360 Image**
+*Category: `360_HDRI`*
+shifts the pixels of a 360 image horizontally (Yaw), Pitch, or Roll.
+
+#### **Generate Pole Mask**
+*Category: `360_HDRI`*
+Creates a mask covering the top and bottom "poles" of a 360 image, useful for inpainting distortions.
+
+---
+
+### 🐵 Blender Integration
+*Requires installing the scripts in `blender_scripts/` to your Blender addons.*
+
+#### **Preview in Blender (360 Sky)**
+*Category: `360_HDRI/Blender`*
+Sends the image to Blender and sets it as the World Background environment automatically.
+
+#### **Preview Heightmap in Blender**
+*Category: `360_HDRI/Blender`*
+Sends an image to Blender and displaces a plane geometry to visualize 3D terrain.
+
+#### **Preview Model in Blender (GLB)**
+*Category: `360_HDRI/Blender`*
+Sends a `.glb` or `.gltf` file path to Blender for immediate loading.
+
+#### **Sync Lighting to Blender**
+*Category: `360_HDRI/Blender`*
+Updates Blender's lighting creation based on estimated parameters.
+
+---
+
+### 🦙 Ollama (Local AI) Integration
+*Requires local [Ollama](https://ollama.com) installation.*
+
+#### **Ollama Vision Analysis**
+*Category: `360_HDRI/Ollama`*
+Uses a vision model (e.g., LLaVA) to describe an image. Great for auto-captioning or interrogation.
+
+#### **Ollama Lighting Estimator**
+*Category: `360_HDRI/Ollama`*
+Analyzes an image to guess the sun's position (elevation/azimuth) and color temperature.
+
+---
+
+### 🛠️ Prompt & Heightmap Utilities
+
+#### **Terrain Prompt Maker (Ollama)**
+*Category: `360_HDRI/Terrain`*
+Helper to generate rich terrain descriptions.
+
+#### **Terrain Texture Prompt Maker**
+*Category: `360_HDRI/Terrain`*
+Helper for satellite-style texture prompts.
+
+#### **Terrain HeightField Prompt Maker**
+*Category: `360_HDRI/Terrain`*
+Generates prompts tuned for grayscale displacement maps (linear, non-optical).
+
+#### **Color to Heightmap**
+*Category: `360_HDRI/Terrain`*
+Converts RGB images to high-quality Grayscale heightmaps with Gamma and Level controls.
+
+#### **Simple Heightmap Normalizer**
+*Category: `360_HDRI/Terrain`*
+Ensures heightmap values span the full 0.0 - 1.0 range.
+
+---
+
+## 📄 License
+(c) Geekatplay Studio.
+Ubisoft CHORD model follows its own license (Research-Only Copyleft).
+Other components MIT.
