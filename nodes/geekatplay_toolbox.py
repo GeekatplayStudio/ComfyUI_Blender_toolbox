@@ -210,21 +210,22 @@ class GapLogicSwitch:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "data_in": (any_type,),
+                "input_a": (any_type,),
+                "input_b": (any_type,),
                 "boolean_switch": ("BOOLEAN", {"default": True}),
             }
         }
     
-    RETURN_TYPES = (any_type, any_type)
-    RETURN_NAMES = ("output_true", "output_false")
+    RETURN_TYPES = (any_type,)
+    RETURN_NAMES = ("selected_output",)
     FUNCTION = "switch"
     CATEGORY = "Geekatplay Studio/3D Toolbox"
     
-    def switch(self, data_in, boolean_switch):
+    def switch(self, input_a, input_b, boolean_switch):
         if boolean_switch:
-            return (data_in, None)
+            return (input_a,)
         else:
-            return (None, data_in)
+            return (input_b,)
 
 class GapGroupManager:
     # Requires JS to be useful, but logic needed here?
