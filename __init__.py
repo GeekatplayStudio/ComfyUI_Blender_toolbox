@@ -8,7 +8,7 @@ Includes Blender integration for live preview, PBR maps generation, and scene sy
 """
 
 from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image, GeneratePoleMask
-from .nodes.seamless_nodes import SimpleSeamlessTile, Heal360Seam, SeamlessTileVAE
+from .nodes.seamless_nodes import SimpleSeamlessTile, Heal360Seam, SeamlessTileVAE, PreviewSeamlessTile
 from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, SyncLightingToBlender, PreviewModelInBlender, PreviewMeshInBlender
 from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker, TerrainHeightFieldPromptMaker, ColorToHeightmap, TerrainErosionPromptMaker, MaterialTexturePromptMaker
 from .nodes.texture_nodes import TextureScrambler
@@ -24,6 +24,7 @@ NODE_CLASS_MAPPINGS = {
     "SimpleSeamlessTile": SimpleSeamlessTile,
     "SeamlessTileVAE": SeamlessTileVAE,
     "Heal360Seam": Heal360Seam,
+    "PreviewSeamlessTile": PreviewSeamlessTile,
     "PreviewInBlender": PreviewInBlender,
     "PreviewHeightmapInBlender": PreviewHeightmapInBlender,
     "PreviewModelInBlender": PreviewModelInBlender,
@@ -62,6 +63,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SimpleSeamlessTile": "Simple Seamless Tile (Model)",
     "SeamlessTileVAE": "Seamless Tile (VAE)",
     "Heal360Seam": "Heal 360 Seam (Post-Process)",
+    "PreviewSeamlessTile": "Preview Seamless Tile",
     "PreviewInBlender": "Preview in Blender (360 Sky)",
     "PreviewHeightmapInBlender": "Preview Heightmap in Blender",
     "PreviewModelInBlender": "Preview Model in Blender (GLB)",

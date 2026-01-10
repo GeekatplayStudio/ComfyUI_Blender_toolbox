@@ -262,3 +262,41 @@ class Heal360Seam:
         image_copy[:, :, -blend_pixels:, :] = right_strip * (1 - alpha_right) + target * alpha_right
         
         return (image_copy,)
+
+class PreviewSeamlessTile:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE", ),
+                "tiles": ("INT", {"default": 3, "min": 2, "max": 10, "step": 1}),
+                "scale_factor": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 2.0, "step": 0.1}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "generate_grid"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
+
+    def generate_grid(self, images, tiles, scale_factor):
+        # images: [B, H, W, C]
+        results = []
+        for img in images:
+            # 1. Resize if needed
+            if scale_factor != 1.0:
+                # Permute to [C, H, W] for interpolate
+                img_perm = img.permute(2, 0, 1).unsqueeze(0) # [1, C, H, W]
+                img_perm = F.interpolate(img_perm, scale_factor=scale_factor, mode='bilinear', align_corners=False)
+                img = img_perm.squeeze(0).permute(1, 2, 0) # Back to [H, W, C]
+
+            # 2. Tile
+            # Repeat tensor: (tiles_h, tiles_w, 1)
+            # img is [H, W, C]
+            H, W, C = img.shape
+            
+            # Use repeat to tile
+            tiled = img.repeat(tiles, tiles, 1)
+            
+            results.append(tiled)
+            
+        return (torch.stack(results),)

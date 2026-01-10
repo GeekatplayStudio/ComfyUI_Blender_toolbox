@@ -97,6 +97,11 @@ Randomizes texture phase to "scramble" structure while keeping style. Useful for
 *Category: `360_HDRI`*
 **Post-Processing**. Specifically designed for Equirectangular (360°) images. Blends the left/right seam to fix "lines" in the sky.
 
+#### **Preview Seamless Tile**
+*Category: `360_HDRI`*
+**Utility**. Creates a grid (default 3x3) of the input image to visually verify seamless tiling.
+- **Inputs**: `images`, `tiles` (int, default 3).
+
 ---
 
 ### 🌐 360° HDRI Tools
