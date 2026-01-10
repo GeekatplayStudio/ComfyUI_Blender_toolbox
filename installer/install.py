@@ -85,21 +85,36 @@ def main():
         except SystemExit:
             print("Warning: Failed to clone ComfyUI_IPAdapter_plus.")
 
-    # 6. Create models/loras and download LoRA
+    # 6. Create models/loras and download LoRAs
     loras_path = comfyui_path / "models" / "loras"
     loras_path.mkdir(parents=True, exist_ok=True)
-    lora_url = "https://huggingface.co/ProGamerGov/human-360-lora-flux-dev/resolve/main/human_360diffusion_lora_flux_dev_v1.safetensors"
-    lora_file = loras_path / "human_360diffusion_lora_flux_dev_v1.safetensors"
     
-    if not lora_file.exists():
-        print("Downloading LoRA...")
+    # 6a. 360 Flux LoRA
+    lora_360_url = "https://huggingface.co/ProGamerGov/human-360-lora-flux-dev/resolve/main/human_360diffusion_lora_flux_dev_v1.safetensors"
+    lora_360_file = loras_path / "human_360diffusion_lora_flux_dev_v1.safetensors"
+    
+    if not lora_360_file.exists():
+        print("Downloading 360 Flux LoRA...")
         try:
-            urllib.request.urlretrieve(lora_url, lora_file)
+            urllib.request.urlretrieve(lora_360_url, lora_360_file)
             print("LoRA downloaded.")
         except Exception as e:
-            print(f"Failed to download LoRA: {e}")
+            print(f"Failed to download 360 LoRA: {e}")
 
-    # 6b. Download IPAdapter Models (Required for Terrain Workflow)
+    # 6b. Seamless Texture LoRA (SDXL)
+    # TODO: Update URL when public
+    seamless_lora_url = "" 
+    seamless_lora_file = loras_path / "seamless_texture.safetensors"
+    
+    if seamless_lora_url and not seamless_lora_file.exists():
+        print("Downloading Seamless Texture LoRA...")
+        try:
+            urllib.request.urlretrieve(seamless_lora_url, seamless_lora_file)
+            print("Seamless LoRA downloaded.")
+        except Exception as e:
+            print(f"Failed to download Seamless LoRA: {e}")
+
+    # 7. Download IPAdapter Models (Required for Terrain Workflow)
     ipadapter_models_path = comfyui_path / "models" / "ipadapter"
     ipadapter_models_path.mkdir(parents=True, exist_ok=True)
     

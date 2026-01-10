@@ -26,6 +26,15 @@ git clone https://github.com/GeekAtPlay/ComfyUI-360-HDRI-Suite
 ### 3. Install Dependencies & Models
 This suite contains standard nodes and the advanced AI PBR Extractor. The standard dependencies are installed automatically by ComfyUI Manager.
 
+#### **Required AI Models**
+Some workflows require specific models to be placed in your ComfyUI folders.
+
+| Model | Path | Description | Download |
+| :--- | :--- | :--- | :--- |
+| **PBR Extractor** | `models/ubsoft_pbr/chord_v1.safetensors` | Generates PBR maps (Albedo, Normal, etc). | [HuggingFace](https://huggingface.co/Ubisoft/ubisoft-laforge-chord) |
+| **360-HDRI LoRA (Flux)** | `models/loras/human_360diffusion_lora_flux_dev_v1.safetensors` | For generating 360° panoramas with Flux. | [HuggingFace](https://huggingface.co/ProGamerGov/human-360-lora-flux-dev) |
+| **Seamless Texture LoRA** | `models/loras/seamless_texture.safetensors` | For SDXL seamless tile generation. | *Check Repository Releases* |
+
 **IMPORTANT: To enable the PBR Extractor (Ubisoft CHORD), you must run the installer manually:**
 
 **Windows:**
