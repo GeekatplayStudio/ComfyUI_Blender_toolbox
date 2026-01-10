@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 import os
 import sys
+import folder_paths
 
 class GapSeamlessTiler:
     @classmethod
@@ -116,7 +117,9 @@ class GapPBRExtractor:
         # Check if CHORD model and repo are available
         current_dir = os.path.dirname(os.path.abspath(__file__))
         repo_path = os.path.abspath(os.path.join(current_dir, "../repos/ubisoft-laforge-chord"))
-        model_path = os.path.abspath(os.path.join(current_dir, "../models/gemini_pbr/chord_v1.safetensors"))
+        
+        # Use ComfyUI global models directory
+        model_path = os.path.join(folder_paths.models_dir, "ubsoft_pbr", "chord_v1.safetensors")
         
         chord_available = False
         

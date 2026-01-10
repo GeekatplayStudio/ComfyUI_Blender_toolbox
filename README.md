@@ -37,7 +37,7 @@ python installer/install_pbr_extractor.py
 ```
 
 > **License Note**: The Ubisoft CHORD model is gated. You must accept the license at [Hugging Face](https://huggingface.co/Ubisoft/ubisoft-laforge-chord).
-> If the installer fails to download the model due to authentication, download `chord_v1.safetensors` manually and place it in `ComfyUI/models/gemini_pbr/`.
+> If the installer fails to download the model due to authentication, download `chord_v1.safetensors` manually and place it in `ComfyUI/models/ubsoft_pbr/`.
 
 ---
 

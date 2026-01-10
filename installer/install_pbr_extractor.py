@@ -8,7 +8,7 @@ import urllib.request
 COMFY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 CUSTOM_NODES_PATH = os.path.join(COMFY_PATH, "custom_nodes")
 THIS_NODE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODELS_DIR = os.path.join(COMFY_PATH, "models", "gemini_pbr")
+MODELS_DIR = os.path.join(COMFY_PATH, "models", "ubsoft_pbr")
 REPOS_DIR = os.path.join(THIS_NODE_PATH, "repos")
 CHORD_REPO_URL = "https://github.com/ubisoft/ubisoft-laforge-chord.git"
 CHORD_MODEL_URL = "https://huggingface.co/Ubisoft/ubisoft-laforge-chord/resolve/main/chord_v1.safetensors"
