@@ -1,218 +1,9 @@
 {
   "id": "de25e7a5-af07-433e-8e88-a092fb5728d0",
   "revision": 0,
-  "last_node_id": 30,
-  "last_link_id": 31,
+  "last_node_id": 32,
+  "last_link_id": 39,
   "nodes": [
-    {
-      "id": 11,
-      "type": "SimpleSeamlessTile",
-      "pos": [
-        711.9219338243892,
-        -137.34390272419031
-      ],
-      "size": [
-        295.571875,
-        58
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 17
-        }
-      ],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            13,
-            23
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
-        "ver": "0a8260f817a4c8fdc8772418ab2eaeeb6e203588",
-        "Node name for S&R": "SimpleSeamlessTile"
-      },
-      "widgets_values": [
-        "both"
-      ]
-    },
-    {
-      "id": 24,
-      "type": "CLIPTextEncode",
-      "pos": [
-        240.05312755758214,
-        127.57635917222004
-      ],
-      "size": [
-        400,
-        200
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 19
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 21
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            24
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        ""
-      ]
-    },
-    {
-      "id": 25,
-      "type": "CLIPTextEncode",
-      "pos": [
-        240.65312755758208,
-        391.07635917222007
-      ],
-      "size": [
-        400,
-        200
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 20
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 22
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            25
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        ""
-      ]
-    },
-    {
-      "id": 5,
-      "type": "EmptyLatentImage",
-      "pos": [
-        732.5068280135624,
-        327.0069683152111
-      ],
-      "size": [
-        270,
-        106
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            8,
-            26
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "EmptyLatentImage"
-      },
-      "widgets_values": [
-        1024,
-        1024,
-        1
-      ]
-    },
-    {
-      "id": 21,
-      "type": "SeamlessTileVAE",
-      "pos": [
-        720.0898515140883,
-        -3.7247047819479877
-      ],
-      "size": [
-        270,
-        58
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 18
-        }
-      ],
-      "outputs": [
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            28
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
-        "ver": "0a8260f817a4c8fdc8772418ab2eaeeb6e203588",
-        "Node name for S&R": "SeamlessTileVAE"
-      },
-      "widgets_values": [
-        "both"
-      ]
-    },
     {
       "id": 29,
       "type": "PreviewAny",
@@ -244,222 +35,6 @@
         null,
         null,
         null
-      ]
-    },
-    {
-      "id": 26,
-      "type": "KSamplerAdvanced",
-      "pos": [
-        1128.8531275575822,
-        16.476359172219922
-      ],
-      "size": [
-        312.353515625,
-        334
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 23
-        },
-        {
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 24
-        },
-        {
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 25
-        },
-        {
-          "name": "latent_image",
-          "type": "LATENT",
-          "link": 26
-        }
-      ],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            27
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "KSamplerAdvanced"
-      },
-      "widgets_values": [
-        "enable",
-        364008201878139,
-        "randomize",
-        35,
-        7,
-        "dpmpp_2m_sde",
-        "karras",
-        0,
-        10000,
-        "disable"
-      ]
-    },
-    {
-      "id": 27,
-      "type": "VAEDecode",
-      "pos": [
-        1621.6531275575824,
-        51.67635917221992
-      ],
-      "size": [
-        140,
-        46
-      ],
-      "flags": {},
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "samples",
-          "type": "LATENT",
-          "link": 27
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 28
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            29,
-            31
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "VAEDecode"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 28,
-      "type": "PreviewImage",
-      "pos": [
-        1840.9172408882232,
-        -373.3379535060267
-      ],
-      "size": [
-        394.09999999999945,
-        482.5000000000001
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 29
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 30,
-      "type": "SaveImage",
-      "pos": [
-        1858.5633905890863,
-        175.19116210707747
-      ],
-      "size": [
-        373.6594753362956,
-        467.92610701171475
-      ],
-      "flags": {},
-      "order": 12,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 31
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0"
-      },
-      "widgets_values": [
-        "ComfyUI"
-      ]
-    },
-    {
-      "id": 1,
-      "type": "CheckpointLoaderSimple",
-      "pos": [
-        -414.7319428183849,
-        -71.41375357757668
-      ],
-      "size": [
-        315,
-        98
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            1,
-            15
-          ]
-        },
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            2,
-            16,
-            19,
-            20
-          ]
-        },
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            18
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "CheckpointLoaderSimple"
-      },
-      "widgets_values": [
-        "sd_xl_base_1.0.safetensors"
       ]
     },
     {
@@ -514,11 +89,407 @@
       ]
     },
     {
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -348.2220849591734,
+        -56.3953985771096
+      ],
+      "size": [
+        315,
+        98
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1,
+            15
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2,
+            16,
+            19,
+            20
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "sd_xl_base_1.0.safetensors"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [
+        732.5068280135624,
+        327.0069683152111
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            8,
+            26
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 24,
+      "type": "CLIPTextEncode",
+      "pos": [
+        240.05312755758214,
+        127.57635917222004
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 19
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            24
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 25,
+      "type": "CLIPTextEncode",
+      "pos": [
+        229.23059584008396,
+        386.7929097781583
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 20
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 22
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            25
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 11,
+      "type": "SimpleSeamlessTile",
+      "pos": [
+        711.9219338243892,
+        -137.34390272419031
+      ],
+      "size": [
+        295.571875,
+        58
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            13,
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "0a8260f817a4c8fdc8772418ab2eaeeb6e203588",
+        "Node name for S&R": "SimpleSeamlessTile"
+      },
+      "widgets_values": [
+        "both"
+      ]
+    },
+    {
+      "id": 26,
+      "type": "KSamplerAdvanced",
+      "pos": [
+        1163.9609704158167,
+        -30.334097972092877
+      ],
+      "size": [
+        312.353515625,
+        334
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 23
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 24
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 25
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 26
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            39
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "KSamplerAdvanced"
+      },
+      "widgets_values": [
+        "enable",
+        484529568216398,
+        "randomize",
+        30,
+        7,
+        "dpmpp_2m_sde",
+        "karras",
+        0,
+        10000,
+        "disable"
+      ]
+    },
+    {
+      "id": 21,
+      "type": "SeamlessTileVAE",
+      "pos": [
+        720.0898515140883,
+        -3.7247047819479877
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            28
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "0a8260f817a4c8fdc8772418ab2eaeeb6e203588",
+        "Node name for S&R": "SeamlessTileVAE"
+      },
+      "widgets_values": [
+        "both"
+      ]
+    },
+    {
+      "id": 27,
+      "type": "VAEDecode",
+      "pos": [
+        1699.9631214885928,
+        -12.395454044058438
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 39
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            31,
+            32
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 30,
+      "type": "SaveImage",
+      "pos": [
+        1864.5122195178446,
+        129.3559228199377
+      ],
+      "size": [
+        373.6594753362956,
+        467.92610701171475
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 31
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
       "id": 2,
       "type": "MaterialTexturePromptMaker",
       "pos": [
-        -415.3247047819478,
-        160.933309949725
+        -378.85155692367067,
+        139.47851709191482
       ],
       "size": [
         400,
@@ -553,9 +524,78 @@
         "Node name for S&R": "MaterialTexturePromptMaker"
       },
       "widgets_values": [
-        "Sand",
-        "8k resolution, "
+        "Sci-Fi",
+        "8k resolution, realistic"
       ]
+    },
+    {
+      "id": 31,
+      "type": "PreviewSeamlessTile",
+      "pos": [
+        1932.1074445861052,
+        -24.018252326406213
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 32
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            33
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "ba6ef2149ec377ca91fe0770fc1583a34d6506cf",
+        "Node name for S&R": "PreviewSeamlessTile"
+      },
+      "widgets_values": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": 28,
+      "type": "PreviewImage",
+      "pos": [
+        2269.694299326917,
+        -201.00174474495114
+      ],
+      "size": [
+        1145.2569709637164,
+        1289.5842522458129
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 33
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
     }
   ],
   "links": [
@@ -656,28 +696,12 @@
       "LATENT"
     ],
     [
-      27,
-      26,
-      0,
-      27,
-      0,
-      "LATENT"
-    ],
-    [
       28,
       21,
       0,
       27,
       1,
       "VAE"
-    ],
-    [
-      29,
-      27,
-      0,
-      28,
-      0,
-      "IMAGE"
     ],
     [
       30,
@@ -694,16 +718,40 @@
       30,
       0,
       "IMAGE"
+    ],
+    [
+      32,
+      27,
+      0,
+      31,
+      0,
+      "IMAGE"
+    ],
+    [
+      33,
+      31,
+      0,
+      28,
+      0,
+      "IMAGE"
+    ],
+    [
+      39,
+      26,
+      0,
+      27,
+      0,
+      "LATENT"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8474478547668416,
+      "scale": 0.7003701279064856,
       "offset": [
-        1065.7366215570191,
-        732.3082449232835
+        -29.336742802615873,
+        656.2824841073723
       ]
     },
     "workflowRendererVersion": "LG",
