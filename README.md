@@ -175,6 +175,18 @@ Converts RGB images to high-quality Grayscale heightmaps with Gamma and Level co
 *Category: `Geekatplay Studio/360 HDRI/Terrain`*
 Ensures heightmap values span the full 0.0 - 1.0 range.
 
+#### **Terrain Erosion Prompt Maker (Detailer)**
+*Category: `Geekatplay Studio/360 HDRI/Terrain`*
+Adds specific erosion keywords to your prompt to simulate realistic geological weathering.
+*   **Modes**: Hydraulic, Thermal, Glacial, Aeolian, Coastal, Terrace.
+*   **Strength**: Controls the emphasis (syntax weighting) of the erosion effect. 0.0 disables it.
+
+#### **Material Texture Prompt Maker (Preset)**
+*Category: `Geekatplay Studio/360 HDRI/Texture`*
+Generates optimized prompts for seamless textures based on a specific material type.
+*   **Presets**: Over 20 types including Rock, Soil, Water, Snow, Metal, Wood, Fabric, Sci-Fi, etc.
+*   **Output**: Creates distinct Positive (high resolution, seamless) and Negative (3d render, perspective) prompts.
+
 ---
 
 ## 🧰 Geekatplay 3D Toolbox

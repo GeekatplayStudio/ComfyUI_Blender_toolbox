@@ -10,7 +10,7 @@ Includes Blender integration for live preview, PBR maps generation, and scene sy
 from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image, GeneratePoleMask
 from .nodes.seamless_nodes import SimpleSeamlessTile, Heal360Seam, SeamlessTileVAE
 from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, SyncLightingToBlender, PreviewModelInBlender, PreviewMeshInBlender
-from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker, TerrainHeightFieldPromptMaker, ColorToHeightmap
+from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker, TerrainHeightFieldPromptMaker, ColorToHeightmap, TerrainErosionPromptMaker, MaterialTexturePromptMaker
 from .nodes.texture_nodes import TextureScrambler
 from .nodes.ollama_nodes import OllamaVision, OllamaLightingEstimator
 from .nodes.geekatplay_nodes import GapSeamlessTiler, GapPBRExtractor, GapChannelPacker, GapImageMerger, GapMaterialSaver
@@ -33,6 +33,8 @@ NODE_CLASS_MAPPINGS = {
     "TerrainPromptMaker": TerrainPromptMaker,
     "TerrainTexturePromptMaker": TerrainTexturePromptMaker,
     "TerrainHeightFieldPromptMaker": TerrainHeightFieldPromptMaker,
+    "TerrainErosionPromptMaker": TerrainErosionPromptMaker,
+    "MaterialTexturePromptMaker": MaterialTexturePromptMaker,
     "ColorToHeightmap": ColorToHeightmap,
     "SimpleHeightmapNormalizer": SimpleHeightmapNormalizer,
     "TextureScrambler": TextureScrambler,
@@ -69,6 +71,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "TerrainPromptMaker": "Terrain Prompt Maker (Ollama)",
     "TerrainTexturePromptMaker": "Terrain Texture Prompt Maker (Ollama)",
     "TerrainHeightFieldPromptMaker": "Terrain HeightField Prompt Maker (Linear)",
+    "TerrainErosionPromptMaker": "Terrain Erosion Prompt Maker (Detailer)",
+    "MaterialTexturePromptMaker": "Material Texture Prompt Maker (Preset)",
     "ColorToHeightmap": "Color to Heightmap (Grayscale)",
     "SimpleHeightmapNormalizer": "Simple Heightmap Normalizer",
     "TextureScrambler": "Texture Scrambler (Style Transfer)",

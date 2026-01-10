@@ -104,7 +104,7 @@ class GapPBRExtractor:
         }
 
     RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE")
-    RETURN_NAMES = ("albedo_out", "normal_map", "roughness_map", "depth_map", "metallic_map")
+    RETURN_NAMES = ("albedo_map", "normal_map", "roughness_map", "depth_map", "metallic_map")
     FUNCTION = "extract"
     CATEGORY = "Geekatplay Studio/PBR"
 

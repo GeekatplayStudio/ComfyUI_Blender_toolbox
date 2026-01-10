@@ -1,8 +1,8 @@
 {
   "id": "75969c46-bbb1-49f9-ada4-13740aae72ff",
   "revision": 0,
-  "last_node_id": 126,
-  "last_link_id": 156,
+  "last_node_id": 141,
+  "last_link_id": 190,
   "nodes": [
     {
       "id": 100,
@@ -28,126 +28,6 @@
       "bgcolor": "#653"
     },
     {
-      "id": 102,
-      "type": "PreviewAny",
-      "pos": [
-        193.24668196762022,
-        447.40919699633076
-      ],
-      "size": [
-        408.7781186097145,
-        133.12515730685493
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "source",
-          "type": "*",
-          "link": 102
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewAny"
-      },
-      "widgets_values": [
-        null,
-        null,
-        null
-      ]
-    },
-    {
-      "id": 110,
-      "type": "PreviewImage",
-      "pos": [
-        2475.7979721294396,
-        535.68162815203
-      ],
-      "size": [
-        140,
-        246.00000000000003
-      ],
-      "flags": {},
-      "order": 19,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 110
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 111,
-      "type": "PreviewImage",
-      "pos": [
-        2481.9205559883944,
-        848.6552846237906
-      ],
-      "size": [
-        140,
-        246.00000000000006
-      ],
-      "flags": {},
-      "order": 20,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 111
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 112,
-      "type": "PreviewImage",
-      "pos": [
-        2489.9653563331312,
-        1178.823303353141
-      ],
-      "size": [
-        140,
-        246
-      ],
-      "flags": {},
-      "order": 21,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 112
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": []
-    },
-    {
       "id": 104,
       "type": "CLIPTextEncode",
       "pos": [
@@ -159,7 +39,7 @@
         200
       ],
       "flags": {},
-      "order": 12,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -173,7 +53,7 @@
           "widget": {
             "name": "text"
           },
-          "link": 103
+          "link": 185
         }
       ],
       "outputs": [
@@ -207,7 +87,7 @@
         200
       ],
       "flags": {},
-      "order": 13,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -221,7 +101,7 @@
           "widget": {
             "name": "text"
           },
-          "link": 104
+          "link": 186
         }
       ],
       "outputs": [
@@ -244,35 +124,6 @@
       ]
     },
     {
-      "id": 101,
-      "type": "PreviewImage",
-      "pos": [
-        2742.6127610638055,
-        -9.636664071072023
-      ],
-      "size": [
-        404.57367586953046,
-        336.8278150075603
-      ],
-      "flags": {},
-      "order": 23,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 101
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": []
-    },
-    {
       "id": 113,
       "type": "OllamaVision",
       "pos": [
@@ -284,7 +135,7 @@
         316
       ],
       "flags": {},
-      "order": 6,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -315,61 +166,8 @@
         0.2,
         "Top down, color texture",
         "Top down aerial texture map, highly detailed 16-bit, ",
-        871491504162450,
+        838185056459651,
         "randomize"
-      ]
-    },
-    {
-      "id": 103,
-      "type": "TerrainTexturePromptMaker",
-      "pos": [
-        -289.5918458519608,
-        684.9055820667892
-      ],
-      "size": [
-        356.589453125,
-        102
-      ],
-      "flags": {},
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "description",
-          "type": "STRING",
-          "link": 115
-        },
-        {
-          "name": "heightmap_description",
-          "shape": 7,
-          "type": "STRING",
-          "link": 114
-        }
-      ],
-      "outputs": [
-        {
-          "name": "positive_prompt",
-          "type": "STRING",
-          "links": [
-            103
-          ]
-        },
-        {
-          "name": "negative_prompt",
-          "type": "STRING",
-          "links": [
-            104
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
-        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
-        "Node name for S&R": "TerrainTexturePromptMaker"
-      },
-      "widgets_values": [
-        "General",
-        "Side View / Photo"
       ]
     },
     {
@@ -384,7 +182,7 @@
         316
       ],
       "flags": {},
-      "order": 5,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -415,257 +213,9 @@
         0.2,
         "Top down, DEM style image. Heigh need to be white, lower need to be black. top view, map view",
         "Top down aerial 3D heightmap depth map, greyscale, highly detailed 16-bit, ",
-        671771707759647,
+        913945536751640,
         "randomize"
       ]
-    },
-    {
-      "id": 109,
-      "type": "SimplePBRGenerator",
-      "pos": [
-        1882.1320173161566,
-        787.5575515767435
-      ],
-      "size": [
-        277.73046875,
-        122
-      ],
-      "flags": {},
-      "order": 17,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 109
-        }
-      ],
-      "outputs": [
-        {
-          "name": "roughness",
-          "type": "IMAGE",
-          "links": [
-            110,
-            131
-          ]
-        },
-        {
-          "name": "metallic",
-          "type": "IMAGE",
-          "links": [
-            111,
-            137
-          ]
-        },
-        {
-          "name": "normal",
-          "type": "IMAGE",
-          "links": [
-            112,
-            122
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
-        "ver": "0239bee25faf9c056b43681140253d21bc5b7b57",
-        "Node name for S&R": "SimplePBRGenerator"
-      },
-      "widgets_values": [
-        1,
-        1
-      ]
-    },
-    {
-      "id": 10,
-      "type": "PreviewHeightmapInBlender",
-      "pos": [
-        2238.8400734735565,
-        -13.597595874444945
-      ],
-      "size": [
-        400,
-        378
-      ],
-      "flags": {},
-      "order": 22,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 145
-        },
-        {
-          "name": "texture",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 129
-        },
-        {
-          "name": "roughness_map",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 131
-        },
-        {
-          "name": "normal_map",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 122
-        },
-        {
-          "name": "metallic_map",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 137
-        }
-      ],
-      "outputs": [
-        {
-          "name": "heightmap",
-          "type": "IMAGE",
-          "links": [
-            101
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
-        "ver": "98a5d0c7fabf6c436187017ef5f1b6fbcf5ea47b",
-        "Node name for S&R": "PreviewHeightmapInBlender"
-      },
-      "widgets_values": [
-        true,
-        true,
-        true,
-        0.5,
-        8,
-        "127.0.0.1",
-        8119,
-        0.1,
-        "0",
-        0.1,
-        0.9
-      ]
-    },
-    {
-      "id": 1,
-      "type": "LoadImage",
-      "pos": [
-        -1339.9046156861416,
-        174.62570367708682
-      ],
-      "size": [
-        315,
-        314
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            1,
-            113
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "magnifics_upscale-1A9G5YPmRaXEuikjKNOb-Firefly_make it wide screen, add transitions on sides to diffirent type of landscapes, desert 645487.png",
-        "image"
-      ]
-    },
-    {
-      "id": 116,
-      "type": "PreviewAny",
-      "pos": [
-        -323.58267317998207,
-        861.9994637094809
-      ],
-      "size": [
-        408.7781186097145,
-        133.12515730685493
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "source",
-          "type": "*",
-          "link": 125
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewAny"
-      },
-      "widgets_values": [
-        null,
-        null,
-        null
-      ]
-    },
-    {
-      "id": 107,
-      "type": "VAEDecode",
-      "pos": [
-        1479.0293259216842,
-        718.9418374470056
-      ],
-      "size": [
-        210,
-        46
-      ],
-      "flags": {},
-      "order": 15,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "samples",
-          "type": "LATENT",
-          "link": 107
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 116
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            108,
-            109,
-            129,
-            144
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "VAEDecode"
-      },
-      "widgets_values": []
     },
     {
       "id": 3,
@@ -679,7 +229,7 @@
         98
       ],
       "flags": {},
-      "order": 2,
+      "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -716,59 +266,425 @@
       ]
     },
     {
-      "id": 122,
-      "type": "ColorToHeightmap",
+      "id": 7,
+      "type": "EmptyLatentImage",
       "pos": [
-        1625.7301080191112,
-        405.4077702330927
+        999.1688532817315,
+        318.9924937251322
       ],
       "size": [
-        308.56015625,
+        315,
         106
       ],
       "flags": {},
-      "order": 18,
+      "order": 2,
       "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            156
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 124,
+      "type": "LoadImage",
+      "pos": [
+        -127.32110145659739,
+        -457.7290044616056
+      ],
+      "size": [
+        282.798828125,
+        314
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            154
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "Gemini_Generated_Image_5qz3bc5qz3bc5qz3.png",
+        "image"
+      ]
+    },
+    {
+      "id": 123,
+      "type": "ImageTo360Latent",
+      "pos": [
+        361.9594989872155,
+        -200.73682545279473
+      ],
+      "size": [
+        354.538671875,
+        198
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 4,
       "inputs": [
         {
-          "name": "images",
+          "name": "image",
           "type": "IMAGE",
-          "link": 144
+          "link": 154
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 148
         }
       ],
       "outputs": [
         {
-          "name": "heightmap",
-          "type": "IMAGE",
-          "links": [
-            145
-          ]
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": []
         }
       ],
       "properties": {
         "aux_id": "GeekatplayStudio/comfyui_360_hdri",
         "ver": "3a696765600b1eef53e5f2093a3e2f6e06feb96b",
-        "Node name for S&R": "ColorToHeightmap"
+        "Node name for S&R": "ImageTo360Latent"
       },
       "widgets_values": [
-        false,
-        true,
-        1
+        1024,
+        1024,
+        "center",
+        0.5,
+        941552079371973,
+        "randomize"
       ]
+    },
+    {
+      "id": 4,
+      "type": "LoraLoader",
+      "pos": [
+        80.12557251659548,
+        168.6290729765706
+      ],
+      "size": [
+        315,
+        126
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            120
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            123,
+            124
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "LoraLoader"
+      },
+      "widgets_values": [
+        "seamless_texture.safetensors",
+        1,
+        0
+      ]
+    },
+    {
+      "id": 129,
+      "type": "PreviewImage",
+      "pos": [
+        2718.6911993581557,
+        760.1321274369401
+      ],
+      "size": [
+        140,
+        246
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 158
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 130,
+      "type": "PreviewImage",
+      "pos": [
+        2892.7126120750154,
+        761.8817156539237
+      ],
+      "size": [
+        140,
+        246
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 159
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 131,
+      "type": "PreviewImage",
+      "pos": [
+        3073.2348483579053,
+        754.9635391161969
+      ],
+      "size": [
+        140,
+        246
+      ],
+      "flags": {},
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 160
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 132,
+      "type": "PreviewImage",
+      "pos": [
+        3258.090967018152,
+        756.7131273331804
+      ],
+      "size": [
+        140,
+        246
+      ],
+      "flags": {},
+      "order": 31,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 161
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 133,
+      "type": "PreviewImage",
+      "pos": [
+        3449.4479092444317,
+        761.7131273331806
+      ],
+      "size": [
+        140,
+        246
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 162
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 112,
+      "type": "PreviewImage",
+      "pos": [
+        2710.542610271288,
+        459.29224713179156
+      ],
+      "size": [
+        140,
+        246
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 112
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 110,
+      "type": "PreviewImage",
+      "pos": [
+        3082.512604992385,
+        448.0651052903403
+      ],
+      "size": [
+        140,
+        246.00000000000003
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 110
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 111,
+      "type": "PreviewImage",
+      "pos": [
+        2890.33211170937,
+        458.5144341300468
+      ],
+      "size": [
+        140,
+        246.00000000000006
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 111
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
     },
     {
       "id": 108,
       "type": "PreviewImage",
       "pos": [
-        1562.1511288604015,
-        1067.5507089112855
+        1715.891855660281,
+        1110.334373312422
       ],
       "size": [
         648,
         474
       ],
       "flags": {},
-      "order": 16,
+      "order": 21,
       "mode": 0,
       "inputs": [
         {
@@ -786,18 +702,391 @@
       "widgets_values": []
     },
     {
+      "id": 101,
+      "type": "PreviewImage",
+      "pos": [
+        2739.0493791933695,
+        -4.885488243824114
+      ],
+      "size": [
+        404.57367586953046,
+        336.8278150075603
+      ],
+      "flags": {},
+      "order": 34,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 182
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 122,
+      "type": "ColorToHeightmap",
+      "pos": [
+        1607.132681929785,
+        39.97295881242932
+      ],
+      "size": [
+        308.56015625,
+        106
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 144
+        }
+      ],
+      "outputs": [
+        {
+          "name": "heightmap",
+          "type": "IMAGE",
+          "links": [
+            176
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "3a696765600b1eef53e5f2093a3e2f6e06feb96b",
+        "Node name for S&R": "ColorToHeightmap"
+      },
+      "widgets_values": [
+        false,
+        true,
+        1
+      ]
+    },
+    {
+      "id": 127,
+      "type": "GapPBRExtractor",
+      "pos": [
+        1894.6935820096471,
+        803.634345821332
+      ],
+      "size": [
+        307.08359375,
+        138
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "albedo_image",
+          "type": "IMAGE",
+          "link": 157
+        }
+      ],
+      "outputs": [
+        {
+          "name": "albedo_map",
+          "type": "IMAGE",
+          "links": [
+            158,
+            177
+          ]
+        },
+        {
+          "name": "normal_map",
+          "type": "IMAGE",
+          "links": [
+            159,
+            178
+          ]
+        },
+        {
+          "name": "roughness_map",
+          "type": "IMAGE",
+          "links": [
+            160,
+            179
+          ]
+        },
+        {
+          "name": "depth_map",
+          "type": "IMAGE",
+          "links": [
+            161,
+            180
+          ]
+        },
+        {
+          "name": "metallic_map",
+          "type": "IMAGE",
+          "links": [
+            162,
+            181
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "13416227f047453d0228adc5dcbee10ee51e46e9",
+        "Node name for S&R": "GapPBRExtractor"
+      },
+      "widgets_values": [
+        "High"
+      ]
+    },
+    {
+      "id": 109,
+      "type": "SimplePBRGenerator",
+      "pos": [
+        1898.9650333274528,
+        603.2786473691646
+      ],
+      "size": [
+        277.73046875,
+        122
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 109
+        }
+      ],
+      "outputs": [
+        {
+          "name": "roughness",
+          "type": "IMAGE",
+          "links": [
+            110
+          ]
+        },
+        {
+          "name": "metallic",
+          "type": "IMAGE",
+          "links": [
+            111
+          ]
+        },
+        {
+          "name": "normal",
+          "type": "IMAGE",
+          "links": [
+            112
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "0239bee25faf9c056b43681140253d21bc5b7b57",
+        "Node name for S&R": "SimplePBRGenerator"
+      },
+      "widgets_values": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": 107,
+      "type": "VAEDecode",
+      "pos": [
+        1384.1580115061597,
+        692.4237612622782
+      ],
+      "size": [
+        210,
+        46
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 107
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 116
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            108,
+            109,
+            144,
+            157
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        -1339.9046156861416,
+        174.62570367708682
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1,
+            113
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "39400b643afa044c.jpeg",
+        "image"
+      ]
+    },
+    {
+      "id": 136,
+      "type": "PreviewHeightmapInBlender",
+      "pos": [
+        2309.392587030179,
+        14.402708840360386
+      ],
+      "size": [
+        313.953125,
+        462
+      ],
+      "flags": {},
+      "order": 33,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 176
+        },
+        {
+          "name": "albedo_map",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 177
+        },
+        {
+          "name": "roughness_map",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 179
+        },
+        {
+          "name": "normal_map",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 178
+        },
+        {
+          "name": "metallic_map",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 181
+        },
+        {
+          "name": "depth_map",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 180
+        },
+        {
+          "name": "alpha_map",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ior_map",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "heightmap",
+          "type": "IMAGE",
+          "links": [
+            182
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "0a8260f817a4c8fdc8772418ab2eaeeb6e203588",
+        "Node name for S&R": "PreviewHeightmapInBlender"
+      },
+      "widgets_values": [
+        true,
+        false,
+        true,
+        1,
+        8,
+        "127.0.0.1",
+        8119,
+        0.2,
+        "0",
+        0,
+        1,
+        0.02
+      ]
+    },
+    {
       "id": 106,
       "type": "KSampler",
       "pos": [
-        1102.3347184279937,
-        887.0363786267111
+        1069.9403377876592,
+        829.119152633387
       ],
       "size": [
         315,
         262
       ],
       "flags": {},
-      "order": 14,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
@@ -846,178 +1135,313 @@
       ]
     },
     {
-      "id": 7,
-      "type": "EmptyLatentImage",
+      "id": 102,
+      "type": "PreviewAny",
       "pos": [
-        999.1688532817315,
-        318.9924937251322
+        -399.6686485403039,
+        159.78636282609597
       ],
       "size": [
-        315,
-        106
+        408.7781186097145,
+        133.12515730685493
       ],
       "flags": {},
-      "order": 3,
+      "order": 9,
       "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            156
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "EmptyLatentImage"
-      },
-      "widgets_values": [
-        1024,
-        1024,
-        1
-      ]
-    },
-    {
-      "id": 124,
-      "type": "LoadImage",
-      "pos": [
-        -127.32110145659739,
-        -457.7290044616056
-      ],
-      "size": [
-        282.798828125,
-        314
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 4,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            154
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "Gemini_Generated_Image_5qz3bc5qz3bc5qz3.png",
-        "image"
-      ]
-    },
-    {
-      "id": 123,
-      "type": "ImageTo360Latent",
-      "pos": [
-        361.9594989872155,
-        -200.73682545279473
-      ],
-      "size": [
-        354.538671875,
-        198
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 4,
       "inputs": [
         {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 154
+          "name": "source",
+          "type": "*",
+          "link": 102
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 116,
+      "type": "PreviewAny",
+      "pos": [
+        -399.2831404364193,
+        521.97610247791
+      ],
+      "size": [
+        408.7781186097145,
+        133.12515730685493
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 125
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 138,
+      "type": "PreviewAny",
+      "pos": [
+        -379.55842196354035,
+        931.4150365329847
+      ],
+      "size": [
+        408.7781186097145,
+        133.12515730685493
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 187
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 139,
+      "type": "PreviewAny",
+      "pos": [
+        -374.55842196354064,
+        1124.891432985834
+      ],
+      "size": [
+        408.7781186097145,
+        133.12515730685493
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 188
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 103,
+      "type": "TerrainTexturePromptMaker",
+      "pos": [
+        -386.40179931579735,
+        759.2106490051356
+      ],
+      "size": [
+        356.589453125,
+        102
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "description",
+          "type": "STRING",
+          "link": 115
         },
         {
-          "name": "vae",
-          "type": "VAE",
-          "link": 148
+          "name": "heightmap_description",
+          "shape": 7,
+          "type": "STRING",
+          "link": 114
         }
       ],
       "outputs": [
         {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": []
+          "name": "positive_prompt",
+          "type": "STRING",
+          "links": [
+            183,
+            187
+          ]
+        },
+        {
+          "name": "negative_prompt",
+          "type": "STRING",
+          "links": [
+            184,
+            188
+          ]
         }
       ],
       "properties": {
         "aux_id": "GeekatplayStudio/comfyui_360_hdri",
-        "ver": "3a696765600b1eef53e5f2093a3e2f6e06feb96b",
-        "Node name for S&R": "ImageTo360Latent"
+        "ver": "b81ee9faae007993974cc7a9b49c4867889dfa37",
+        "Node name for S&R": "TerrainTexturePromptMaker"
       },
       "widgets_values": [
-        1024,
-        1024,
-        "center",
-        0.5,
-        682902856595928,
-        "randomize"
+        "General",
+        "Side View / Photo"
       ]
     },
     {
-      "id": 4,
-      "type": "LoraLoader",
+      "id": 141,
+      "type": "PreviewAny",
       "pos": [
-        80.12557251659548,
-        168.6290729765706
+        77.09137171378661,
+        1141.6712077641378
       ],
       "size": [
-        315,
-        126
+        408.7781186097145,
+        133.12515730685493
       ],
       "flags": {},
-      "order": 7,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
-          "name": "model",
-          "type": "MODEL",
-          "link": 3
+          "name": "source",
+          "type": "*",
+          "link": 190
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 140,
+      "type": "PreviewAny",
+      "pos": [
+        70.69743169835411,
+        932.9105535364396
+      ],
+      "size": [
+        395.1028589730563,
+        133.17205479446454
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 189
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 137,
+      "type": "TerrainErosionPromptMaker",
+      "pos": [
+        83.6700193350404,
+        722.3666484860169
+      ],
+      "size": [
+        361.634375,
+        156
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input_positive",
+          "shape": 7,
+          "type": "STRING",
+          "link": 183
         },
         {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 4
+          "name": "input_negative",
+          "shape": 7,
+          "type": "STRING",
+          "link": 184
         }
       ],
       "outputs": [
         {
-          "name": "MODEL",
-          "type": "MODEL",
+          "name": "positive_prompt",
+          "type": "STRING",
           "links": [
-            120
+            185,
+            189
           ]
         },
         {
-          "name": "CLIP",
-          "type": "CLIP",
+          "name": "negative_prompt",
+          "type": "STRING",
           "links": [
-            123,
-            124
+            186,
+            190
           ]
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "LoraLoader"
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "0a8260f817a4c8fdc8772418ab2eaeeb6e203588",
+        "Node name for S&R": "TerrainErosionPromptMaker"
       },
       "widgets_values": [
-        "seamless_texture.safetensors",
-        1,
-        0
+        "Coastal (Waves)",
+        0,
+        ""
       ]
     }
   ],
@@ -1047,35 +1471,11 @@
       "CLIP"
     ],
     [
-      101,
-      10,
-      0,
-      101,
-      0,
-      "IMAGE"
-    ],
-    [
       102,
       2,
       0,
       102,
       0,
-      "STRING"
-    ],
-    [
-      103,
-      103,
-      0,
-      104,
-      1,
-      "STRING"
-    ],
-    [
-      104,
-      103,
-      1,
-      105,
-      1,
       "STRING"
     ],
     [
@@ -1183,14 +1583,6 @@
       "MODEL"
     ],
     [
-      122,
-      109,
-      2,
-      10,
-      3,
-      "IMAGE"
-    ],
-    [
       123,
       4,
       1,
@@ -1215,42 +1607,10 @@
       "STRING"
     ],
     [
-      129,
-      107,
-      0,
-      10,
-      1,
-      "IMAGE"
-    ],
-    [
-      131,
-      109,
-      0,
-      10,
-      2,
-      "IMAGE"
-    ],
-    [
-      137,
-      109,
-      1,
-      10,
-      4,
-      "IMAGE"
-    ],
-    [
       144,
       107,
       0,
       122,
-      0,
-      "IMAGE"
-    ],
-    [
-      145,
-      122,
-      0,
-      10,
       0,
       "IMAGE"
     ],
@@ -1277,20 +1637,188 @@
       106,
       3,
       "LATENT"
+    ],
+    [
+      157,
+      107,
+      0,
+      127,
+      0,
+      "IMAGE"
+    ],
+    [
+      158,
+      127,
+      0,
+      129,
+      0,
+      "IMAGE"
+    ],
+    [
+      159,
+      127,
+      1,
+      130,
+      0,
+      "IMAGE"
+    ],
+    [
+      160,
+      127,
+      2,
+      131,
+      0,
+      "IMAGE"
+    ],
+    [
+      161,
+      127,
+      3,
+      132,
+      0,
+      "IMAGE"
+    ],
+    [
+      162,
+      127,
+      4,
+      133,
+      0,
+      "IMAGE"
+    ],
+    [
+      176,
+      122,
+      0,
+      136,
+      0,
+      "IMAGE"
+    ],
+    [
+      177,
+      127,
+      0,
+      136,
+      1,
+      "IMAGE"
+    ],
+    [
+      178,
+      127,
+      1,
+      136,
+      3,
+      "IMAGE"
+    ],
+    [
+      179,
+      127,
+      2,
+      136,
+      2,
+      "IMAGE"
+    ],
+    [
+      180,
+      127,
+      3,
+      136,
+      5,
+      "IMAGE"
+    ],
+    [
+      181,
+      127,
+      4,
+      136,
+      4,
+      "IMAGE"
+    ],
+    [
+      182,
+      136,
+      0,
+      101,
+      0,
+      "IMAGE"
+    ],
+    [
+      183,
+      103,
+      0,
+      137,
+      0,
+      "STRING"
+    ],
+    [
+      184,
+      103,
+      1,
+      137,
+      1,
+      "STRING"
+    ],
+    [
+      185,
+      137,
+      0,
+      104,
+      1,
+      "STRING"
+    ],
+    [
+      186,
+      137,
+      1,
+      105,
+      1,
+      "STRING"
+    ],
+    [
+      187,
+      103,
+      0,
+      138,
+      0,
+      "STRING"
+    ],
+    [
+      188,
+      103,
+      1,
+      139,
+      0,
+      "STRING"
+    ],
+    [
+      189,
+      137,
+      0,
+      140,
+      0,
+      "STRING"
+    ],
+    [
+      190,
+      137,
+      1,
+      141,
+      0,
+      "STRING"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.43056764313424634,
+      "scale": 0.5750268819333988,
       "offset": [
-        1990.254894973923,
-        1394.5056766103537
+        2069.515030342445,
+        565.508234034514
       ]
     },
-    "workflowRendererVersion": "LG",
-    "frontendVersion": "1.35.9"
+    "frontendVersion": "1.35.9",
+    "workflowRendererVersion": "LG"
   },
   "version": 0.4
 }

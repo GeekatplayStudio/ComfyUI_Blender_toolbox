@@ -57,6 +57,10 @@ class SeamlessConv2d(nn.Module):
     def dilation(self):
         return self.original_conv.dilation
         
+    @property
+    def padding_mode(self):
+        return self.original_conv.padding_mode
+        
     def forward(self, input):
         # We need to apply circular padding manually before the convolution
         

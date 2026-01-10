@@ -304,3 +304,147 @@ class ColorToHeightmap:
             results.append(res)
             
         return (torch.stack(results), )
+
+class TerrainErosionPromptMaker:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "erosion_type": (["Hydraulic (Water flow)", "Thermal (Weathering)", "Glacial (Scouring)", "Aeolian (Wind/Sand)", "Coastal (Waves)", "Terrace (Agricultural)"],),
+                "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1}),
+            },
+            "optional": {
+                "description": ("STRING", {"multiline": True}),
+                "input_positive": ("STRING", {"forceInput": True}),
+                "input_negative": ("STRING", {"forceInput": True}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("positive_prompt", "negative_prompt")
+    FUNCTION = "create_prompt"
+    CATEGORY = "Geekatplay Studio/360 HDRI/Terrain"
+
+    def create_prompt(self, erosion_type, strength=1.0, description="", input_positive="", input_negative=""):
+        base_prompt = "top-down orthographic heightmap, erosion simulation, weathering effects, geological detail"
+        
+        erosion_context = ""
+        if erosion_type == "Hydraulic (Water flow)":
+            erosion_context = "hydraulic erosion, dendritic drainage channels, river networks, branching water flow, gully formation, sharp ridges, sediment fan"
+        elif erosion_type == "Thermal (Weathering)":
+            erosion_context = "thermal weathering, rock crumbling, scree slopes, talus piles, smooth eroded peaks, diffused landscape features"
+        elif erosion_type == "Glacial (Scouring)":
+            erosion_context = "glacial erosion, U-shaped valleys, cirques, tarns, scoured bedrock, lateral moraines, deep scarring, smooth polished surfaces"
+        elif erosion_type == "Aeolian (Wind/Sand)":
+            erosion_context = "aeolian erosion, wind sculpted rocks, yardangs, ventifacts, sand ripples, dune fields, directional weathering"
+        elif erosion_type == "Coastal (Waves)":
+            erosion_context = "coastal erosion, sea cliffs, wave cut platforms, sea stacks, jagged coastline, tidal weathering"
+        elif erosion_type == "Terrace (Agricultural)":
+            erosion_context = "agricultural terraces, step farming, contour lines, man-made landscaping, leveled platforms, rice paddies"
+
+        # Combine logic:
+        # Start with input_positive if present
+        parts = []
+        if input_positive:
+            parts.append(input_positive)
+        
+        if strength > 0.0:
+            erosion_content = f"{base_prompt}, {erosion_context}"
+            if strength != 1.0:
+                parts.append(f"({erosion_content}:{strength})")
+            else:
+                parts.append(erosion_content)
+        
+        if description:
+            parts.append(description)
+
+        positive = ", ".join([p for p in parts if p])
+        
+        # Negative to keep it clean map data
+        node_negative = "vegetation, trees, water, snow, ice, man-made structures (unless terrace), buildings, roads, text, labels, noise, artifacts, perspective, side view, 3d render, shadows"
+        
+        neg_parts = []
+        if input_negative:
+            neg_parts.append(input_negative)
+            
+        if strength > 0.0:
+            if strength != 1.0:
+                neg_parts.append(f"({node_negative}:{strength})")
+            else:
+                neg_parts.append(node_negative)
+
+        negative = ", ".join([p for p in neg_parts if p])
+
+        return (positive, negative)
+
+class MaterialTexturePromptMaker:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "material_type": (["Rock", "Soil", "Sand", "Grass", "Forest Floor", "Water", "Swamp Water", "Snow", "Ice", "Brick", "Wood", "Metal", "Polished Metal", "Concrete", "Plaster", "Asphalt", "Ceramic", "Marble", "Fabric", "Leather", "Organic", "Sci-Fi"],),
+                "description": ("STRING", {"multiline": True}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("positive_prompt", "negative_prompt")
+    FUNCTION = "create_prompt"
+    CATEGORY = "Geekatplay Studio/360 HDRI/Texture"
+
+    def create_prompt(self, material_type, description):
+        base_prompt = "top down high resolution texture, seamless pattern, albedo material map, flat lighting, photorealistic, 4k, incredibly detailed"
+
+        material_context = ""
+        if material_type == "Rock":
+            material_context = "stone surface, natural rock formation, rough texture, geological detail"
+        elif material_type == "Soil":
+            material_context = "rich soil, dirt, earthy texture, loam, clumps"
+        elif material_type == "Sand":
+            material_context = "sand dunes, ripples, beach sand, desert texture, granular"
+        elif material_type == "Grass":
+            material_context = "green grass, lawn, vegetation, meadow, turf"
+        elif material_type == "Forest Floor":
+            material_context = "fallen leaves, twigs, roots, pine needles, mossy ground"
+        elif material_type == "Water":
+            material_context = "water surface, waves, ripples, liquid, fluid simulation, caustic"
+        elif material_type == "Swamp Water":
+            material_context = "murky water, algae, duckweed, stagnant water, sludge, green tint"
+        elif material_type == "Snow":
+            material_context = "fresh snow, powder, cold, icy patches, white surface"
+        elif material_type == "Ice":
+            material_context = "frozen ice, cracks, bubbles, slippery surface, blue tint, glacial"
+        elif material_type == "Brick":
+            material_context = "brick wall, masonry, construction material, repetitive pattern, mortar joints"
+        elif material_type == "Wood":
+            material_context = "wood grain, timber, planks, natural bark, carpentry material, knots"
+        elif material_type == "Metal":
+            material_context = "metallic surface, rust, patina, brushed steel, industrial material, oxidation"
+        elif material_type == "Polished Metal":
+            material_context = "gold, silver, platinum, high polish, reflective, luxury material"
+        elif material_type == "Concrete":
+             material_context = "weathered concrete, cement surface, urban texture, crack details, aggregate"
+        elif material_type == "Plaster":
+             material_context = "stucco wall, plaster texture, painted surface, grunge details, rough cast"
+        elif material_type == "Asphalt":
+            material_context = "road surface, bitumen, tar, rough street, pebbles"
+        elif material_type == "Ceramic":
+            material_context = "bathroom tiles, kitchen tiles, glazed surface, grout lines, geometric pattern"
+        elif material_type == "Marble":
+            material_context = "polished marble, stone veins, luxury stone, smooth surface"
+        elif material_type == "Fabric":
+            material_context = "cloth weave, textile pattern, threads, soft material, high thread count"
+        elif material_type == "Leather":
+             material_context = "leather grain, tanned skin, animal hide, expensive material, pores"
+        elif material_type == "Organic":
+            material_context = "biological texture, skin, scales, cellular pattern, organic growth, microscopic detail"
+        elif material_type == "Sci-Fi":
+            material_context = "spaceship hull, greebles, tech panels, futuristic metal, vents"
+
+        positive = f"{base_prompt}, {description}, {material_context}"
+        
+        negative = "perspective, 3d render, shadows, occlusion, frame, border, text, watermark, depth of field, blur, distorted, noisy, low resolution, spherical, sphere, ball"
+
+        return (positive, negative)
+
+

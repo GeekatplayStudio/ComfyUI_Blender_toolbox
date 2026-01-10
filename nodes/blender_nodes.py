@@ -147,12 +147,16 @@ class PreviewHeightmapInBlender:
                 "rotation": (["0", "90", "180", "270"], ),
                 "roughness_min": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "roughness_max": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "mesh_scale_1px_m": ("FLOAT", {"default": 0.01, "min": 0.0001, "max": 100.0, "step": 0.001, "tooltip": "Physical size of 1 pixel in meters. Controls the scale of the terrain in Blender."}),
             },
             "optional": {
-                "texture": ("IMAGE", ),
+                "albedo_map": ("IMAGE", ),
                 "roughness_map": ("IMAGE", ),
                 "normal_map": ("IMAGE", ),
                 "metallic_map": ("IMAGE", ),
+                "depth_map": ("IMAGE", ),
+                "alpha_map": ("IMAGE", ),
+                "ior_map": ("IMAGE", ),
             }
         }
 
@@ -166,14 +170,22 @@ class PreviewHeightmapInBlender:
     def IS_CHANGED(s, **kwargs):
         return float("nan")
 
-    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, auto_level_height=True, height_gamma=1.0, smoothing_amount=1.0, edge_falloff=0.0, rotation="0", roughness_min=0.0, roughness_max=1.0, texture=None, roughness_map=None, normal_map=None, metallic_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+    def send_heightmap(self, images, generate_pbr=True, use_texture_as_heightmap=False, auto_level_height=True, height_gamma=1.0, smoothing_amount=1.0, edge_falloff=0.0, rotation="0", roughness_min=0.0, roughness_max=1.0, mesh_scale_1px_m=0.01, albedo_map=None, roughness_map=None, normal_map=None, metallic_map=None, depth_map=None, alpha_map=None, ior_map=None, blender_ip_address="127.0.0.1", blender_listen_port=8119):
+        # Resolve inputs
+        texture = albedo_map 
+
         # Save to temp dir
         output_dir = folder_paths.get_temp_directory()
         filename = "ComfyUI_Heightmap_Temp.png"
         filepath = os.path.join(output_dir, filename)
         
         # Decide source for heightmap
-        if use_texture_as_heightmap and texture is not None:
+        img_np = None
+        
+        if depth_map is not None:
+             # Explicit depth input overrides other logic
+             img_np = depth_map[0].cpu().numpy()
+        elif use_texture_as_heightmap and texture is not None:
             # Use texture as heightmap (Grayscale conversion)
             img_np = texture[0].cpu().numpy()
             # RGB to Grayscale using standard luminance weights
@@ -217,10 +229,10 @@ class PreviewHeightmapInBlender:
             try:
                 # Convert to PIL for quality Gaussian Blur
                 # Ensure we are handling correct usage of channels
-                pil_img = Image.fromarray(img_np)
-                
-                # Check for appropriate mode (if RGBA/RGB/L)
-                # Image.fromarray handles this automatically usually
+                if img_np.ndim == 2:
+                     pil_img = Image.fromarray(img_np, mode='L')
+                else:
+                     pil_img = Image.fromarray(img_np)
                 
                 pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=smoothing_amount))
                 
@@ -236,7 +248,11 @@ class PreviewHeightmapInBlender:
 
         # Apply Edge Falloff (Mountain slope)
         if edge_falloff > 0.0:
-            H, W = img_np.shape[:2]
+            if img_np.ndim == 3:
+                H, W = img_np.shape[:2]
+            else:
+                H, W = img_np.shape
+                
             # Create gradients 0..1..0
             
             # X Gradient
@@ -254,11 +270,18 @@ class PreviewHeightmapInBlender:
             mask = np.outer(ramp_y, ramp_x)
             
             # Apply to all channels
-            img_np = (img_np.astype(np.float32) * mask[..., None]).astype(np.uint8)
+            if img_np.ndim == 3:
+                 img_np = (img_np.astype(np.float32) * mask[..., None]).astype(np.uint8)
+            else:
+                 img_np = (img_np.astype(np.float32) * mask).astype(np.uint8)
 
         # Output Image Logic
         # Convert back to tensor (1, H, W, 3) 0-1 range
-        out_tensor = torch.from_numpy(img_np.astype(np.float32) / 255.0).unsqueeze(0)
+        out_float = img_np.astype(np.float32) / 255.0
+        if out_float.ndim == 2:
+            out_float = np.stack((out_float,)*3, axis=-1)
+        
+        out_tensor = torch.from_numpy(out_float).unsqueeze(0)
 
         imageio.imwrite(filepath, img_np)
         
@@ -301,12 +324,43 @@ class PreviewHeightmapInBlender:
             m_np = metallic_map[0].cpu().numpy()
             m_np = (np.clip(m_np, 0, 1) * 255).astype(np.uint8)
             imageio.imwrite(metallic_filepath, m_np)
+            
+        # Handle Alpha
+        alpha_filepath = ""
+        if alpha_map is not None:
+            alpha_filename = "ComfyUI_Alpha_Temp.png"
+            alpha_filepath = os.path.join(output_dir, alpha_filename)
+            
+            a_np = alpha_map[0].cpu().numpy()
+            a_np = (np.clip(a_np, 0, 1) * 255).astype(np.uint8)
+            imageio.imwrite(alpha_filepath, a_np)
 
+        # Handle IOR
+        ior_filepath = ""
+        if ior_map is not None:
+            ior_filename = "ComfyUI_IOR_Temp.png"
+            ior_filepath = os.path.join(output_dir, ior_filename)
+            
+            i_np = ior_map[0].cpu().numpy()
+            i_np = (np.clip(i_np, 0, 1) * 255).astype(np.uint8)
+            imageio.imwrite(ior_filepath, i_np)
+
+        # Calculate Physical Dimensions
+        # img_np shape is (H, W) or (H, W, C)
+        # Using the heightmap image itself as reference for dimensions
+        if img_np.ndim == 3:
+            H, W = img_np.shape[:2]
+        else:
+            H, W = img_np.shape
+            
+        phys_w = W * mesh_scale_1px_m
+        phys_h = H * mesh_scale_1px_m
+        
         # Send to Blender
         host = blender_ip_address
         port = blender_listen_port
         
-        # Message format: HEIGHTMAP:<height_path>|TEXTURE:<texture_path>|PBR:<true/false>|ROUGHNESS:<path>|NORMAL:<path>|METALLIC:<path>
+        # Message format: HEIGHTMAP:<height_path>|...|SIZE_X:<val>|SIZE_Y:<val>
         message = f"HEIGHTMAP:{filepath}"
         if texture_filepath:
             message += f"|TEXTURE:{texture_filepath}"
@@ -322,19 +376,30 @@ class PreviewHeightmapInBlender:
             message += f"|NORMAL:{normal_filepath}"
         if metallic_filepath:
             message += f"|METALLIC:{metallic_filepath}"
+        if alpha_filepath:
+            message += f"|ALPHA:{alpha_filepath}"
+        if ior_filepath:
+            message += f"|IOR:{ior_filepath}"
             
         # Send Roughness Min/Max
         message += f"|ROUGHNESS_MIN:{roughness_min:.3f}"
         message += f"|ROUGHNESS_MAX:{roughness_max:.3f}"
+        
+        # Send Dimensions
+        message += f"|SIZE_X:{phys_w:.4f}"
+        message += f"|SIZE_Y:{phys_h:.4f}"
         
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(5) # Increased timeout
                 s.connect((host, port))
                 s.sendall(message.encode('utf-8'))
-        except ConnectionRefusedError:
-            print(f"CONNECTION ERROR: Could not connect to Blender at {host}:{port}.")
-            print("Is the Blender listener running? Check the Blender console.")
+        except (ConnectionRefusedError, OSError) as e:
+            if isinstance(e, ConnectionRefusedError) or (hasattr(e, 'winerror') and e.winerror == 10061):
+                 print(f"CONNECTION ERROR: Could not connect to Blender at {host}:{port}.")
+                 print("Is the Blender listener running? Check the Blender console.")
+            else:
+                 print(f"Error sending to Blender: {e}")
         except Exception as e:
             print(f"Error sending to Blender: {e}")
             import traceback

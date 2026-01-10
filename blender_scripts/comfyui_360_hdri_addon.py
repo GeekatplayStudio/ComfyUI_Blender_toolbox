@@ -562,8 +562,12 @@ def process_queue():
             roughness_path = None
             normal_path = None
             metallic_path = None
+            alpha_path = None
+            ior_path = None
             roughness_min = 0.0
             roughness_max = 1.0
+            size_x = 10.0
+            size_y = 10.0
             
             for part in parts:
                 if part.startswith("HEIGHTMAP:"):
@@ -579,11 +583,21 @@ def process_queue():
                     normal_path = part.replace("NORMAL:", "").strip()
                 elif part.startswith("METALLIC:"):
                     metallic_path = part.replace("METALLIC:", "").strip()
+                elif part.startswith("ALPHA:"):
+                    alpha_path = part.replace("ALPHA:", "").strip()
+                elif part.startswith("IOR:"):
+                    ior_path = part.replace("IOR:", "").strip()
                 elif part.startswith("ROUGHNESS_MIN:"):
                     try: roughness_min = float(part.replace("ROUGHNESS_MIN:", ""))
                     except: pass
                 elif part.startswith("ROUGHNESS_MAX:"):
                     try: roughness_max = float(part.replace("ROUGHNESS_MAX:", ""))
+                    except: pass
+                elif part.startswith("SIZE_X:"):
+                    try: size_x = float(part.replace("SIZE_X:", ""))
+                    except: pass
+                elif part.startswith("SIZE_Y:"):
+                    try: size_y = float(part.replace("SIZE_Y:", ""))
                     except: pass
             
             print(f"[ComfyUI-360] DEBUG: Parsed Heightmap: {height_path}")
@@ -591,9 +605,12 @@ def process_queue():
             print(f"[ComfyUI-360] DEBUG: Use PBR: {use_pbr}")
             print(f"[ComfyUI-360] DEBUG: Roughness: {roughness_path} (Range: {roughness_min}-{roughness_max})")
             print(f"[ComfyUI-360] DEBUG: Metallic: {metallic_path}")
+            print(f"[ComfyUI-360] DEBUG: Alpha: {alpha_path}")
+            print(f"[ComfyUI-360] DEBUG: IOR: {ior_path}")
+            print(f"[ComfyUI-360] DEBUG: Size: {size_x} x {size_y} m")
             
             # Call function to create terrain
-            create_terrain_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path, metallic_path, roughness_min, roughness_max)
+            create_terrain_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path, metallic_path, alpha_path, ior_path, roughness_min, roughness_max, size_x, size_y)
             
         elif msg.startswith("MODEL:"):
             model_path = msg.replace("MODEL:", "").strip()
@@ -642,7 +659,7 @@ def process_queue():
     return 1.0 # Run every 1.0 seconds
 
 
-def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False, roughness_path=None, normal_path=None, metallic_path=None, roughness_min=0.0, roughness_max=1.0):
+def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False, roughness_path=None, normal_path=None, metallic_path=None, alpha_path=None, ior_path=None, roughness_min=0.0, roughness_max=1.0, size_x=10.0, size_y=10.0):
     """
     Creates a 3D terrain mesh from a heightmap image using a high-density grid.
     Applies displacement, PBR texture materials, and sets up the scene.
@@ -658,13 +675,27 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
     for name in ["ComfyTermain", "ComfyTerrain"]:
         if name in bpy.data.objects:
             bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+            
+    # Remove existing material to ensure clean state
+    mat_name = "ComfyTerrainMat"
+    if mat_name in bpy.data.materials:
+        bpy.data.materials.remove(bpy.data.materials[mat_name])
 
     # 2. Add High-Res Grid (fixes "segments" issue by providing pre-subdivided geometry)
     # 256 subdivisions = ~65k faces base. + Subsurf level 2 = ~1M faces render.
     # explicit 'calc_uvs=True' ensures we have a UV map for displacement
-    bpy.ops.mesh.primitive_grid_add(x_subdivisions=256, y_subdivisions=256, size=10, location=(0, 0, 0), calc_uvs=True)
+    # size=1 creates a 1x1m unit grid, which we then scale
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=256, y_subdivisions=256, size=1, location=(0, 0, 0), calc_uvs=True)
     obj = bpy.context.active_object
     obj.name = "ComfyTerrain"
+    
+    # Apply Scale
+    obj.scale = (size_x, size_y, 1.0)
+    # Apply Scale so that Displacement happens in local Z correctly (if applied in object mode)
+    # Actually, keep scale on object so user can reset it? 
+    # Or apply it so 1 unit of displacement = 1 meter?
+    # If we scale object X/Y, Z is 1. Displacement happens in local Z.
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
     # 3. Add Subdivision Surface modifier (Smoothing)
     mod = obj.modifiers.new(name="Subdivision", type='SUBSURF')
@@ -706,12 +737,15 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
         disp.uv_layer = obj.data.uv_layers[0].name
 
     # 5. Setup Material (PBR)
-    mat_name = "ComfyTerrainMat"
-    if mat_name in bpy.data.materials:
-        bpy.data.materials.remove(bpy.data.materials[mat_name])
-        
     mat = bpy.data.materials.new(name=mat_name)
     mat.use_nodes = True
+    # Enable Alpha Hashed for transparency if needed
+    mat.blend_method = 'HASHED'
+    
+    # Check for shadow_method (Removed in Blender 4.2+)
+    if hasattr(mat, 'shadow_method'):
+        mat.shadow_method = 'HASHED'
+    
     obj.data.materials.append(mat)
     
     nodes = mat.node_tree.nodes
@@ -729,15 +763,15 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
     
     # Texture Mapping (Common)
     coord = nodes.new('ShaderNodeTexCoord')
-    coord.location = (-800, 0)
+    coord.location = (-1000, 0)
     mapping = nodes.new('ShaderNodeMapping')
-    mapping.location = (-600, 0)
+    mapping.location = (-800, 0)
     links.new(coord.outputs['UV'], mapping.inputs['Vector'])
 
     # A. Texture (Color)
     if texture_path and os.path.exists(texture_path):
         tex_node = nodes.new('ShaderNodeTexImage')
-        tex_node.location = (-300, 200)
+        tex_node.location = (-300, 300)
         try:
             t_img = bpy.data.images.load(texture_path)
             tex_node.image = t_img
@@ -759,20 +793,77 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
     else:
         bsdf.inputs['Roughness'].default_value = 0.8
 
-    # C. Normal Map
+    # C. Metallic
+    if use_pbr and metallic_path and os.path.exists(metallic_path):
+        m_node = nodes.new('ShaderNodeTexImage')
+        m_node.location = (-300, 100)
+        m_node.image = bpy.data.images.load(metallic_path)
+        m_node.image.colorspace_settings.name = 'Non-Color'
+        links.new(mapping.outputs['Vector'], m_node.inputs['Vector'])
+        links.new(m_node.outputs['Color'], bsdf.inputs['Metallic'])
+        
+    # D. Alpha (Opacity)
+    if use_pbr and alpha_path and os.path.exists(alpha_path):
+        a_node = nodes.new('ShaderNodeTexImage')
+        a_node.location = (-300, -500)
+        a_node.image = bpy.data.images.load(alpha_path)
+        a_node.image.colorspace_settings.name = 'Non-Color'
+        links.new(mapping.outputs['Vector'], a_node.inputs['Vector'])
+        links.new(a_node.outputs['Color'], bsdf.inputs['Alpha'])
+        
+    # E. IOR (Transmission)
+    # Mapping IOR map to Transmission Weight probably (usually IOR is constant, but if passed as map could be transmission)
+    # Or specifically IOR value? Principled BSDF has IOR input.
+    if use_pbr and ior_path and os.path.exists(ior_path):
+        i_node = nodes.new('ShaderNodeTexImage')
+        i_node.location = (-300, -700)
+        i_node.image = bpy.data.images.load(ior_path)
+        i_node.image.colorspace_settings.name = 'Non-Color'
+        links.new(mapping.outputs['Vector'], i_node.inputs['Vector'])
+        # Linking to IOR
+        links.new(i_node.outputs['Color'], bsdf.inputs['IOR'])
+        # Also maybe Transmission Weight if it implies glass?
+        # Let's assume if IOR is passed, we might want some Transmission? 
+        # For now, just map to IOR.
+        # bsdf.inputs['Transmission Weight'].default_value = 1.0 
+
+    # F. Normal Map
     if use_pbr and normal_path and os.path.exists(normal_path):
         n_node = nodes.new('ShaderNodeTexImage')
         n_node.location = (-600, -300)
-        n_node.image = bpy.data.images.load(normal_path)
-        n_node.image.colorspace_settings.name = 'Non-Color'
-        
-        norm_map = nodes.new('ShaderNodeNormalMap')
-        norm_map.location = (-300, -300)
-        norm_map.inputs['Strength'].default_value = 1.0
-        
-        links.new(mapping.outputs['Vector'], n_node.inputs['Vector'])
-        links.new(n_node.outputs['Color'], norm_map.inputs['Color'])
-        links.new(norm_map.outputs['Normal'], bsdf.inputs['Normal'])
+        try:
+            n_node.image = bpy.data.images.load(normal_path)
+            n_node.image.colorspace_settings.name = 'Non-Color'
+            
+            norm_map = nodes.new('ShaderNodeNormalMap')
+            norm_map.location = (-300, -300)
+            norm_map.inputs['Strength'].default_value = 1.0
+            
+            links.new(mapping.outputs['Vector'], n_node.inputs['Vector'])
+            links.new(n_node.outputs['Color'], norm_map.inputs['Color'])
+            links.new(norm_map.outputs['Normal'], bsdf.inputs['Normal'])
+        except Exception as e:
+            print(f"[ComfyUI-360] Error loading Normal Map: {e}")
+
+    # G. Depth Map (Displacement inside Material)
+    # The main displacement is done via the Modifier, but we can also add it to the material output for Cycles optimization
+    if height_path and os.path.exists(height_path):
+        d_node = nodes.new('ShaderNodeTexImage')
+        d_node.location = (-600, -600)
+        try:
+            d_node.image = bpy.data.images.load(height_path)
+            d_node.image.colorspace_settings.name = 'Non-Color'
+            
+            disp_node = nodes.new('ShaderNodeDisplacement')
+            disp_node.location = (100, -200)
+            disp_node.inputs['Midlevel'].default_value = 0.0
+            disp_node.inputs['Scale'].default_value = 0.2 # Material displacement usually needs smaller scale than modifier
+            
+            links.new(mapping.outputs['Vector'], d_node.inputs['Vector'])
+            links.new(d_node.outputs['Color'], disp_node.inputs['Height'])
+            links.new(disp_node.outputs['Displacement'], output.inputs['Displacement'])
+        except Exception as e:
+            print(f"[ComfyUI-360] Error loading Displacement Map: {e}")
 
     # Select Object
     bpy.context.view_layer.objects.active = obj

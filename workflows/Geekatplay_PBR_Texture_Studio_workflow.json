@@ -1,97 +1,110 @@
 {
   "id": "a3a7e407-a114-4709-a114-c18fa9a46d17",
   "revision": 0,
-  "last_node_id": 24,
+  "last_node_id": 25,
   "last_link_id": 27,
   "nodes": [
     {
-      "id": 1,
-      "type": "LoadImage",
+      "id": 16,
+      "type": "GapMaterialSaver",
       "pos": [
-        -99.78081207330217,
-        133.70822853036287
-      ],
-      "size": [
-        315,
-        314
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "slot_index": 0,
-          "links": [
-            21
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "slot_index": 1,
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "material_0.png",
-        "image"
-      ]
-    },
-    {
-      "id": 21,
-      "type": "PreviewImage",
-      "pos": [
-        809,
-        -274
+        1958,
+        373
       ],
       "size": [
         300,
-        300
+        202
       ],
       "flags": {},
-      "order": 2,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
-          "name": "images",
+          "name": "albedo",
           "type": "IMAGE",
           "link": 24
+        },
+        {
+          "name": "normal",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 4
+        },
+        {
+          "name": "roughness",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 25
+        },
+        {
+          "name": "metallic",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 27
+        },
+        {
+          "name": "depth",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 26
+        },
+        {
+          "name": "occlusion",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "packed_map",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 7
+        },
+        {
+          "name": "base_filename",
+          "type": "STRING",
+          "widget": {
+            "name": "base_filename"
+          }
+        },
+        {
+          "name": "folder_name",
+          "type": "STRING",
+          "widget": {
+            "name": "folder_name"
+          }
         }
       ],
       "outputs": [],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      }
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "0a8260f817a4c8fdc8772418ab2eaeeb6e203588",
+        "Node name for S&R": "GapMaterialSaver"
+      },
+      "widgets_values": [
+        "MyMaterial",
+        "MyPBR_Output"
+      ]
     },
     {
-      "id": 7,
+      "id": 6,
       "type": "PreviewImage",
       "pos": [
-        1156,
-        -280
+        1960.0362917714704,
+        16.603305785123982
       ],
       "size": [
         300,
         300
       ],
       "flags": {},
-      "order": 3,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 4
+          "link": 7
         }
       ],
       "outputs": [],
@@ -103,88 +116,58 @@
       "widgets_values": []
     },
     {
-      "id": 22,
-      "type": "PreviewImage",
+      "id": 4,
+      "type": "GapChannelPacker",
       "pos": [
-        700,
-        391
+        1602.8745957599697,
+        26.76104922745245
       ],
       "size": [
         300,
-        300
+        150
       ],
       "flags": {},
-      "order": 4,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
-          "name": "images",
+          "name": "red_channel",
           "type": "IMAGE",
-          "link": 25
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      }
-    },
-    {
-      "id": 23,
-      "type": "PreviewImage",
-      "pos": [
-        1059,
-        383
-      ],
-      "size": [
-        300,
-        300
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
+          "link": 5
+        },
         {
-          "name": "images",
+          "name": "green_channel",
           "type": "IMAGE",
-          "link": 26
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      }
-    },
-    {
-      "id": 24,
-      "type": "PreviewImage",
-      "pos": [
-        1397,
-        378
-      ],
-      "size": [
-        300,
-        300
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
+          "link": 5
+        },
         {
-          "name": "images",
+          "name": "blue_channel",
           "type": "IMAGE",
-          "link": 27
+          "link": 6
+        },
+        {
+          "name": "alpha_channel",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "packed_image",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            7
+          ]
+        }
+      ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.7.0",
-        "Node name for S&R": "PreviewImage"
-      }
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "052a46f5fbcb062045e51764c97317fdfa2b905f",
+        "Node name for S&R": "GapChannelPacker"
+      },
+      "widgets_values": []
     },
     {
       "id": 3,
@@ -209,7 +192,7 @@
       ],
       "outputs": [
         {
-          "name": "albedo_out",
+          "name": "albedo_map",
           "type": "IMAGE",
           "slot_index": 0,
           "links": [
@@ -261,24 +244,24 @@
       ]
     },
     {
-      "id": 6,
+      "id": 21,
       "type": "PreviewImage",
       "pos": [
-        1956.730506647503,
-        12.471074380165305
+        550.5000000000001,
+        -358.69999999999993
       ],
       "size": [
         300,
         300
       ],
       "flags": {},
-      "order": 8,
+      "order": 2,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 7
+          "link": 24
         }
       ],
       "outputs": [],
@@ -290,81 +273,161 @@
       "widgets_values": []
     },
     {
-      "id": 4,
-      "type": "GapChannelPacker",
+      "id": 7,
+      "type": "PreviewImage",
       "pos": [
-        1565.6845131153425,
-        125.10815666546893
+        869.9999999999995,
+        -359.1999999999998
       ],
       "size": [
         300,
-        150
+        300
       ],
       "flags": {},
-      "order": 7,
+      "order": 3,
       "mode": 0,
       "inputs": [
         {
-          "name": "red_channel",
+          "name": "images",
           "type": "IMAGE",
-          "link": 5
-        },
-        {
-          "name": "green_channel",
-          "type": "IMAGE",
-          "link": 5
-        },
-        {
-          "name": "blue_channel",
-          "type": "IMAGE",
-          "link": 6
-        },
-        {
-          "name": "alpha_channel",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": null
+          "link": 4
         }
       ],
-      "outputs": [
-        {
-          "name": "packed_image",
-          "type": "IMAGE",
-          "slot_index": 0,
-          "links": [
-            7
-          ]
-        }
-      ],
+      "outputs": [],
       "properties": {
-        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
-        "ver": "052a46f5fbcb062045e51764c97317fdfa2b905f",
-        "Node name for S&R": "GapChannelPacker"
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
       },
       "widgets_values": []
     },
     {
-      "id": 16,
-      "type": "GapMaterialSaver",
-      "pos": [1300, 450],
-      "size": [300, 200],
+      "id": 22,
+      "type": "PreviewImage",
+      "pos": [
+        1200.5000000000002,
+        -354.79999999999984
+      ],
+      "size": [
+        300,
+        300
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 25
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 23,
+      "type": "PreviewImage",
+      "pos": [
+        1545.2,
+        -359.5000000000003
+      ],
+      "size": [
+        300,
+        300
+      ],
       "flags": {},
       "order": 5,
       "mode": 0,
       "inputs": [
-        { "name": "base_filename", "type": "STRING", "widget": { "name": "base_filename" } },
-        { "name": "folder_name", "type": "STRING", "widget": { "name": "folder_name" } },
-        { "name": "albedo", "type": "IMAGE", "link": 24 },
-        { "name": "normal", "type": "IMAGE", "link": 4 },
-        { "name": "roughness", "type": "IMAGE", "link": 25 },
-        { "name": "depth", "type": "IMAGE", "link": 26 },
-        { "name": "metallic", "type": "IMAGE", "link": 27 },
-        { "name": "occlusion", "type": "IMAGE", "link": null },
-        { "name": "packed_map", "type": "IMAGE", "link": 7 }
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 26
+        }
       ],
       "outputs": [],
-      "properties": { "Node name for S&R": "GapMaterialSaver" },
-      "widgets_values": ["MyMaterial", "MyPBR_Output"]
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 24,
+      "type": "PreviewImage",
+      "pos": [
+        1887.6000000000015,
+        -368.8999999999999
+      ],
+      "size": [
+        300,
+        300
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 27
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        -87.78081207330217,
+        128.70822853036287
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            21
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "slot_index": 1,
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "IMG_1543.jpg",
+        "image"
+      ]
     }
   ],
   "links": [
@@ -447,13 +510,12 @@
     "ds": {
       "scale": 1,
       "offset": [
-        188.35680919870677,
-        450.09450233560926
+        852.2679576113217,
+        558.8956726940681
       ]
     },
-    "workflowRendererVersion": "LG",
-    "frontendVersion": "1.35.9"
+    "frontendVersion": "1.35.9",
+    "workflowRendererVersion": "LG"
   },
   "version": 0.4
 }
-
