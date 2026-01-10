@@ -13,7 +13,7 @@ WORKFLOW_SOURCE = os.path.join(THIS_NODE_PATH, "workflows", "Gemini_PBR_Texture_
 WORKFLOW_DEST_DIR = os.path.join(COMFY_PATH, "user", "default", "workflows") # Hypothetical standard location
 
 def install_requirements():
-    print(">>> Installing Python dependencies for Gemini PBR Studio...")
+    print(">>> Installing Python dependencies for PBR Extractor...")
     req_file = os.path.join(THIS_NODE_PATH, "requirements.txt")
     if os.path.exists(req_file):
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", req_file])
@@ -29,21 +29,21 @@ def setup_directories():
     readme_path = os.path.join(MODELS_DIR, "PUT_MODELS_HERE.txt")
     with open(readme_path, "w") as f:
         f.write("Place optional PBR inference models (CHORD, DepthAnything, etc.) in this folder.\n")
-        f.write("The Gemini PBR Extractor will check this folder for overriding weights.")
+        f.write("The PBR Extractor will check this folder for overriding weights.")
 
 def deploy_workflow():
     if os.path.exists(WORKFLOW_SOURCE):
         # Determine where to put it. 
         # For now, we just ensure it's in the repo's nodes/workflows folder which is accessible.
         # But let's try to copy it to the root or a 'workflows' folder if the user keeps one.
-        print(f">>> Gemini PBR Workflow is located at: {WORKFLOW_SOURCE}")
+        print(f">>> PBR Extractor Workflow is located at: {WORKFLOW_SOURCE}")
         print(">>> You can load this directly in ComfyUI.")
     else:
         print("!!! Warning: Workflow file not found in source.")
 
 def main():
     print("===========================================")
-    print("   Gemini PBR & Texture Studio Installer   ")
+    print("   PBR Extractor & Texture Studio Installer   ")
     print("===========================================")
     
     install_requirements()
