@@ -36,6 +36,13 @@ Some workflows require specific models to be placed in your ComfyUI folders.
 | **360 Redmond (SDXL)** | `models/loras/360redmond_sdxl_v1.safetensors` | The best 360° panorama LoRA for SDXL 1.0. | [Civitai](https://civitai.com/models/118025/360redmond-a-360-view-panorama-lora-for-sd-xl-10) |
 | **Seamless Texture LoRA** | `models/loras/seamless_texture.safetensors` | For SDXL seamless tile generation. | *Check Repository Releases* |
 
+**⚠️ Note on PBR Extractor (Ubisoft CHORD):**
+The `chord_v1.safetensors` model is **Gated**.
+The automatic installer will *attempt* to download it, but if it fails (due to lack of HuggingFace Login), you must:
+1.  Go to [Ubisoft LaForge CHORD on HuggingFace](https://huggingface.co/Ubisoft/ubisoft-laforge-chord) and accept the license.
+2.  Download `chord_v1.safetensors` manually.
+3.  Place it in your ComfyUI folder at: `ComfyUI/models/ubsoft_pbr/chord_v1.safetensors`.
+
 **IMPORTANT: To enable the PBR Extractor (Ubisoft CHORD), you must run the installer manually:**
 
 **Windows:**
