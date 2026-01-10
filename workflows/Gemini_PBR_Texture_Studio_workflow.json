@@ -1,0 +1,153 @@
+{
+  "last_node_id": 20,
+  "last_link_id": 20,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [10, 10],
+      "size": [315, 314],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        { "name": "IMAGE", "type": "IMAGE", "links": [1, 9], "slot_index": 0 },
+        { "name": "MASK", "type": "MASK", "links": null, "slot_index": 1 }
+      ],
+      "properties": { "Node name for S&R": "LoadImage" },
+      "widgets_values": ["example.png", "image"]
+    },
+    {
+      "id": 2,
+      "type": "GeminiSeamlessTiler",
+      "pos": [350, 10],
+      "size": [300, 100],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        { "name": "image", "type": "IMAGE", "link": 1 }
+      ],
+      "outputs": [
+        { "name": "seamless_image", "type": "IMAGE", "links": [2, 10], "slot_index": 0 },
+        { "name": "mask", "type": "MASK", "links": [], "slot_index": 1 }
+      ],
+      "properties": { "Node name for S&R": "GeminiSeamlessTiler" },
+      "widgets_values": [0.1, "Simple Blend"]
+    },
+    {
+      "id": 3,
+      "type": "GeminiPBRExtractor",
+      "pos": [700, 10],
+      "size": [300, 150],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        { "name": "albedo_image", "type": "IMAGE", "link": 2 }
+      ],
+      "outputs": [
+        { "name": "albedo_out", "type": "IMAGE", "links": [], "slot_index": 0 },
+        { "name": "normal_map", "type": "IMAGE", "links": [4], "slot_index": 1 },
+        { "name": "roughness_map", "type": "IMAGE", "links": [5], "slot_index": 2 },
+        { "name": "height_map", "type": "IMAGE", "links": [], "slot_index": 3 },
+        { "name": "metallic_map", "type": "IMAGE", "links": [6], "slot_index": 4 }
+      ],
+      "properties": { "Node name for S&R": "GeminiPBRExtractor" },
+      "widgets_values": ["High"]
+    },
+    {
+      "id": 4,
+      "type": "GeminiChannelPacker",
+      "pos": [1050, 10],
+      "size": [300, 150],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        { "name": "red_channel", "type": "IMAGE", "link": 5 },
+        { "name": "green_channel", "type": "IMAGE", "link": 5 },
+        { "name": "blue_channel", "type": "IMAGE", "link": 6 },
+        { "name": "alpha_channel", "type": "IMAGE", "link": null }
+      ],
+      "outputs": [
+        { "name": "packed_image", "type": "IMAGE", "links": [7], "slot_index": 0 }
+      ],
+      "properties": { "Node name for S&R": "GeminiChannelPacker" },
+      "widgets_values": []
+    },
+    {
+      "id": 5,
+      "type": "GeminiComparator",
+      "pos": [700, 300],
+      "size": [300, 150],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        { "name": "image_a", "type": "IMAGE", "link": 9 },
+        { "name": "image_b", "type": "IMAGE", "link": 10 }
+      ],
+      "outputs": [
+        { "name": "comparison", "type": "IMAGE", "links": [8], "slot_index": 0 }
+      ],
+      "properties": { "Node name for S&R": "GeminiComparator" },
+      "widgets_values": ["Side-by-Side"]
+    },
+    {
+      "id": 6,
+      "type": "PreviewImage",
+      "pos": [1400, 10],
+      "size": [300, 300],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        { "name": "images", "type": "IMAGE", "link": 7 }
+      ],
+      "properties": { "Node name for S&R": "PreviewImage" }
+    },
+    {
+      "id": 7,
+      "type": "PreviewImage",
+      "pos": [1050, 300],
+      "size": [300, 300],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        { "name": "images", "type": "IMAGE", "link": 4 }
+      ],
+      "properties": { "Node name for S&R": "PreviewImage" }
+    },
+    {
+        "id": 8,
+        "type": "PreviewImage",
+        "pos": [1050, 600],
+        "size": [300, 300],
+        "flags": {},
+        "order": 7,
+        "mode": 0,
+        "inputs": [
+            { "name": "images", "type": "IMAGE", "link": 8 }
+        ],
+        "properties": { "Node name for S&R": "PreviewImage" }
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "IMAGE"],
+    [2, 2, 0, 3, 0, "IMAGE"],
+    [4, 3, 1, 7, 0, "IMAGE"],
+    [5, 3, 2, 4, 0, "IMAGE"],
+    [6, 3, 4, 4, 2, "IMAGE"],
+    [7, 4, 0, 6, 0, "IMAGE"],
+    [8, 5, 0, 8, 0, "IMAGE"],
+    [9, 1, 0, 5, 0, "IMAGE"],
+    [10, 2, 0, 5, 1, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
