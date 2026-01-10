@@ -1,0 +1,22 @@
+[project]
+name = "comfyui-360-hdri-suite"
+description = "A comprehensive suite of ComfyUI nodes designed for 360° HDRI panorama creation, Seamless Texture generation, PBR Material extraction, and Blender synchronization."
+version = "1.0.0"
+license = { file = "LICENSE" }
+dependencies = [
+    "imageio[ffmpeg]",
+    "imageio[freeimage]",
+    "numpy",
+    "requests",
+    "pillow",
+    "trimesh",
+    "scipy"
+]
+
+[project.urls]
+Repository = "https://github.com/GeekatplayStudio/comfyui_360_hdri"
+
+[tool.comfy]
+PublisherId = "GeekatplayStudio"
+DisplayName = "ComfyUI 360 HDRI Suite"
+Icon = ""
