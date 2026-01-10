@@ -63,24 +63,24 @@ python installer/install_pbr_extractor.py
 ### 🧱 PBR & Texture Tools
 
 #### **PBR Extractor (Ubisoft CHORD)**
-*Category: `360_HDRI/Gemini`*
+*Category: `Geekatplay Studio/PBR`*
 Extracts full PBR material maps from a single image using the state-of-the-art **Ubisoft LaForge CHORD** model.
 - **Inputs**: `albedo_image`.
 - **Outputs**: `Albedo`, `Normal`, `Roughness`, `Depth`, `Metallic`.
 - **Fallback**: If the model is missing, it automatically switches to a lightweight algorithmic mode (Sobel/Luminance) so your workflow never breaks.
 
 #### **Save Material (PBR)**
-*Category: `360_HDRI/Gemini`*
+*Category: `Geekatplay Studio/Core`*
 Batch saver for PBR maps. Saves all connected maps (Albedo, Normal, Roughness, etc.) into a dedicated subfolder with standardized naming.
 - **Inputs**: All map types + `folder_name` (e.g., "MyTexturePack").
 
 #### **Channel Packer**
-*Category: `360_HDRI/Gemini`*
+*Category: `Geekatplay Studio/Core`*
 Combines 3 or 4 grayscale images into a single RGB(A) image. Essential for Game Engine workflows (ORM textures).
 - **Structure**: Red, Green, Blue, Alpha inputs.
 
 #### **Image Comparator**
-*Category: `360_HDRI/Gemini`*
+*Category: `Geekatplay Studio/Core`*
 Simple utility to view two images side-by-side or vertically to compare changes.
 
 #### **Simple PBR Generator**
@@ -96,7 +96,7 @@ Randomizes texture phase to "scramble" structure while keeping style. Useful for
 ### 🔄 Seamless Tiling Tools
 
 #### **Seamless Tile (Simple)**
-*Category: `360_HDRI/Gemini`*
+*Category: `Geekatplay Studio/Core`*
 **Post-Processing**. Takes an existing image and blends the edges (Overlay or Blend mode) to make it tileable.
 - Fast and effective for simple textures.
 

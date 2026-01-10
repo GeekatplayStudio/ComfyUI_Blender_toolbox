@@ -166,7 +166,7 @@ class GapPBRExtractor:
             height_map = (height_map - min_v) / (max_v - min_v)
             
         # 3. Normal Map (From Height)
-        # Reuse logic from GeminiNormalMap logic (Prompt 2)
+        # Reuse logic from NormalMap logic
         normal_map = self.height_to_normal(height_map, flip_green=False, strength=5.0 if fidelity=="High" else 2.0)
         
         # 4. Roughness
@@ -433,7 +433,7 @@ class GapMaterialSaver:
         # Or better, just relative to where comfy is running? 
         # Usually it's in ComfyUI/output
         # Let's find ComfyUI root by walking up from custom_nodes
-        # __file__ = custom_nodes/ComfyUI-360-HDRI-Suite/nodes/gemini_nodes.py
+        # __file__ = custom_nodes/ComfyUI-360-HDRI-Suite/nodes/geekatplay_nodes.py
         # root = ../../../
         
         root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
