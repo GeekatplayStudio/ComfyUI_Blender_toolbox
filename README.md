@@ -102,19 +102,19 @@ Randomizes texture phase to "scramble" structure while keeping style. Useful for
 ### 🌐 360° HDRI Tools
 
 #### **Save Fake HDRI (EXR)**
-*Category: `360_HDRI`*
+*Category: `Geekatplay Studio/360 HDRI`*
 Saves an LDR image as an `.exr` file (32-bit float fake), compatible with 3D software lighting.
 
 #### **Image to 360 Latent**
-*Category: `360_HDRI`*
+*Category: `Geekatplay Studio/360 HDRI`*
 Resizes and masks latents specifically for 2:1 aspect ratio generation.
 
 #### **Rotate 360 Image**
-*Category: `360_HDRI`*
+*Category: `Geekatplay Studio/360 HDRI`*
 shifts the pixels of a 360 image horizontally (Yaw), Pitch, or Roll.
 
 #### **Generate Pole Mask**
-*Category: `360_HDRI`*
+*Category: `Geekatplay Studio/360 HDRI`*
 Creates a mask covering the top and bottom "poles" of a 360 image, useful for inpainting distortions.
 
 ---
@@ -123,19 +123,19 @@ Creates a mask covering the top and bottom "poles" of a 360 image, useful for in
 *Requires installing the scripts in `blender_scripts/` to your Blender addons.*
 
 #### **Preview in Blender (360 Sky)**
-*Category: `360_HDRI/Blender`*
+*Category: `Geekatplay Studio/360 HDRI`*
 Sends the image to Blender and sets it as the World Background environment automatically.
 
 #### **Preview Heightmap in Blender**
-*Category: `360_HDRI/Blender`*
+*Category: `Geekatplay Studio/360 HDRI`*
 Sends an image to Blender and displaces a plane geometry to visualize 3D terrain.
 
 #### **Preview Model in Blender (GLB)**
-*Category: `360_HDRI/Blender`*
+*Category: `Geekatplay Studio/360 HDRI`*
 Sends a `.glb` or `.gltf` file path to Blender for immediate loading.
 
 #### **Sync Lighting to Blender**
-*Category: `360_HDRI/Blender`*
+*Category: `Geekatplay Studio/360 HDRI`*
 Updates Blender's lighting creation based on estimated parameters.
 
 ---
@@ -144,11 +144,11 @@ Updates Blender's lighting creation based on estimated parameters.
 *Requires local [Ollama](https://ollama.com) installation.*
 
 #### **Ollama Vision Analysis**
-*Category: `360_HDRI/Ollama`*
+*Category: `Geekatplay Studio/Ollama`*
 Uses a vision model (e.g., LLaVA) to describe an image. Great for auto-captioning or interrogation.
 
 #### **Ollama Lighting Estimator**
-*Category: `360_HDRI/Ollama`*
+*Category: `Geekatplay Studio/Ollama`*
 Analyzes an image to guess the sun's position (elevation/azimuth) and color temperature.
 
 ---
@@ -156,24 +156,63 @@ Analyzes an image to guess the sun's position (elevation/azimuth) and color temp
 ### 🛠️ Prompt & Heightmap Utilities
 
 #### **Terrain Prompt Maker (Ollama)**
-*Category: `360_HDRI/Terrain`*
+*Category: `Geekatplay Studio/360 HDRI/Terrain`*
 Helper to generate rich terrain descriptions.
 
 #### **Terrain Texture Prompt Maker**
-*Category: `360_HDRI/Terrain`*
+*Category: `Geekatplay Studio/360 HDRI/Terrain`*
 Helper for satellite-style texture prompts.
 
 #### **Terrain HeightField Prompt Maker**
-*Category: `360_HDRI/Terrain`*
+*Category: `Geekatplay Studio/360 HDRI/Terrain`*
 Generates prompts tuned for grayscale displacement maps (linear, non-optical).
 
 #### **Color to Heightmap**
-*Category: `360_HDRI/Terrain`*
+*Category: `Geekatplay Studio/360 HDRI/Terrain`*
 Converts RGB images to high-quality Grayscale heightmaps with Gamma and Level controls.
 
 #### **Simple Heightmap Normalizer**
-*Category: `360_HDRI/Terrain`*
+*Category: `Geekatplay Studio/360 HDRI/Terrain`*
 Ensures heightmap values span the full 0.0 - 1.0 range.
+
+---
+
+## 🧰 Geekatplay 3D Toolbox
+
+A set of utility nodes for advanced workflow control, visual debugging, and smart resizing.
+
+#### **3D Toolbox Smart Resizer (Geekatplay)**
+*Category: `Geekatplay Studio/3D Toolbox`*
+Resizes images based on *Target Model* pixel counts (SD1.5, SDXL, Flux) and *Aspect Ratio*.
+*   **Model Target**: SD 1.5 (0.25MP), SDXL (1MP), Flux (2MP).
+*   **Processing**: Scale, Stretch, Center Crop, or Pad.
+
+#### **3D Toolbox Visual Comparator**
+*Category: `Geekatplay Studio/3D Toolbox`*
+Compares two images side-by-side with an interactive slider.
+*   **Features**: Split-view slider, Zoom (0.1x to 10x), and Panning support.
+
+#### **3D Toolbox Workflow Pauser**
+*Category: `Geekatplay Studio/3D Toolbox`*
+Halts the workflow execution. A "Continue" button appears on the node in the UI to resume.
+*   **Usage**: Connect any signal input. Workflow pauses until you click "Continue".
+
+#### **3D Toolbox Logic Switch**
+*Category: `Geekatplay Studio/3D Toolbox`*
+Routes data to Output A or Output B based on a boolean condition. Useful for branching logic.
+
+#### **3D Toolbox Dynamic Group Manager**
+*Category: `Geekatplay Studio/3D Toolbox`*
+scans your workflow for Groups and adds "Enable/Disable" toggles for each.
+*   **Function**: Toggling OFF creates a "Mute" effect for all nodes inside the visual group box.
+
+#### **3D Toolbox String Viewer**
+*Category: `Geekatplay Studio/3D Toolbox`*
+Displays multi-line text directly on the node. Useful for debugging prompts or LLM outputs.
+
+#### **3D Toolbox VRAM Purge**
+*Category: `Geekatplay Studio/3D Toolbox`*
+Forces unloading of all models and clears soft VRAM cache. Use between heavy model switches (e.g. SDXL -> Flux).
 
 ---
 

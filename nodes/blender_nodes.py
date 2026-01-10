@@ -23,7 +23,7 @@ class SendToBlender:
     RETURN_TYPES = ()
     FUNCTION = "send"
     OUTPUT_NODE = True
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def send(self, images, ui_images, prompt=None, extra_pnginfo=None):
         # The SaveFakeHDRI node returns a dictionary with "ui": {"images": [...]}
@@ -57,7 +57,7 @@ class PreviewInBlender:
     RETURN_TYPES = ()
     FUNCTION = "send_to_blender"
     OUTPUT_NODE = True
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def send_to_blender(self, file_path, blender_ip_address="127.0.0.1", blender_listen_port=8119):
         host = blender_ip_address
@@ -99,7 +99,7 @@ class PreviewModelInBlender:
     RETURN_TYPES = ()
     FUNCTION = "send_model"
     OUTPUT_NODE = True
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
     
     def send_model(self, model_path, blender_ip_address="127.0.0.1", blender_listen_port=8119):
          # Message format: MODEL:<path>
@@ -160,7 +160,7 @@ class PreviewHeightmapInBlender:
     RETURN_NAMES = ("heightmap", )
     FUNCTION = "send_heightmap"
     OUTPUT_NODE = True
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     @classmethod
     def IS_CHANGED(s, **kwargs):
@@ -356,7 +356,7 @@ class PreviewMeshInBlender:
     RETURN_TYPES = ()
     FUNCTION = "send_mesh"
     OUTPUT_NODE = True
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
     
     def send_mesh(self, mesh, blender_ip_address="127.0.0.1", blender_listen_port=8119):
         # 1. Convert MESH to GLB
@@ -483,7 +483,7 @@ class SyncLightingToBlender:
     RETURN_TYPES = ()
     FUNCTION = "sync_lighting"
     OUTPUT_NODE = True
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def sync_lighting(self, azimuth, elevation, intensity, color_hex, blender_ip_address="127.0.0.1", blender_listen_port=8119):
         host = blender_ip_address

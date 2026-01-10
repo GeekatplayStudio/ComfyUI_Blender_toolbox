@@ -21,7 +21,7 @@ class TextureScrambler:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "scramble_image"
-    CATEGORY = "360_HDRI/Texture"
+    CATEGORY = "Geekatplay Studio/360 HDRI/Texture"
 
     def scramble_image(self, images, tiles_x, tiles_y, scramble, random_rotate, seed):
         # images: [B, H, W, C]

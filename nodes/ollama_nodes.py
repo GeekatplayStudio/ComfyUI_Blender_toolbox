@@ -42,7 +42,7 @@ class OllamaVision:
 
     RETURN_TYPES = ("STRING",)
     FUNCTION = "analyze_image"
-    CATEGORY = "Ollama"
+    CATEGORY = "Geekatplay Studio/Ollama"
 
     def analyze_image(self, images, prompt, ollama_url, model, temperature, seed, prefix="", suffix=""):
         try:
@@ -89,7 +89,7 @@ class OllamaLightingEstimator:
     RETURN_TYPES = ("FLOAT", "FLOAT", "FLOAT", "STRING")
     RETURN_NAMES = ("azimuth", "elevation", "intensity", "color_hex")
     FUNCTION = "estimate_lighting"
-    CATEGORY = "Ollama"
+    CATEGORY = "Geekatplay Studio/Ollama"
 
     def estimate_lighting(self, images, ollama_url, model, temperature, seed):
         # Prompt designed to get structured JSON output

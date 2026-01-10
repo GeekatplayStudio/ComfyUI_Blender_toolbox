@@ -188,7 +188,7 @@
     },
     {
       "id": 3,
-      "type": "GeminiPBRExtractor",
+      "type": "GapPBRExtractor",
       "pos": [
         393,
         129
@@ -254,7 +254,7 @@
       "properties": {
         "aux_id": "GeekatplayStudio/comfyui_360_hdri",
         "ver": "052a46f5fbcb062045e51764c97317fdfa2b905f",
-        "Node name for S&R": "GeminiPBRExtractor"
+        "Node name for S&R": "GapPBRExtractor"
       },
       "widgets_values": [
         "High"
@@ -291,7 +291,7 @@
     },
     {
       "id": 4,
-      "type": "GeminiChannelPacker",
+      "type": "GapChannelPacker",
       "pos": [
         1565.6845131153425,
         125.10815666546893
@@ -339,13 +339,13 @@
       "properties": {
         "aux_id": "GeekatplayStudio/comfyui_360_hdri",
         "ver": "052a46f5fbcb062045e51764c97317fdfa2b905f",
-        "Node name for S&R": "GeminiChannelPacker"
+        "Node name for S&R": "GapChannelPacker"
       },
       "widgets_values": []
     },
     {
       "id": 16,
-      "type": "GeminiMaterialSaver",
+      "type": "GapMaterialSaver",
       "pos": [1300, 450],
       "size": [300, 200],
       "flags": {},
@@ -363,7 +363,7 @@
         { "name": "packed_map", "type": "IMAGE", "link": 7 }
       ],
       "outputs": [],
-      "properties": { "Node name for S&R": "GeminiMaterialSaver" },
+      "properties": { "Node name for S&R": "GapMaterialSaver" },
       "widgets_values": ["MyMaterial", "MyPBR_Output"]
     }
   ],
@@ -456,3 +456,4 @@
   },
   "version": 0.4
 }
+

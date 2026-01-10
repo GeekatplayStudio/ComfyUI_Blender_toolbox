@@ -18,7 +18,7 @@ class SimplePBRGenerator:
     RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE")
     RETURN_NAMES = ("roughness", "metallic", "normal")
     FUNCTION = "generate"
-    CATEGORY = "360_HDRI/PBR"
+    CATEGORY = "Geekatplay Studio/360 HDRI/PBR"
 
     def generate(self, images, roughness_intensity, normal_strength):
         # images is [B, H, W, C]
@@ -94,7 +94,7 @@ class TerrainPromptMaker:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("positive_prompt", "negative_prompt")
     FUNCTION = "create_prompt"
-    CATEGORY = "360_HDRI/Terrain"
+    CATEGORY = "Geekatplay Studio/360 HDRI/Terrain"
 
     def create_prompt(self, description, terrain_type, input_view):
         # Stronger keywords for orthographic view to avoid isometric results
@@ -131,7 +131,7 @@ class SimpleHeightmapNormalizer:
     
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "normalize"
-    CATEGORY = "360_HDRI/Terrain"
+    CATEGORY = "Geekatplay Studio/360 HDRI/Terrain"
     
     def normalize(self, images):
         # Normalize batch to 0.0 - 1.0 range to maximize displacement detail
@@ -171,7 +171,7 @@ class TerrainTexturePromptMaker:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("positive_prompt", "negative_prompt")
     FUNCTION = "create_prompt"
-    CATEGORY = "360_HDRI/Terrain"
+    CATEGORY = "Geekatplay Studio/360 HDRI/Terrain"
 
     def create_prompt(self, description, terrain_type, input_view, heightmap_description=""):
         # Keywords for color/albedo texture
@@ -218,7 +218,7 @@ class TerrainHeightFieldPromptMaker:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("positive_prompt", "negative_prompt")
     FUNCTION = "create_prompt"
-    CATEGORY = "360_HDRI/Terrain"
+    CATEGORY = "Geekatplay Studio/360 HDRI/Terrain"
 
     def create_prompt(self, description, terrain_type, detail_level):
         # Extremely sterile, technical keywords for pure height data
@@ -271,7 +271,7 @@ class ColorToHeightmap:
     RETURN_TYPES = ("IMAGE", )
     RETURN_NAMES = ("heightmap", )
     FUNCTION = "convert"
-    CATEGORY = "360_HDRI/Terrain"
+    CATEGORY = "Geekatplay Studio/360 HDRI/Terrain"
 
     def convert(self, images, invert, auto_levels, gamma):
         results = []

@@ -131,7 +131,7 @@ class SimpleSeamlessTile:
 
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def patch(self, model, axis):
         # Clone the model wrapper (ModelPatcher)
@@ -181,7 +181,7 @@ class SeamlessTileVAE:
 
     RETURN_TYPES = ("VAE",)
     FUNCTION = "patch"
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def patch(self, vae, axis):
         # Clone the VAE to avoid modifying the original
@@ -224,7 +224,7 @@ class Heal360Seam:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "heal"
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def heal(self, image, blend_amount):
         # image: [B, H, W, C]

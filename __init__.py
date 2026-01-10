@@ -13,7 +13,8 @@ from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, Sy
 from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker, TerrainHeightFieldPromptMaker, ColorToHeightmap
 from .nodes.texture_nodes import TextureScrambler
 from .nodes.ollama_nodes import OllamaVision, OllamaLightingEstimator
-from .nodes.gemini_nodes import GeminiSeamlessTiler, GeminiPBRExtractor, GeminiChannelPacker, GeminiComparator, GeminiMaterialSaver
+from .nodes.geekatplay_nodes import GapSeamlessTiler, GapPBRExtractor, GapChannelPacker, GapImageMerger, GapMaterialSaver
+from .nodes.geekatplay_toolbox import GapSmartResizer, GapStringViewer, GapPauser, GapLogicSwitch, GapGroupManager, GapVRAMPurge, GapVisualComparator
 
 NODE_CLASS_MAPPINGS = {
     "SaveFakeHDRI": SaveFakeHDRI,
@@ -37,11 +38,18 @@ NODE_CLASS_MAPPINGS = {
     "TextureScrambler": TextureScrambler,
     "OllamaVision": OllamaVision,
     "OllamaLightingEstimator": OllamaLightingEstimator,
-    "GeminiSeamlessTiler": GeminiSeamlessTiler,
-    "GeminiPBRExtractor": GeminiPBRExtractor,
-    "GeminiChannelPacker": GeminiChannelPacker,
-    "GeminiComparator": GeminiComparator,
-    "GeminiMaterialSaver": GeminiMaterialSaver,
+    "GapSeamlessTiler": GapSeamlessTiler,
+    "GapPBRExtractor": GapPBRExtractor,
+    "GapChannelPacker": GapChannelPacker,
+    "GapImageMerger": GapImageMerger,
+    "GapMaterialSaver": GapMaterialSaver,
+    "GapSmartResizer": GapSmartResizer,
+    "GapStringViewer": GapStringViewer,
+    "GapPauser": GapPauser,
+    "GapLogicSwitch": GapLogicSwitch,
+    "GapGroupManager": GapGroupManager,
+    "GapVRAMPurge": GapVRAMPurge,
+    "GapVisualComparator": GapVisualComparator,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -66,11 +74,20 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "TextureScrambler": "Texture Scrambler (Style Transfer)",
     "OllamaVision": "Ollama Vision Analysis",
     "OllamaLightingEstimator": "Ollama Lighting Estimator",
-    "GeminiSeamlessTiler": "Seamless Tile (Simple)",
-    "GeminiPBRExtractor": "PBR Extractor (Ubisoft CHORD)",
-    "GeminiChannelPacker": "Channel Packer",
-    "GeminiComparator": "Image Comparator",
-    "GeminiMaterialSaver": "Save Material (PBR)",
+    "GapSeamlessTiler": "Seamless Tile (Geekatplay)",
+    "GapPBRExtractor": "PBR Extractor (Ubisoft CHORD)",
+    "GapChannelPacker": "Channel Packer (Geekatplay)",
+    "GapImageMerger": "Image Merger (Geekatplay)",
+    "GapMaterialSaver": "Geekatplay Material Saver (PBR)",
+    "GapSmartResizer": "3D Toolbox Smart Resizer (Geekatplay)",
+    "GapStringViewer": "3D Toolbox String Viewer",
+    "GapPauser": "3D Toolbox Workflow Pauser",
+    "GapLogicSwitch": "3D Toolbox Logic Switch",
+    "GapGroupManager": "3D Toolbox Dynamic Group Manager",
+    "GapVRAMPurge": "3D Toolbox VRAM Purge",
+    "GapVisualComparator": "3D Toolbox Visual Comparator",
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
+
+WEB_DIRECTORY = "./js"

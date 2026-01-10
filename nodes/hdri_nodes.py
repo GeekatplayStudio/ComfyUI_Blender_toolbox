@@ -28,7 +28,7 @@ class SaveFakeHDRI:
     RETURN_NAMES = ("full_path",)
     FUNCTION = "save_exr"
     OUTPUT_NODE = True
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def save_exr(self, images, filename_prefix, exposure_boost, gamma):
         results = list()
@@ -118,7 +118,7 @@ class ImageTo360Latent:
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "process"
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def process(self, image, vae, width, height, crop_method, pole_stretch_power=1.0, seed=0):
         # image is [B, H, W, C]
@@ -261,7 +261,7 @@ class Rotate360Image:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "rotate"
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def rotate(self, image, pitch, yaw, roll):
         # image: [B, H, W, C]
@@ -436,7 +436,7 @@ class GeneratePoleMask:
 
     RETURN_TYPES = ("MASK",)
     FUNCTION = "generate"
-    CATEGORY = "360_HDRI"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
 
     def generate(self, image, center_x, center_y, scale, power, invert):
         # image: [B, H, W, C]

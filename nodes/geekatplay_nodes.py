@@ -4,7 +4,7 @@ import numpy as np
 import os
 import sys
 
-class GeminiSeamlessTiler:
+class GapSeamlessTiler:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -18,7 +18,7 @@ class GeminiSeamlessTiler:
     RETURN_TYPES = ("IMAGE", "MASK")
     RETURN_NAMES = ("seamless_image", "mask")
     FUNCTION = "tile"
-    CATEGORY = "360_HDRI/Gemini"
+    CATEGORY = "Geekatplay Studio/Core"
 
     def tile(self, image, blend_amount, mode):
         # image: [B, H, W, C]
@@ -47,22 +47,7 @@ class GeminiSeamlessTiler:
         h_end = h_start + h_thickness
         mask[:, h_start:h_end, :] = 1.0
         
-        # Soften mask? Gaussian blur approximates "soft gradient"
-        # Using a simple box blur or linear gradient is better for performance if strictly python, 
-        # but for Comfy, maybe just hardness is fine or use simple smoothing.
-        # Let's apply a simple gradient falloff manually or leave hard for Inpainting (usually prefer soft).
-        # We can implement a simple convolution blur.
-        
         if mode == "Simple Blend":
-            # Very basic mirroring/blending logic (heuristic)
-            # This is complex to do well without OpenCV inpainting.
-            # We will use a simple overlap technique:
-            # But the user logic says "Output is now seamless because the outer edges were originally the contiguous center".
-            # The shifted image *is* the seamless candidate if we heal the center.
-            # If we don't heal, it's just a shifted image.
-            # "Simple Blend" in this context might just return the shifted image so user sees the seams?
-            # Or try to blur the seam area.
-            
             # For this MVP, let's just blur the masked area in the shifted image to "hide" the seam slightly.
             # This is a placeholder for "Simple". True healing needs inpainting.
             blurred = GaussianBlur(shifted_image, kernel_size=h_thickness if h_thickness % 2 == 1 else h_thickness + 1)
@@ -108,7 +93,7 @@ def GaussianBlur(img, kernel_size=15, sigma=5):
     return output.permute(0, 2, 3, 1)
 
 
-class GeminiPBRExtractor:
+class GapPBRExtractor:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -121,7 +106,7 @@ class GeminiPBRExtractor:
     RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE")
     RETURN_NAMES = ("albedo_out", "normal_map", "roughness_map", "depth_map", "metallic_map")
     FUNCTION = "extract"
-    CATEGORY = "360_HDRI/PBR"
+    CATEGORY = "Geekatplay Studio/PBR"
 
     def extract(self, albedo_image, fidelity):
         # albedo_image: [B, H, W, C]
@@ -350,7 +335,7 @@ class GeminiPBRExtractor:
         return normal_map.permute(0, 2, 3, 1)
 
 
-class GeminiChannelPacker:
+class GapChannelPacker:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -367,7 +352,7 @@ class GeminiChannelPacker:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("packed_image",)
     FUNCTION = "pack"
-    CATEGORY = "360_HDRI/Gemini"
+    CATEGORY = "Geekatplay Studio/Core"
 
     def pack(self, red_channel, green_channel, blue_channel, alpha_channel=None):
         # Assuming inputs are [B, H, W, C]
@@ -410,7 +395,7 @@ class GeminiChannelPacker:
         return (packed,)
 
 
-class GeminiMaterialSaver:
+class GapMaterialSaver:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -431,7 +416,7 @@ class GeminiMaterialSaver:
 
     RETURN_TYPES = ()
     FUNCTION = "save_material"
-    CATEGORY = "360_HDRI/Gemini"
+    CATEGORY = "Geekatplay Studio/Core"
     OUTPUT_NODE = True
 
     def save_material(self, base_filename, folder_name, albedo, normal=None, roughness=None, metallic=None, depth=None, occlusion=None, packed_map=None):
@@ -485,7 +470,7 @@ class GeminiMaterialSaver:
         
         return ()
 
-class GeminiComparator:
+class GapImageMerger:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -499,7 +484,7 @@ class GeminiComparator:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("comparison",)
     FUNCTION = "compare"
-    CATEGORY = "360_HDRI/Gemini"
+    CATEGORY = "Geekatplay Studio/Core"
 
     def compare(self, image_a, image_b, mode):
         # Resize B to match A? Or just cat. Assuming match.
