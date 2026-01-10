@@ -89,6 +89,11 @@ def main():
     loras_path = comfyui_path / "models" / "loras"
     loras_path.mkdir(parents=True, exist_ok=True)
     
+    # Setup opener to handle Civitai/HuggingFace redirects and User-Agent requirements
+    opener = urllib.request.build_opener()
+    opener.addheaders = [('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')]
+    urllib.request.install_opener(opener)
+    
     # 6a. 360 Flux LoRA
     lora_360_url = "https://huggingface.co/ProGamerGov/human-360-lora-flux-dev/resolve/main/human_360diffusion_lora_flux_dev_v1.safetensors"
     lora_360_file = loras_path / "human_360diffusion_lora_flux_dev_v1.safetensors"
@@ -101,7 +106,19 @@ def main():
         except Exception as e:
             print(f"Failed to download 360 LoRA: {e}")
 
-    # 6b. Seamless Texture LoRA (SDXL)
+    # 6b. 360 Redmond (SDXL)
+    lora_redmond_url = "https://civitai.com/api/download/models/143197?type=Model&format=SafeTensor"
+    lora_redmond_file = loras_path / "360redmond_sdxl_v1.safetensors"
+    
+    if not lora_redmond_file.exists():
+        print("Downloading 360 Redmond LoRA (SDXL)...")
+        try:
+             urllib.request.urlretrieve(lora_redmond_url, lora_redmond_file)
+             print("360 Redmond LoRA downloaded.")
+        except Exception as e:
+             print(f"Failed to download 360 Redmond LoRA: {e}")
+
+    # 6c. Seamless Texture LoRA (SDXL)
     # TODO: Update URL when public
     seamless_lora_url = "" 
     seamless_lora_file = loras_path / "seamless_texture.safetensors"

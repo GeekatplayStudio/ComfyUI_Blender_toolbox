@@ -33,6 +33,7 @@ Some workflows require specific models to be placed in your ComfyUI folders.
 | :--- | :--- | :--- | :--- |
 | **PBR Extractor** | `models/ubsoft_pbr/chord_v1.safetensors` | Generates PBR maps (Albedo, Normal, etc). | [HuggingFace](https://huggingface.co/Ubisoft/ubisoft-laforge-chord) |
 | **360-HDRI LoRA (Flux)** | `models/loras/human_360diffusion_lora_flux_dev_v1.safetensors` | For generating 360° panoramas with Flux. | [HuggingFace](https://huggingface.co/ProGamerGov/human-360-lora-flux-dev) |
+| **360 Redmond (SDXL)** | `models/loras/360redmond_sdxl_v1.safetensors` | The best 360° panorama LoRA for SDXL 1.0. | [Civitai](https://civitai.com/models/118025/360redmond-a-360-view-panorama-lora-for-sd-xl-10) |
 | **Seamless Texture LoRA** | `models/loras/seamless_texture.safetensors` | For SDXL seamless tile generation. | *Check Repository Releases* |
 
 **IMPORTANT: To enable the PBR Extractor (Ubisoft CHORD), you must run the installer manually:**
