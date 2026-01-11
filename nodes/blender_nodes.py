@@ -1,4 +1,4 @@
-# (c) Geekatplay Studio
+﻿# (c) Geekatplay Studio
 # ComfyUI-360-HDRI-Suite
 
 import socket
@@ -566,3 +566,76 @@ class SyncLightingToBlender:
             print(f"Error sending to Blender: {e}")
             
         return {}
+
+class LoadBlenderPBR:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "folder_name": ("STRING", {"default": "from_blender"}),
+            },
+            "optional": {
+                "force_reload": ("INT", {"default": 0, "min": 0, "max": 10000}), 
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE")
+    RETURN_NAMES = ("Albedo", "Roughness", "Normal", "Metallic", "Alpha", "Emission", "Specular")
+    FUNCTION = "load_textures"
+    CATEGORY = "Geekatplay Studio/360 HDRI"
+
+    def load_textures(self, folder_name="from_blender", force_reload=0):
+        # Determine path in input folder
+        input_dir = folder_paths.get_input_directory()
+        target_dir = os.path.join(input_dir, folder_name)
+        
+        if not os.path.exists(target_dir):
+            print(f"[Warn] Buffer directory not found: {target_dir}")
+            # Return empty black images if folder doesn't exist
+            # Create a 1x1 black image
+            black = torch.zeros((1, 64, 64, 3))
+            return (black, black, black, black, black, black)
+
+        def load_safe(fname, is_alpha=False):
+             fpath = os.path.join(target_dir, fname)
+             if not os.path.exists(fpath):
+                return torch.zeros((1, 64, 64, 3))
+             
+             try:
+                 i = Image.open(fpath)
+                 
+                 # Fix Exif orientation
+                 # (Usually stripped for PBR maps but good practice)
+                 from PIL import ImageOps
+                 i = ImageOps.exif_transpose(i)
+                 
+                 if is_alpha:
+                     if i.mode != 'RGBA':
+                         i = i.convert('RGBA')
+                     # Extract Alpha if needed or just keep RGBA
+                     # ComfyUI usually handles [B,H,W,C]. If C=4, it's RGBA.
+                     pass 
+                 else:
+                     i = i.convert("RGB")
+                     
+                 image = np.array(i).astype(np.float32) / 255.0
+                 image = torch.from_numpy(image)[None,]
+                 
+                 # If grayscale loaded as RGB, fine.
+                 return image
+             except Exception as e:
+                 print(f"Error loading {fname}: {e}")
+                 return torch.zeros((1, 64, 64, 3))
+
+        albedo = load_safe("blender_albedo.png")
+        roughness = load_safe("blender_roughness.png")
+        normal = load_safe("blender_normal.png")
+        metallic = load_safe("blender_metallic.png")
+        alpha = load_safe("blender_alpha.png", is_alpha=True)
+        emission = load_safe("blender_emission.png")
+        specular = load_safe("blender_specular.png")
+        
+        return (albedo, roughness, normal, metallic, alpha, emission, specular)
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE")
+    RETURN_NAMES = ("Albedo", "Roughness", "Normal", "Metallic", "Alpha", "Emission", "Specular")

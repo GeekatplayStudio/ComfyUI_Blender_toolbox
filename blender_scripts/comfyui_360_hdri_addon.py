@@ -18,6 +18,7 @@ import threading
 import os
 import queue
 import math
+import shutil
 
 # Global variables for thread management
 _SERVER_THREAD = None
@@ -958,6 +959,96 @@ class COMFY360_OT_ApplyLighting(bpy.types.Operator):
         )
         return {'FINISHED'}
 
+class COMFY360_OT_SendTextures(bpy.types.Operator):
+    """Send active object textures to ComfyUI Buffer"""
+    bl_idname = "comfy360.send_textures"
+    bl_label = "Send PBR to ComfyUI"
+    
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Active object is not a mesh")
+            return {'CANCELLED'}
+            
+        mat = obj.active_material
+        if not mat or not mat.use_nodes:
+            self.report({'ERROR'}, "No active material with nodes")
+            return {'CANCELLED'}
+        
+        export_path = context.scene.comfy360_export_path
+        if not export_path:
+             import tempfile
+             export_path = os.path.join(tempfile.gettempdir(), "comfy_pbr_buffer")
+             self.report({'INFO'}, f"Path not set, using temp: {export_path}")
+             
+        if not os.path.exists(export_path):
+             try:
+                 os.makedirs(export_path)
+             except Exception as e:
+                 self.report({'ERROR'}, f"Cannot create path: {e}")
+                 return {'CANCELLED'}
+
+        nodes = mat.node_tree.nodes
+        target_map = {
+            'Base Color': 'blender_albedo.png',
+            'Roughness': 'blender_roughness.png',
+            'Normal': 'blender_normal.png',
+            'Metallic': 'blender_metallic.png',
+            'Alpha': 'blender_alpha.png',
+            'Emission': 'blender_emission.png',
+            'Emission Color': 'blender_emission.png',
+            'Specular': 'blender_specular.png',
+            'Specular IOR Level': 'blender_specular.png'
+        }
+        
+        bsdf = None
+        for n in nodes:
+            if n.type == 'BSDF_PRINCIPLED':
+                bsdf = n
+                break
+                
+        if not bsdf:
+            self.report({'WARNING'}, "No Principled BSDF found")
+            return {'FINISHED'}
+            
+        found_any = False
+        for input_name, filename in target_map.items():
+            if input_name in bsdf.inputs:
+                socket_in = bsdf.inputs[input_name]
+                if socket_in.is_linked:
+                    link = socket_in.links[0]
+                    node = link.from_node
+                    if node.type == 'TEX_IMAGE':
+                        image = node.image
+                        if image:
+                            save_path = os.path.join(export_path, filename)
+                            try:
+                                copied = False
+                                if image.source == 'FILE':
+                                    src = bpy.path.abspath(image.filepath)
+                                    if os.path.exists(src) and os.path.isfile(src):
+                                        shutil.copy(src, save_path)
+                                        copied = True
+                                if not copied:
+                                    prev = image.filepath_raw
+                                    try:
+                                        image.filepath_raw = save_path
+                                        image.file_format = 'PNG'
+                                        image.save()
+                                    finally:
+                                        image.filepath_raw = prev
+                                found_any = True
+                                print(f"[ComfyUI-360] Saved {filename}")
+                            except Exception as e:
+                                print(f"Error saving {filename}: {e}")
+
+        if found_any:
+            self.report({'INFO'}, f"Textures sent to {export_path}")
+        else:
+            self.report({'WARNING'}, "No texture nodes found connected to Principled BSDF")
+
+        return {'FINISHED'}
+
 class COMFY360_PT_Panel(bpy.types.Panel):
     """Creates a Panel in the View3D UI"""
     bl_label = "ComfyUI 360 Sync"
@@ -1022,12 +1113,20 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         box3.label(text="Manual Import", icon='IMPORT')
         box3.operator("comfy360.import_sky", text="Load Sky File...", icon='FILE_FOLDER')
 
+        layout.separator()
+        
+        box4 = layout.box()
+        box4.label(text="PBR Sync", icon='SHADING_RENDERED')
+        box4.prop(scene, "comfy360_export_path", text="Buffer Path")
+        box4.operator("comfy360.send_textures", text="Send Active Textures", icon='EXPORT')
+
 classes = (
     COMFY360_OT_StartListener,
     COMFY360_OT_StopListener,
     COMFY360_OT_ImportSky,
     COMFY360_OT_TestConnection,
     COMFY360_OT_ApplyLighting,
+    COMFY360_OT_SendTextures,
     COMFY360_PT_Panel,
 )
 
@@ -1036,6 +1135,11 @@ def register():
         bpy.utils.register_class(cls)
     
     # Register scene property
+    bpy.types.Scene.comfy360_export_path = bpy.props.StringProperty(
+        name="Texture Buffer Path",
+        description="Path where textures are saved for ComfyUI to pick up (e.g. ComfyUI/input/from_blender)",
+        subtype='DIR_PATH'
+    )
     bpy.types.Scene.comfy360_is_running = bpy.props.BoolProperty(
         name="ComfyUI Listener Running",
         default=False
@@ -1077,6 +1181,7 @@ def unregister():
     del bpy.types.Scene.comfy360_light_elevation
     del bpy.types.Scene.comfy360_light_intensity
     del bpy.types.Scene.comfy360_light_color
+    del bpy.types.Scene.comfy360_export_path
     
     global _STOP_EVENT
     _STOP_EVENT.set()
