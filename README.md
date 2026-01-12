@@ -9,6 +9,7 @@ A comprehensive suite of ComfyUI nodes designed for 360° HDRI panorama creation
 *   **Seamless Tiling**: Two methods—Image-based edge blending and Model-based circular padding for true seamless generation.
 *   **Blender Bridge**: Live preview of your HDRI skies, Terrain heightmaps, and 3D Models directly in Blender.
 *   **Round-Trip Sync**: **NEW!** Send meshes/UVs from Blender to ComfyUI, texture them with AI, and send them back to Blender instantly.
+*   **Auto-Rigging Setup**: Tools to Voxel Remesh, Decimate, and Export clean FBXs ready for Mixamo/AccuRig.
 *   **Ollama Vision**: Analyze images and suggest lighting/sun positions using local LLMs.
 
 ---
