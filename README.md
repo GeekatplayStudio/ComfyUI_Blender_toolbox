@@ -1,6 +1,6 @@
-# ComfyUI-360-HDRI-Suite
+# ComfyUI-Blender-Toolbox
 
-A comprehensive suite of ComfyUI nodes designed for 360° HDRI panorama creation, Seamless Texture generation, PBR Material extraction (including Ubisoft CHORD support), and Blender synchronization.
+A comprehensive suite of ComfyUI nodes designed for **3D Generation**, **Blender Synchronization**, **PBR Texturing**, and **HDRI Creation**.
 
 ## 🚀 Features at a Glance
 
@@ -24,7 +24,7 @@ Ensure you have [ComfyUI](https://github.com/comfyanonymous/ComfyUI) installed.
 ### 2. Clone Repository
 Navigate to your `ComfyUI/custom_nodes/` folder and run:
 ```bash
-git clone https://github.com/GeekAtPlay/ComfyUI-360-HDRI-Suite
+git clone https://github.com/GeekAtPlay/ComfyUI_Blender_toolbox
 ```
 
 ### 3. Install Dependencies & Models
