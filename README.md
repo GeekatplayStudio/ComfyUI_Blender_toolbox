@@ -4,13 +4,14 @@ A comprehensive suite of ComfyUI nodes designed for 360° HDRI panorama creation
 
 ## 🚀 Features at a Glance
 
+*   **AI 3D Model Generation**: Native support for **Tripo3D**, **Meshy**, and **HiTem3D**. Generate high-fidelity 3D models from text prompts or single/multi-view images directly in ComfyUI.
+*   **AI 3D Animation & Rigging**: Automatically rig and animate characters using **Tripo3D's** animation API (Walk, Run, Dance, etc.).
 *   **PBR Material Extraction**: Turn any image into High-Quality PBR maps (Albedo, Normal, Roughness, Depth, Metallic) using **Ubisoft CHORD** AI.
 *   **360° Workflow**: Tools to resize, heal seams, and generate masks specifically for equirectangular images.
 *   **Seamless Tiling**: Two methods—Image-based edge blending and Model-based circular padding for true seamless generation.
 *   **Blender Bridge**: Live preview of your HDRI skies, Terrain heightmaps, and 3D Models directly in Blender.
 *   **Round-Trip Sync**: **NEW!** Send meshes/UVs from Blender to ComfyUI, texture them with AI, and send them back to Blender instantly.
-*   **Auto-Rigging Setup**: Tools to Voxel Remesh, Decimate, and Export clean FBXs ready for Mixamo/AccuRig.
-*   **3D Model Generation**: Integrated support for **Tripo3D**, **Meshy**, and **HiTem3D** APIs to generate 3D models from text or images directly in ComfyUI.
+*   **Mesh Prep & Auto-Rig Export**: Local tools to Voxel Remesh, Decimate, and Export clean FBXs ready for external tools like Mixamo or AccuRig.
 *   **Ollama Vision**: Analyze images and suggest lighting/sun positions using local LLMs.
 
 ---
