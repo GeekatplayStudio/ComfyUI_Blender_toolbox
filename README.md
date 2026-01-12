@@ -10,6 +10,7 @@ A comprehensive suite of ComfyUI nodes designed for 360° HDRI panorama creation
 *   **Blender Bridge**: Live preview of your HDRI skies, Terrain heightmaps, and 3D Models directly in Blender.
 *   **Round-Trip Sync**: **NEW!** Send meshes/UVs from Blender to ComfyUI, texture them with AI, and send them back to Blender instantly.
 *   **Auto-Rigging Setup**: Tools to Voxel Remesh, Decimate, and Export clean FBXs ready for Mixamo/AccuRig.
+*   **3D Model Generation**: Integrated support for **Tripo3D**, **Meshy**, and **HiTem3D** APIs to generate 3D models from text or images directly in ComfyUI.
 *   **Ollama Vision**: Analyze images and suggest lighting/sun positions using local LLMs.
 
 ---
@@ -290,6 +291,44 @@ Displays multi-line text directly on the node. Useful for debugging prompts or L
 #### **3D Toolbox VRAM Purge**
 *Category: `Geekatplay Studio/3D Toolbox`*
 Forces unloading of all models and clears soft VRAM cache. Use between heavy model switches (e.g. SDXL -> Flux).
+
+---
+
+## 🎲 3D Generators (Tripo, Meshy, HiTem3D)
+
+A set of nodes to integrate leading AI Text-to-3D and Image-to-3D services directly into your ComfyUI workflow.
+**Note**: These services require API keys. Use the included **API Key Manager** to securely manage them.
+
+#### **Geekatplay API Key Manager**
+*Category: `Geekatplay Studio/3D Generators`*
+Securely stores and retrieves API keys for Tripo, Meshy, and HiTem3D.
+*   **Secure**: Keys are stored obfuscated.
+*   **Convenient**: Select stored keys from a dropdown in all supported nodes.
+
+#### **Tripo3D Model Generator**
+*Category: `Geekatplay Studio/Tripo3D`*
+Generate 3D models using Tripo's API v2.5/v3.0.
+*   **Inputs**: Single image or Multi-view images.
+*   **Features**: PBR materials, Quad mesh option, Auto-scale.
+
+#### **Tripo3D Animator**
+*Category: `Geekatplay Studio/Tripo3D`*
+Auto-rig and animate your Tripo models.
+*   **Presets**: Walk, Run, Jump, Dance, etc.
+*   **Rigging**: Auto, Biped, Quadruped.
+
+#### **Meshy Text/Image to 3D**
+*Category: `Geekatplay Studio/Meshy`*
+Access Meshy.ai's powerful 3D generation.
+*   **Text to 3D**: Prompt-based generation with style selection (Realistic, Cartoon, Low-poly, Voxel).
+*   **Image to 3D**: Converts uploaded images to detailed 3D meshes using Meshy v1 API.
+
+#### **HiTem3D Generator**
+*Category: `Geekatplay Studio/HiTem3D`*
+Generate high-fidelity models using HiTem3D.
+*   **Modes**: Geometry Only, Staged, All-in-One.
+*   **Resolution**: Supports up to 1536pro resolution.
+*   **Input**: Supports single-view or multi-view (Front, Back, Left, Right).
 
 ---
 

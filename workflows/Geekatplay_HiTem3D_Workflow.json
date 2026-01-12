@@ -1,75 +1,292 @@
 {
-  "last_node_id": 60,
-  "last_link_id": 10,
+  "id": "ac67eb45-df6e-4632-8ca3-a842926e1a9e",
+  "revision": 0,
+  "last_node_id": 62,
+  "last_link_id": 11,
   "nodes": [
-    {
-      "id": 10,
-      "type": "Geekatplay_ApiKey_Manager",
-      "pos": [100, 100],
-      "size": [400, 200],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "outputs": [
-        { "name": "api_key", "type": "STRING", "links": [2], "slot_index": 0 }
-      ],
-      "properties": { "Node name for S&R": "Geekatplay_ApiKey_Manager" },
-      "widgets_values": ["None", "hitem3d_key", "KeyName", "AccessKey:SecretKey", "Save", "Delete"]
-    },
     {
       "id": 40,
       "type": "LoadImage",
-      "pos": [100, 400],
-      "size": [315, 314],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "outputs": [
-        { "name": "IMAGE", "type": "IMAGE", "links": [4], "slot_index": 0 }
+      "pos": [
+        100,
+        400
       ],
-      "properties": { "Node name for S&R": "LoadImage" },
-      "widgets_values": ["example.png", "image"]
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
     },
     {
       "id": 30,
       "type": "Geekatplay_HiTem3D_Gen",
-      "pos": [600, 200],
-      "size": [400, 400],
+      "pos": [
+        600,
+        200
+      ],
+      "size": [
+        400,
+        400
+      ],
       "flags": {},
       "order": 2,
       "mode": 0,
       "inputs": [
-        { "name": "front_image", "type": "IMAGE", "link": 4 },
-        { "name": "api_key", "type": "STRING", "link": 2 }
+        {
+          "name": "front_image",
+          "type": "IMAGE",
+          "link": 4
+        },
+        {
+          "name": "back_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "left_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "right_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "api_key",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "api_key"
+          },
+          "link": 2
+        }
       ],
       "outputs": [
-        { "name": "model_path", "type": "STRING", "links": [5], "slot_index": 0 },
-        { "name": "task_id", "type": "STRING", "links": null }
+        {
+          "name": "model_path",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            5,
+            11
+          ]
+        },
+        {
+          "name": "task_id",
+          "type": "STRING",
+          "links": null
+        }
       ],
-      "properties": { "Node name for S&R": "Geekatplay_HiTem3D_Gen" },
-      "widgets_values": ["hitem3dv1.5", "1024", 1000000, "glb", "all_in_one"]
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "96aae04bdbc5b1b0ca3acef453ac9b6de68e72b3",
+        "Node name for S&R": "Geekatplay_HiTem3D_Gen"
+      },
+      "widgets_values": [
+        "hitem3dv1.5",
+        "1024",
+        1000000,
+        "glb",
+        "all_in_one",
+        ""
+      ]
     },
     {
       "id": 60,
       "type": "Preview3D",
-      "pos": [1100, 200],
-      "size": [500, 500],
+      "pos": [
+        1141.0422573241526,
+        345.28959092750097
+      ],
+      "size": [
+        500,
+        500
+      ],
       "flags": {},
       "order": 3,
       "mode": 0,
       "inputs": [
-        { "name": "model_file", "type": "STRING", "link": 5 }
+        {
+          "name": "camera_info",
+          "shape": 7,
+          "type": "LOAD3D_CAMERA",
+          "link": null
+        },
+        {
+          "name": "bg_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "model_file",
+          "type": "STRING",
+          "widget": {
+            "name": "model_file"
+          },
+          "link": 5
+        }
       ],
-      "properties": { "Node name for S&R": "Preview3D" }
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "Preview3D"
+      },
+      "widgets_values": [
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 10,
+      "type": "Geekatplay_ApiKey_Manager",
+      "pos": [
+        86.86647765627113,
+        106.56676117186444
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "api_key",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "96aae04bdbc5b1b0ca3acef453ac9b6de68e72b3",
+        "Node name for S&R": "Geekatplay_ApiKey_Manager"
+      },
+      "widgets_values": [
+        "None",
+        "hitem3d_key",
+        "KeyName",
+        "AccessKey:SecretKey",
+        "Save",
+        "Delete"
+      ]
+    },
+    {
+      "id": 62,
+      "type": "PreviewModelInBlender",
+      "pos": [
+        1186.1360874848124,
+        52.5805319292561
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_path",
+          "type": "STRING",
+          "link": 11
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "981afa2e9489b89b42f093cbeb03acd9f4c25a43",
+        "Node name for S&R": "PreviewModelInBlender"
+      },
+      "widgets_values": [
+        "127.0.0.1",
+        8119
+      ]
     }
   ],
   "links": [
-    [2, 10, 0, 30, 1, "STRING"],
-    [4, 40, 0, 30, 0, "IMAGE"],
-    [5, 30, 0, 60, 2, "STRING"]
+    [
+      2,
+      10,
+      0,
+      30,
+      4,
+      "STRING"
+    ],
+    [
+      4,
+      40,
+      0,
+      30,
+      0,
+      "IMAGE"
+    ],
+    [
+      5,
+      30,
+      0,
+      60,
+      2,
+      "STRING"
+    ],
+    [
+      11,
+      30,
+      0,
+      62,
+      0,
+      "STRING"
+    ]
   ],
   "groups": [],
   "config": {},
-  "extra": {},
+  "extra": {
+    "ds": {
+      "scale": 1.2182565789473685,
+      "offset": [
+        163.33333333333326,
+        327.47077089239906
+      ]
+    },
+    "workflowRendererVersion": "LG",
+    "frontendVersion": "1.35.9"
+  },
   "version": 0.4
 }
