@@ -243,6 +243,14 @@ The suite includes a powerful **Blender Addon** (`ComfyUI 360 HDRI Sync`).
 *   **Live Preview**: Send generated HDRIs or Heightmaps directly to Blender's viewport.
 *   **Lighting Sync**: Sync Sun position and color from ComfyUI (via Ollama) to Blender lights.
 
+### 🦴 Auto-Rigging & Mesh Prep (Blender)
+
+The addon also includes a suite of tools to prepare raw ComfyUI generated meshes (e.g. from Hunyuan3D or text-to-3d) for animation.
+
+*   **Clean Active Mesh**: Automates **Voxel Remeshing** followed by **Decimation**. This turns messy, non-manifold generated geometry into clean, riggable topology in one click.
+*   **Quick Rig**: Instantly adds a basic Humanoid Metarig to your object for quick posing testing.
+*   **Export for Mixamo/AccuRig**: One-click solution to export your character. It automatically centers the mesh, applies transforms, and sets the correct axis orientation (Y-Up) required by external auto-riggers like Mixamo or ActorCore AccuRig.
+
 ---
 
 ## 🧰 Geekatplay 3D Toolbox
