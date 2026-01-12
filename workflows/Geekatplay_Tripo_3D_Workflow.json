@@ -1,0 +1,601 @@
+{
+  "id": "78c82e30-5aef-4ff0-9d26-7569eea07f77",
+  "revision": 0,
+  "last_node_id": 12,
+  "last_link_id": 16,
+  "nodes": [
+    {
+      "id": 5,
+      "type": "PreviewModelInBlender",
+      "pos": [
+        1600,
+        200
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_path",
+          "type": "STRING",
+          "link": 7
+        },
+        {
+          "name": "blender_ip_address",
+          "type": "STRING",
+          "widget": {
+            "name": "blender_ip_address"
+          },
+          "link": null
+        },
+        {
+          "name": "blender_listen_port",
+          "type": "INT",
+          "widget": {
+            "name": "blender_listen_port"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "981afa2e9489b89b42f093cbeb03acd9f4c25a43",
+        "Node name for S&R": "PreviewModelInBlender"
+      },
+      "widgets_values": [
+        "127.0.0.1",
+        8119
+      ]
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        100,
+        100
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            11
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "Preview3D",
+      "pos": [
+        1094.1699963675985,
+        459.8565201598255
+      ],
+      "size": [
+        481.9033781329456,
+        489.07010533962955
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "camera_info",
+          "shape": 7,
+          "type": "LOAD3D_CAMERA",
+          "link": null
+        },
+        {
+          "name": "bg_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "model_file",
+          "type": "STRING",
+          "widget": {
+            "name": "model_file"
+          },
+          "link": 16
+        },
+        {
+          "name": "image",
+          "type": "PREVIEW_3D",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "Preview3D",
+        "Last Time Model File": "tripo_model_ce9b2f4e-22aa-498c-9933-893d579c619a.glb",
+        "Scene Config": {
+          "showGrid": true,
+          "backgroundColor": "#282828",
+          "backgroundImage": "",
+          "backgroundRenderMode": "tiled"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 35,
+          "state": {
+            "position": {
+              "x": 6.456013727734809,
+              "y": 5.513733922127756,
+              "z": 1.1531264244511124
+            },
+            "target": {
+              "x": 0,
+              "y": 2.5,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Light Config": {
+          "intensity": 3
+        }
+      },
+      "widgets_values": [
+        "tripo_model_ce9b2f4e-22aa-498c-9933-893d579c619a.glb",
+        ""
+      ]
+    },
+    {
+      "id": 12,
+      "type": "Preview3D",
+      "pos": [
+        1633.5088993824927,
+        453.3472575372321
+      ],
+      "size": [
+        481.9033781329456,
+        489.07010533962955
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "camera_info",
+          "shape": 7,
+          "type": "LOAD3D_CAMERA",
+          "link": null
+        },
+        {
+          "name": "bg_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "model_file",
+          "type": "STRING",
+          "widget": {
+            "name": "model_file"
+          },
+          "link": 15
+        },
+        {
+          "name": "image",
+          "type": "PREVIEW_3D",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "Preview3D",
+        "Last Time Model File": "tripo_model_ce9b2f4e-22aa-498c-9933-893d579c619a.glb",
+        "Scene Config": {
+          "showGrid": true,
+          "backgroundColor": "#282828",
+          "backgroundImage": "",
+          "backgroundRenderMode": "tiled"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 35,
+          "state": {
+            "position": {
+              "x": 6.456013727734809,
+              "y": 5.513733922127756,
+              "z": 1.1531264244511124
+            },
+            "target": {
+              "x": 0,
+              "y": 2.5,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Light Config": {
+          "intensity": 3
+        }
+      },
+      "widgets_values": [
+        "tripo_model_ce9b2f4e-22aa-498c-9933-893d579c619a.glb",
+        ""
+      ]
+    },
+    {
+      "id": 4,
+      "type": "Geekatplay_Tripo_AnimateRig",
+      "pos": [
+        1100,
+        200
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "original_task_id",
+          "type": "STRING",
+          "widget": {
+            "name": "original_task_id"
+          },
+          "link": 14
+        },
+        {
+          "name": "animation_preset",
+          "type": "COMBO",
+          "widget": {
+            "name": "animation_preset"
+          },
+          "link": null
+        },
+        {
+          "name": "rig_type",
+          "type": "COMBO",
+          "widget": {
+            "name": "rig_type"
+          },
+          "link": null
+        },
+        {
+          "name": "api_key",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "api_key"
+          },
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "rigged_model_path",
+          "type": "STRING",
+          "links": [
+            7,
+            15
+          ]
+        },
+        {
+          "name": "task_id",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "981afa2e9489b89b42f093cbeb03acd9f4c25a43",
+        "Node name for S&R": "Geekatplay_Tripo_AnimateRig"
+      },
+      "widgets_values": [
+        "preset:walk",
+        "biped",
+        ""
+      ]
+    },
+    {
+      "id": 3,
+      "type": "Geekatplay_Tripo_ModelGen",
+      "pos": [
+        600,
+        200
+      ],
+      "size": [
+        400,
+        310
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_front",
+          "type": "IMAGE",
+          "link": 11
+        },
+        {
+          "name": "image_left",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image_back",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image_right",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "face_limit",
+          "type": "INT",
+          "widget": {
+            "name": "face_limit"
+          },
+          "link": null
+        },
+        {
+          "name": "texture",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "texture"
+          },
+          "link": null
+        },
+        {
+          "name": "pbr",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "pbr"
+          },
+          "link": null
+        },
+        {
+          "name": "quad",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "quad"
+          },
+          "link": null
+        },
+        {
+          "name": "auto_size",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "auto_size"
+          },
+          "link": null
+        },
+        {
+          "name": "api_key",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "api_key"
+          },
+          "link": 12
+        },
+        {
+          "name": "model_version",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "model_version"
+          },
+          "link": null
+        },
+        {
+          "name": "texture_alignment",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "texture_alignment"
+          },
+          "link": null
+        },
+        {
+          "name": "texture_quality",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "texture_quality"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model_path",
+          "type": "STRING",
+          "links": [
+            16
+          ]
+        },
+        {
+          "name": "task_id",
+          "type": "STRING",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "981afa2e9489b89b42f093cbeb03acd9f4c25a43",
+        "Node name for S&R": "Geekatplay_Tripo_ModelGen"
+      },
+      "widgets_values": [
+        10000,
+        true,
+        true,
+        false,
+        false,
+        "",
+        "v3.0-20250812",
+        "original_image",
+        "standard"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "Geekatplay_ApiKey_Manager",
+      "pos": [
+        100,
+        500
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "service_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "service_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "api_key",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            12,
+            13
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "GeekatplayStudio/comfyui_360_hdri",
+        "ver": "981afa2e9489b89b42f093cbeb03acd9f4c25a43",
+        "Node name for S&R": "Geekatplay_ApiKey_Manager"
+      },
+      "widgets_values": [
+        "None"
+      ]
+    }
+  ],
+  "links": [
+    [
+      7,
+      4,
+      0,
+      5,
+      0,
+      "STRING"
+    ],
+    [
+      11,
+      1,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      12,
+      2,
+      0,
+      3,
+      9,
+      "STRING"
+    ],
+    [
+      13,
+      2,
+      0,
+      4,
+      3,
+      "STRING"
+    ],
+    [
+      14,
+      3,
+      1,
+      4,
+      0,
+      "STRING"
+    ],
+    [
+      15,
+      4,
+      0,
+      12,
+      2,
+      "STRING"
+    ],
+    [
+      16,
+      3,
+      0,
+      11,
+      2,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.3012226562500002,
+      "offset": [
+        -16.744858351370425,
+        -42.58742528811551
+      ]
+    },
+    "frontendVersion": "1.35.9",
+    "workflowRendererVersion": "LG"
+  },
+  "version": 0.4
+}

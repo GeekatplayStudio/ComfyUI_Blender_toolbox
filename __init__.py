@@ -15,6 +15,10 @@ from .nodes.texture_nodes import TextureScrambler
 from .nodes.ollama_nodes import OllamaVision, OllamaLightingEstimator
 from .nodes.geekatplay_nodes import GapSeamlessTiler, GapPBRExtractor, GapChannelPacker, GapImageMerger, GapMaterialSaver
 from .nodes.geekatplay_toolbox import GapSmartResizer, GapStringViewer, GapPauser, GapLogicSwitch, GapGroupManager, GapVRAMPurge, GapVisualComparator
+from .nodes.tripo_nodes import Geekatplay_Tripo_ModelGen, Geekatplay_Tripo_AnimateRig
+from .nodes.meshy_nodes import Geekatplay_Meshy_TextTo3D, Geekatplay_Meshy_ImageTo3D
+from .nodes.hitem3d_nodes import Geekatplay_HiTem3D_Gen
+from .nodes.geekatplay_key_manager import Geekatplay_ApiKey_Manager
 
 NODE_CLASS_MAPPINGS = {
     "SaveFakeHDRI": SaveFakeHDRI,
@@ -56,6 +60,12 @@ NODE_CLASS_MAPPINGS = {
     "GapGroupManager": GapGroupManager,
     "GapVRAMPurge": GapVRAMPurge,
     "GapVisualComparator": GapVisualComparator,
+    "Geekatplay_Tripo_ModelGen": Geekatplay_Tripo_ModelGen,
+    "Geekatplay_Tripo_AnimateRig": Geekatplay_Tripo_AnimateRig,
+    "Geekatplay_Meshy_TextTo3D": Geekatplay_Meshy_TextTo3D,
+    "Geekatplay_Meshy_ImageTo3D": Geekatplay_Meshy_ImageTo3D,
+    "Geekatplay_HiTem3D_Gen": Geekatplay_HiTem3D_Gen,
+    "Geekatplay_ApiKey_Manager": Geekatplay_ApiKey_Manager,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -97,6 +107,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GapGroupManager": "3D Toolbox Dynamic Group Manager",
     "GapVRAMPurge": "3D Toolbox VRAM Purge",
     "GapVisualComparator": "3D Toolbox Visual Comparator",
+    "Geekatplay_Tripo_ModelGen": "Tripo3D Model Generator (Geekatplay)",
+    "Geekatplay_Tripo_AnimateRig": "Tripo3D Animator (Geekatplay)",
+    "Geekatplay_Meshy_TextTo3D": "Meshy Text to 3D (Geekatplay)",
+    "Geekatplay_Meshy_ImageTo3D": "Meshy Image to 3D (Geekatplay)",
+    "Geekatplay_HiTem3D_Gen": "HiTem3D Generator (Geekatplay)",
+    "Geekatplay_ApiKey_Manager": "API Key Manager (Geekatplay)",
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
