@@ -1,10 +1,10 @@
 @echo off
 REM (c) Geekatplay Studio
-REM ComfyUI-360-HDRI-Suite
+REM ComfyUI-Blender-Toolbox
 setlocal enabledelayedexpansion
 
 echo ========================================================
-echo ComfyUI-360-HDRI-Suite Installer
+echo ComfyUI-Blender-Toolbox Installer
 echo ========================================================
 
 cd /d "%~dp0"

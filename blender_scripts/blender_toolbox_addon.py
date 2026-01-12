@@ -1,13 +1,13 @@
 # (c) Geekatplay Studio
-# ComfyUI-360-HDRI-Suite
+# ComfyUI-Blender-Toolbox
 
 bl_info = {
-    "name": "ComfyUI 360 HDRI Sync",
-    "author": "ComfyUI-360-HDRI-Suite",
+    "name": "ComfyUI Blender Toolbox Sync",
+    "author": "ComfyUI-Blender-Toolbox",
     "version": (1, 1, 1),
     "blender": (2, 80, 0),
     "location": "View3D > Sidebar > ComfyUI",
-    "description": "Sync 360 HDRI skies from ComfyUI to Blender",
+    "description": "Sync assets from ComfyUI to Blender",
     "warning": "",
     "category": "Import-Export",
 }

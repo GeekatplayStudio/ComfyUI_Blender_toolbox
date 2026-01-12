@@ -1,5 +1,5 @@
 # (c) Geekatplay Studio
-# ComfyUI-360-HDRI-Suite
+# ComfyUI-Blender-Toolbox
 
 import os
 import subprocess
@@ -25,7 +25,7 @@ def main():
     current_dir = Path.cwd()
     
     # Check if we are inside ComfyUI/custom_nodes/...
-    # suite_root is .../ComfyUI-360-HDRI-Suite
+    # suite_root is .../ComfyUI-Blender-Toolbox
     potential_comfy_root = suite_root.parent.parent
     if (potential_comfy_root / "main.py").exists() and (potential_comfy_root / "custom_nodes").exists():
         print(f"Detected running inside ComfyUI at {potential_comfy_root}")
@@ -209,7 +209,7 @@ def main():
             print("You may need to run 'ollama pull llava' manually.")
 
     # 8. Symlink or copy the suite
-    target_suite_path = custom_nodes_path / "ComfyUI-360-HDRI-Suite"
+    target_suite_path = custom_nodes_path / "ComfyUI-Blender-Toolbox"
     
     if target_suite_path.exists():
         print(f"Target path {target_suite_path} already exists. Skipping link/copy.")

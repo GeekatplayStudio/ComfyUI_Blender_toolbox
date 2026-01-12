@@ -12,7 +12,7 @@ MODELS_DIR = os.path.join(COMFY_PATH, "models", "ubsoft_pbr")
 REPOS_DIR = os.path.join(THIS_NODE_PATH, "repos")
 CHORD_REPO_URL = "https://github.com/ubisoft/ubisoft-laforge-chord.git"
 CHORD_MODEL_URL = "https://huggingface.co/Ubisoft/ubisoft-laforge-chord/resolve/main/chord_v1.safetensors"
-WORKFLOW_SOURCE = os.path.join(THIS_NODE_PATH, "workflows", "Gemini_PBR_Texture_Studio_workflow.json")
+WORKFLOW_SOURCE = os.path.join(THIS_NODE_PATH, "workflows", "Geekatplay_PBR_Texture_Studio_workflow.json")
 
 def install_requirements():
     print(">>> Installing Python dependencies for PBR Extractor...")

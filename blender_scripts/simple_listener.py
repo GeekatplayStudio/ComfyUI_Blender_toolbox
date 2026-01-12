@@ -1,5 +1,5 @@
 # (c) Geekatplay Studio
-# ComfyUI-360-HDRI-Suite
+# ComfyUI-Blender-Toolbox
 
 import bpy
 import socket
@@ -116,4 +116,4 @@ def start_server():
 # Run server in a separate thread so it doesn't block Blender UI
 thread = threading.Thread(target=start_server, daemon=True)
 thread.start()
-print("ComfyUI-360-HDRI-Suite Listener Started.")
+print("ComfyUI-Blender-Toolbox Listener Started.")

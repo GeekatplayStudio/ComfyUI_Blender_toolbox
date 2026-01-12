@@ -433,7 +433,7 @@ class GapMaterialSaver:
         # Or better, just relative to where comfy is running? 
         # Usually it's in ComfyUI/output
         # Let's find ComfyUI root by walking up from custom_nodes
-        # __file__ = custom_nodes/ComfyUI-360-HDRI-Suite/nodes/geekatplay_nodes.py
+        # __file__ = custom_nodes/ComfyUI-Blender-Toolbox/nodes/geekatplay_nodes.py
         # root = ../../../
         
         root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

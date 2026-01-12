@@ -1,5 +1,5 @@
 # (c) Geekatplay Studio
-# ComfyUI-360-HDRI-Suite
+# ComfyUI-Blender-Toolbox
 
 import torch
 import numpy as np
