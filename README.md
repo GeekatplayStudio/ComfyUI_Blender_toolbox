@@ -8,6 +8,7 @@ A comprehensive suite of ComfyUI nodes designed for 360° HDRI panorama creation
 *   **360° Workflow**: Tools to resize, heal seams, and generate masks specifically for equirectangular images.
 *   **Seamless Tiling**: Two methods—Image-based edge blending and Model-based circular padding for true seamless generation.
 *   **Blender Bridge**: Live preview of your HDRI skies, Terrain heightmaps, and 3D Models directly in Blender.
+*   **Round-Trip Sync**: **NEW!** Send meshes/UVs from Blender to ComfyUI, texture them with AI, and send them back to Blender instantly.
 *   **Ollama Vision**: Analyze images and suggest lighting/sun positions using local LLMs.
 
 ---
@@ -166,6 +167,19 @@ Updates Blender's lighting creation based on estimated parameters.
 
 ---
 
+## 🏗️ Auto-Rigger & Cleanup
+Tools for cleaning AI-generated meshes and applying skeletons.
+
+### Blender Addon Features
+*   **Clean Active Mesh:** Applies Voxel Remesh and Decimate to make mesh watertight and game-ready.
+*   **Quick Rigging:** Automatically adds a basic humanoid skeleton and binds the mesh.
+*   **Export for Mixamo:** Preps and exports mesh for third-party rigging services.
+
+### Testing Workflows
+*   `Test_Rigging_Generation.json`: A sample workflow demonstrating Image-to-3D generation (using Hunyuan3D) ending in a saved mesh ready for the Auto-Rigger.
+
+---
+
 ### 🦙 Ollama (Local AI) Integration
 *Requires local [Ollama](https://ollama.com) installation.*
 
@@ -212,6 +226,22 @@ Adds specific erosion keywords to your prompt to simulate realistic geological w
 Generates optimized prompts for seamless textures based on a specific material type.
 *   **Presets**: Over 20 types including Rock, Soil, Water, Snow, Metal, Wood, Fabric, Sci-Fi, etc.
 *   **Output**: Creates distinct Positive (high resolution, seamless) and Negative (3d render, perspective) prompts.
+
+### 🗿 Blender Integration
+
+The suite includes a powerful **Blender Addon** (`ComfyUI 360 HDRI Sync`).
+
+*   **Round-Trip Texturing Workflow**:
+    1.  **Select Object** in Blender.
+    2.  Click **"1. Send Mesh & UVs"** in the ComfyUI tab.
+    3.  In ComfyUI, load the `Geekatplay_Blender_RoundTrip_Sync.json` workflow.
+    4.  It automatically loads your mesh's UV layout and Albedo reference.
+    5.  Generate your texture (using ControlNet, img2img, standard generation).
+    6.  The result is automatically saved back to your project folder and updated in Blender instantly.
+
+*   **One-Click Installation**: Go to `Edit > Preferences > Add-ons`, click "Install", and select `blender_scripts/with_dependencies/comfyui_360_hdri_addon_v1_1_2.zip`.
+*   **Live Preview**: Send generated HDRIs or Heightmaps directly to Blender's viewport.
+*   **Lighting Sync**: Sync Sun position and color from ComfyUI (via Ollama) to Blender lights.
 
 ---
 

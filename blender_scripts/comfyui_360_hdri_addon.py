@@ -4,7 +4,7 @@
 bl_info = {
     "name": "ComfyUI 360 HDRI Sync",
     "author": "ComfyUI-360-HDRI-Suite",
-    "version": (1, 1, 0),
+    "version": (1, 1, 1),
     "blender": (2, 80, 0),
     "location": "View3D > Sidebar > ComfyUI",
     "description": "Sync 360 HDRI skies from ComfyUI to Blender",
@@ -612,6 +612,19 @@ def process_queue():
             
             # Call function to create terrain
             create_terrain_from_heightmap(height_path, texture_path, use_pbr, roughness_path, normal_path, metallic_path, alpha_path, ior_path, roughness_min, roughness_max, size_x, size_y)
+
+        elif msg.startswith("TEXTURE_UPDATE:"):
+            # Format: TEXTURE_UPDATE:ALBEDO:<path>|ROUGHNESS:<path>|...
+            print(f"[ComfyUI-360] Processing Texture Update for Active Object...")
+            
+            parts = msg.replace("TEXTURE_UPDATE:", "").split('|')
+            pbr_data = {}
+            for part in parts:
+                if ":" in part:
+                    type_name, path = part.split(":", 1)
+                    pbr_data[type_name] = path.strip()
+            
+            update_active_object_material(pbr_data)
             
         elif msg.startswith("MODEL:"):
             model_path = msg.replace("MODEL:", "").strip()
@@ -873,6 +886,184 @@ def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False,
     # Smooth Shading
     bpy.ops.object.shade_smooth()
 
+def update_active_object_material(pbr_data):
+    """
+    Updates the active object's active material with the provided PBR textures.
+    If no material exists, it creates one.
+    Does NOT affect geometry.
+    """
+    obj = bpy.context.active_object
+    if not obj or obj.type != 'MESH':
+        print(f"[ComfyUI-360] Warning: No active mesh object selected for texture update.")
+        return
+
+    print(f"[ComfyUI-360] Updating material for object: {obj.name}")
+    
+    # Get active material
+    mat = obj.active_material
+    if not mat:
+        # Create new if none
+        mat = bpy.data.materials.new(name=f"{obj.name}_Mat")
+        mat.use_nodes = True
+        obj.data.materials.append(mat)
+    
+    if not mat.use_nodes:
+        mat.use_nodes = True
+        
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    
+    # Find Principled BSDF
+    bsdf = None
+    for n in nodes:
+        if n.type == 'BSDF_PRINCIPLED':
+            bsdf = n
+            break
+            
+    if not bsdf:
+        # If no BSDF, clear and create basic setup
+        nodes.clear()
+        output = nodes.new('ShaderNodeOutputMaterial')
+        output.location = (300, 0)
+        bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+        bsdf.location = (0, 0)
+        links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+    
+    # ---------------------------------------------------------
+    # SCALE FIX: FORCE UV -> MAPPING -> TEXTURE CHAIN
+    # ---------------------------------------------------------
+    
+    # 1. Create centralized Coord + Mapping nodes (Fresh start for consistency)
+    # We try to reuse existing matching nodes if they look like our "standard" ones to avoid clutter
+    
+    tex_coord_node = None
+    mapping_node = None
+
+    # Search for an existing Mapping node at (-800, 0) - rough heuristic
+    for n in nodes:
+        if n.type == 'MAPPING':
+             mapping_node = n
+             break
+    
+    if not mapping_node:
+        mapping_node = nodes.new('ShaderNodeMapping')
+        mapping_node.location = (-800, 0)
+        mapping_node.label = "ComfyUI_Mapping"
+
+    # Search for TexCoord
+    for n in nodes:
+        if n.type == 'TEX_COORD':
+            tex_coord_node = n
+            break
+            
+    if not tex_coord_node:
+        tex_coord_node = nodes.new('ShaderNodeTexCoord')
+        tex_coord_node.location = (-1000, 0)
+    
+    # Force Link: UV -> Mapping
+    # This is critical for fixing "patchy" textures (projected weirdly)
+    try:
+        links.new(tex_coord_node.outputs['UV'], mapping_node.inputs['Vector'])
+    except:
+        pass # In case inputs are named differently in older versions
+
+    # Helper to load and connect image with EXPLICIT vector linking
+    def connect_texture(path, input_socket_name, is_non_color=False, location=(-300, 300)):
+        if not path or not os.path.exists(path):
+            return
+
+        # Load Image
+        try: 
+            img = bpy.data.images.load(path)
+            if is_non_color:
+                img.colorspace_settings.name = 'Non-Color'
+        except: 
+            return
+
+        # Find Logic
+        tex_node = None
+        
+        # 1. Check if socket already has a texture
+        if input_socket_name in bsdf.inputs and bsdf.inputs[input_socket_name].is_linked:
+            link = bsdf.inputs[input_socket_name].links[0]
+            if link.from_node.type == 'TEX_IMAGE':
+                tex_node = link.from_node
+        
+        if not tex_node:
+            tex_node = nodes.new('ShaderNodeTexImage')
+            tex_node.location = location
+            bsdf_input = bsdf.inputs.get(input_socket_name)
+            if bsdf_input:
+                links.new(tex_node.outputs['Color'], bsdf_input)
+        
+        # CRITICAL: Force Vector Link to our Mapping Node
+        try:
+            links.new(mapping_node.outputs['Vector'], tex_node.inputs['Vector'])
+        except: pass
+
+        tex_node.image = img
+        print(f"[ComfyUI-360] Updated {input_socket_name} with {os.path.basename(path)}")
+    
+    # Connect Textures
+    if "ALBEDO" in pbr_data:
+        connect_texture(pbr_data["ALBEDO"], 'Base Color', is_non_color=False, location=(-300, 300))
+        
+    if "ROUGHNESS" in pbr_data:
+        connect_texture(pbr_data["ROUGHNESS"], 'Roughness', is_non_color=True, location=(-300, 0))
+        
+    if "METALLIC" in pbr_data:
+        connect_texture(pbr_data["METALLIC"], 'Metallic', is_non_color=True, location=(-300, -150))
+        
+    if "ALPHA" in pbr_data:
+        connect_texture(pbr_data["ALPHA"], 'Alpha', is_non_color=True, location=(-300, -300))
+        # Ensure blend mode is set
+        mat.blend_method = 'HASHED'
+        if hasattr(mat, 'shadow_method'): mat.shadow_method = 'HASHED'
+
+    if "EMISSION" in pbr_data:
+        # Try 'Emission Color' (4.0) first, then 'Emission'
+        target_socket = 'Emission Color' if 'Emission Color' in bsdf.inputs else 'Emission'
+        if target_socket in bsdf.inputs:
+             connect_texture(pbr_data["EMISSION"], target_socket, is_non_color=False, location=(-300, -450))
+
+    if "NORMAL" in pbr_data:
+        # specific logic for Normal Map node
+        path = pbr_data["NORMAL"]
+        if path and os.path.exists(path):
+            try:
+                img = bpy.data.images.load(path)
+                img.colorspace_settings.name = 'Non-Color'
+                
+                # Check for Normal Map node
+                norm_node = None
+                if 'Normal' in bsdf.inputs and bsdf.inputs['Normal'].is_linked:
+                    link = bsdf.inputs['Normal'].links[0]
+                    if link.from_node.type == 'NORMAL_MAP':
+                        norm_node = link.from_node
+                
+                if not norm_node:
+                    norm_node = nodes.new('ShaderNodeNormalMap')
+                    norm_node.location = (-150, -200)
+                    links.new(norm_node.outputs['Normal'], bsdf.inputs['Normal'])
+                
+                # Check input to Normal Map node
+                tex_node = None
+                if norm_node.inputs['Color'].is_linked:
+                    link = norm_node.inputs['Color'].links[0]
+                    if link.from_node.type == 'TEX_IMAGE':
+                         tex_node = link.from_node
+                
+                if not tex_node:
+                    tex_node = nodes.new('ShaderNodeTexImage')
+                    tex_node.location = (-450, -200)
+                    links.new(tex_node.outputs['Color'], norm_node.inputs['Color'])
+                
+                # CRITICAL: Force Vector Link
+                links.new(mapping_node.outputs['Vector'], tex_node.inputs['Vector'])
+                
+                tex_node.image = img
+                print(f"[ComfyUI-360] Updated Normal Map")
+            except: pass
 
 class COMFY360_OT_TestConnection(bpy.types.Operator):
     """Test the connection by printing to console"""
@@ -970,25 +1161,87 @@ class COMFY360_OT_SendTextures(bpy.types.Operator):
             self.report({'ERROR'}, "Active object is not a mesh")
             return {'CANCELLED'}
             
-        mat = obj.active_material
-        if not mat or not mat.use_nodes:
-            self.report({'ERROR'}, "No active material with nodes")
+        # Collect materials
+        materials = []
+        for slot in obj.material_slots:
+            if slot.material and slot.material.use_nodes:
+                if slot.material not in materials:
+                    materials.append(slot.material)
+        
+        # Fallback to active material if no slots (somehow)
+        if not materials and obj.active_material and obj.active_material.use_nodes:
+            materials.append(obj.active_material)
+            
+        if not materials:
+            self.report({'ERROR'}, "No materials with nodes found")
             return {'CANCELLED'}
         
-        export_path = context.scene.comfy360_export_path
+        # Get path from Preferences (Global)
+        addon_name = __package__ if __package__ else __name__
+        try:
+            prefs = context.preferences.addons[addon_name].preferences
+            base_path = prefs.comfy360_export_path
+        except:
+            base_path = ""
+
+        # Deduced ComfyUI Output Path logic
+        export_path = ""
+        
+        # 1. Direct Manual Path (High Priority)
+        # If user set a path manually in preferences, use it.
+        if base_path and os.path.exists(base_path):
+             # Heuristic: If they pointed to ComfyUI root or output folder specifically, 
+             # we might want to organize it, but if they pointed to a random folder "Textures", 
+             # we should just use it.
+             
+             # Case A: User pointed to a generic root (contains 'custom_nodes' or 'ComfyUI' in path)
+             is_root_like = "ComfyUI" in base_path or "custom_nodes" in os.listdir(base_path)
+             
+             if is_root_like and "output" in os.listdir(base_path):
+                  export_path = os.path.join(base_path, "output", "blender")
+             elif os.path.basename(base_path).lower() == "output":
+                  export_path = os.path.join(base_path, "blender")
+             else:
+                  # Case B: Custom folder (e.g. D:\Textures) -> Use directly
+                  export_path = base_path
+
+        # 2. Try to deduce relative to this script (if no manual path or invalid)
+        if not export_path:
+             # Script is in .../custom_nodes/Suite/blender_scripts/addon.py
+             try:
+                 addon_dir = os.path.dirname(os.path.abspath(__file__))
+                 # Go up to ComfyUI/
+                 # .../blender_scripts/.. /.. /.. 
+                 possible_root = os.path.abspath(os.path.join(addon_dir, "..", "..", ".."))
+                 possible_output = os.path.join(possible_root, "output")
+                 if os.path.exists(possible_output) and os.path.isdir(possible_output):
+                      export_path = os.path.join(possible_output, "blender")
+             except:
+                 pass
+        
+        # 3. Fallback to Temp
         if not export_path:
              import tempfile
-             export_path = os.path.join(tempfile.gettempdir(), "comfy_pbr_buffer")
-             self.report({'INFO'}, f"Path not set, using temp: {export_path}")
-             
-        if not os.path.exists(export_path):
+             export_path = os.path.join(tempfile.gettempdir(), "comfy_blender_export")
+             self.report({'WARNING'}, f"Using default temp path: {export_path}")
+
+        # Create model specific timestamped folder
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        safe_name = "".join([c for c in obj.name if c.isalnum() or c in (' ', '_', '-')]).strip()
+        final_folder_name = f"{safe_name}_{timestamp}"
+        
+        version_export_path = os.path.join(export_path, final_folder_name)
+
+        if not os.path.exists(version_export_path):
              try:
-                 os.makedirs(export_path)
+                 os.makedirs(version_export_path)
              except Exception as e:
                  self.report({'ERROR'}, f"Cannot create path: {e}")
                  return {'CANCELLED'}
 
-        nodes = mat.node_tree.nodes
+        # NOTE: We do NOT clean up old files anymore, as we are creating a unique folder for each export.
+        
         target_map = {
             'Base Color': 'blender_albedo.png',
             'Roughness': 'blender_roughness.png',
@@ -997,56 +1250,409 @@ class COMFY360_OT_SendTextures(bpy.types.Operator):
             'Alpha': 'blender_alpha.png',
             'Emission': 'blender_emission.png',
             'Emission Color': 'blender_emission.png',
-            'Specular': 'blender_specular.png',
-            'Specular IOR Level': 'blender_specular.png'
+            'Specular IOR Level': 'blender_specular.png',
+            'Specular': 'blender_specular.png'
         }
         
-        bsdf = None
-        for n in nodes:
-            if n.type == 'BSDF_PRINCIPLED':
-                bsdf = n
-                break
-                
-        if not bsdf:
-            self.report({'WARNING'}, "No Principled BSDF found")
-            return {'FINISHED'}
+        found_any_global = False
+        
+        # Iterate over all found materials
+        for idx, mat in enumerate(materials):
+            nodes = mat.node_tree.nodes
+            bsdf = None
+            for n in nodes:
+                if n.type == 'BSDF_PRINCIPLED':
+                    bsdf = n
+                    break
             
-        found_any = False
-        for input_name, filename in target_map.items():
-            if input_name in bsdf.inputs:
-                socket_in = bsdf.inputs[input_name]
-                if socket_in.is_linked:
-                    link = socket_in.links[0]
-                    node = link.from_node
-                    if node.type == 'TEX_IMAGE':
-                        image = node.image
-                        if image:
-                            save_path = os.path.join(export_path, filename)
-                            try:
-                                copied = False
-                                if image.source == 'FILE':
-                                    src = bpy.path.abspath(image.filepath)
-                                    if os.path.exists(src) and os.path.isfile(src):
-                                        shutil.copy(src, save_path)
-                                        copied = True
-                                if not copied:
-                                    prev = image.filepath_raw
-                                    try:
-                                        image.filepath_raw = save_path
-                                        image.file_format = 'PNG'
-                                        image.save()
-                                    finally:
-                                        image.filepath_raw = prev
-                                found_any = True
-                                print(f"[ComfyUI-360] Saved {filename}")
-                            except Exception as e:
-                                print(f"Error saving {filename}: {e}")
+            if not bsdf:
+                continue
+                
+            # Prefix for this material index
+            prefix = f"{idx}_"
+            
+            for input_name, base_filename in target_map.items():
+                if input_name in bsdf.inputs:
+                    socket_in = bsdf.inputs[input_name]
+                    if socket_in.is_linked:
+                        link = socket_in.links[0]
+                        node = link.from_node
+                        if node.type == 'TEX_IMAGE':
+                            image = node.image
+                            if image:
+                                # Prepend index
+                                filename = prefix + base_filename
+                                save_path = os.path.join(version_export_path, filename)
+                                try:
+                                    copied = False
+                                    if image.source == 'FILE':
+                                        src = bpy.path.abspath(image.filepath)
+                                        if os.path.exists(src) and os.path.isfile(src):
+                                            shutil.copy(src, save_path)
+                                            copied = True
+                                    if not copied:
+                                        prev = image.filepath_raw
+                                        try:
+                                            image.filepath_raw = save_path
+                                            image.file_format = 'PNG'
+                                            image.save()
+                                        finally:
+                                            image.filepath_raw = prev
+                                    found_any_global = True
+                                    print(f"[ComfyUI-360] Saved {filename} for material {mat.name}")
+                                except Exception as e:
+                                    print(f"Error saving {filename}: {e}")
 
-        if found_any:
-            self.report({'INFO'}, f"Textures sent to {export_path}")
+        if found_any_global:
+            self.report({'INFO'}, f"Textures exported to {version_export_path}")
+            # Also copy to clipboard or print prominently so user can find it
+            print(f"\n=======================================================")
+            print(f"[ComfyUI-360] EXPORT COMPLETE")
+            print(f"PATH: {version_export_path}")
+            print(f"=======================================================\n")
+            
+            # Write "Link File" to temp for ComfyUI to discover auto-magically
+            try:
+                import tempfile
+                link_file = os.path.join(tempfile.gettempdir(), "comfy_360_last_export.txt")
+                with open(link_file, "w") as f:
+                    f.write(version_export_path)
+                print(f"[ComfyUI-360] Link file updated: {link_file}")
+            except Exception as e:
+                print(f"[ComfyUI-360] Checksum write failed: {e}")
+                
         else:
             self.report({'WARNING'}, "No texture nodes found connected to Principled BSDF")
 
+        return {'FINISHED'}
+
+class COMFY360_OT_CleanAndRig(bpy.types.Operator):
+    """Clean and Rig the active object (GUI version of clean_and_rig.py)"""
+    bl_idname = "comfy360.clean_and_rig"
+    bl_label = "Clean & Auto-Prep Mesh"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    # Props are now read from Scene to allow UI control before execution
+    
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+             self.report({'ERROR'}, "Select a mesh first!")
+             return {'CANCELLED'}
+        
+        # Use simple scene properties instead of operator props for the button
+        scene = context.scene
+        voxel_size = getattr(scene, "comfy360_clean_voxel_size", 0.05)
+        decimate_ratio = getattr(scene, "comfy360_clean_decimate_ratio", 0.1)
+
+        self.report({'INFO'}, f"Processing {obj.name} (Voxel: {voxel_size}, Decimate: {decimate_ratio})...")
+        
+        # 1. Remesh
+        mod_remesh = obj.modifiers.new(name="AutoRemesh", type='REMESH')
+        mod_remesh.mode = 'VOXEL'
+        mod_remesh.voxel_size = voxel_size
+        bpy.ops.object.modifier_apply(modifier="AutoRemesh")
+        
+        # 2. Decimate
+        mod_dec = obj.modifiers.new(name="AutoDecimate", type='DECIMATE')
+        mod_dec.ratio = decimate_ratio
+        bpy.ops.object.modifier_apply(modifier="AutoDecimate")
+        
+        # 3. Smooth
+        bpy.ops.object.shade_smooth()
+        
+        # 4. Center
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+        obj.location = (0, 0, 0)
+        
+        self.report({'INFO'}, "Cleanup Complete!")
+        return {'FINISHED'}
+
+class COMFY360_OT_QuickRig(bpy.types.Operator):
+    """Adds a basic armature and binds it to the active mesh"""
+    bl_idname = "comfy360.quick_rig"
+    bl_label = "Auto-Rig (Basic)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+             self.report({'ERROR'}, "Select a mesh first!")
+             return {'CANCELLED'}
+             
+        # Center mesh first
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+        obj.location = (0, 0, 0)
+        
+        # Calculate bounds for scaling
+        min_z = min((obj.matrix_world @ v.co).z for v in obj.data.vertices)
+        max_z = max((obj.matrix_world @ v.co).z for v in obj.data.vertices)
+        mesh_height = max_z - min_z
+        
+        # Ensure feet at 0
+        obj.location.z -= min_z
+        bpy.ops.object.transform_apply(location=True)
+
+        self.report({'INFO'}, "Generating Armature...")
+        
+        armature = None
+        # Try Rigify first
+        try:
+            import addon_utils
+            addon_utils.enable("rigify")
+            bpy.ops.object.armature_basic_human_metarig_add()
+            armature = context.active_object
+            armature.name = "AutoRig_Skeleton"
+            
+            # Simple scaling (Height / 1.75m)
+            scale = mesh_height / 1.75
+            armature.scale = (scale, scale, scale)
+            bpy.ops.object.transform_apply(scale=True)
+            self.report({'INFO'}, f"Used Rigify Basic Human (Scale: {scale:.2f})")
+        except Exception:
+            # Fallback
+            bpy.ops.object.armature_add(enter_editmode=False, location=(0,0,0))
+            armature = context.active_object
+            armature.name = "AutoRig_Simple"
+            armature.scale = (1, 1, mesh_height)
+            bpy.ops.object.transform_apply(scale=True)
+            self.report({'WARNING'}, "Rigify not found, using simple Box armature.")
+
+        # Bind
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        armature.select_set(True)
+        context.view_layer.objects.active = armature
+        
+        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+        
+        self.report({'INFO'}, "Rigging Complete! (Check weights)")
+        return {'FINISHED'}
+
+class COMFY360_OT_ExportForExternal(bpy.types.Operator):
+    """Prepares and exports the mesh as FBX for Mixamo/AccuRig"""
+    bl_idname = "comfy360.export_external"
+    bl_label = "Export for Mixamo/AccuRig"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+             self.report({'ERROR'}, "Select a mesh first!")
+             return {'CANCELLED'}
+        
+        # 1. Ensure clean and centered (Simplified inline logic)
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+        obj.location = (0, 0, 0)
+        
+        # 2. Define path
+        # Use simple temp folder or user's Documents
+        import platform
+        if platform.system() == "Windows":
+             base_path = os.path.join(os.environ['USERPROFILE'], 'Documents')
+        else:
+             base_path = os.path.expanduser('~/Documents')
+             
+        export_path = os.path.join(base_path, "Cleaned_For_Rigging.fbx")
+        
+        # 3. Export FBX
+        # Settings optimized for Mixamo/AccuRig (Y-Up is standard, but some prefer Z-up. FBX defaults usually work)
+        try:
+             bpy.ops.export_scene.fbx(
+                 filepath=export_path,
+                 use_selection=True,
+                 axis_forward='-Z',
+                 axis_up='Y',
+                 # Apply Scale is crucial
+                 apply_scale_options='FBX_SCALE_ALL' 
+             )
+             self.report({'INFO'}, f"Exported to {export_path}")
+             
+             # 4. Open Explorer
+             if platform.system() == "Windows":
+                  os.startfile(os.path.dirname(export_path))
+             elif platform.system() == "Darwin":
+                  subprocess.Popen(["open", os.path.dirname(export_path)])
+             else:
+                  subprocess.Popen(["xdg-open", os.path.dirname(export_path)])
+                  
+        except Exception as e:
+             self.report({'ERROR'}, f"Export failed: {e}")
+             return {'CANCELLED'}
+             
+        return {'FINISHED'}
+
+class COMFY360_OT_SendMeshData(bpy.types.Operator):
+    """Send active mesh and UV layout to ComfyUI for texture generation"""
+    bl_idname = "comfy360.send_mesh_data"
+    bl_label = "Send Mesh & UVs to ComfyUI"
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Active object is not a mesh")
+            return {'CANCELLED'}
+
+        # Get path from Preferences (Global)
+        addon_name = __package__ if __package__ else __name__
+        try:
+            prefs = context.preferences.addons[addon_name].preferences
+            base_path = prefs.comfy360_export_path
+        except:
+            base_path = ""
+
+        # Deduced ComfyUI Output Path logic (Duplicated for safety)
+        export_path = ""
+        if base_path and os.path.exists(base_path):
+             is_root_like = "ComfyUI" in base_path or "custom_nodes" in os.listdir(base_path)
+             if is_root_like and "output" in os.listdir(base_path):
+                  export_path = os.path.join(base_path, "output", "blender")
+             elif os.path.basename(base_path).lower() == "output":
+                  export_path = os.path.join(base_path, "blender")
+             else:
+                  export_path = base_path
+
+        if not export_path:
+             try:
+                 addon_dir = os.path.dirname(os.path.abspath(__file__))
+                 possible_root = os.path.abspath(os.path.join(addon_dir, "..", "..", ".."))
+                 possible_output = os.path.join(possible_root, "output")
+                 if os.path.exists(possible_output) and os.path.isdir(possible_output):
+                      export_path = os.path.join(possible_output, "blender")
+             except: pass
+        
+        if not export_path:
+             import tempfile
+             export_path = os.path.join(tempfile.gettempdir(), "comfy_blender_export")
+
+        # Create unique folder
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        safe_name = "".join([c for c in obj.name if c.isalnum() or c in (' ', '_', '-')]).strip()
+        final_folder_name = f"{safe_name}_DATA_{timestamp}"
+        
+        version_export_path = os.path.join(export_path, final_folder_name)
+        if not os.path.exists(version_export_path):
+             os.makedirs(version_export_path)
+
+        # 1. Export Mesh (FBX)
+        fbx_path = os.path.join(version_export_path, "mesh.fbx")
+        try:
+             # Store original selection
+             original_select = obj.select_get()
+             
+             bpy.ops.object.select_all(action='DESELECT')
+             obj.select_set(True)
+             bpy.context.view_layer.objects.active = obj
+             
+             bpy.ops.export_scene.fbx(
+                 filepath=fbx_path,
+                 use_selection=True,
+                 axis_forward='-Z',
+                 axis_up='Y',
+                 apply_scale_options='FBX_SCALE_ALL' 
+             )
+        except Exception as e:
+             self.report({'ERROR'}, f"FBX Export failed: {e}")
+
+        # 2. Export UV Layout
+        uv_path = os.path.join(version_export_path, "uv_layout.png")
+        try:
+            # Must be in Edit Mode and Select All for export_layout
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            
+            # Check if UV map exists
+            if obj.data.uv_layers.active:
+                bpy.ops.uv.export_layout(filepath=uv_path, size=(2048, 2048), opacity=0.25)
+                self.report({'INFO'}, "UV Layout Exported")
+            else:
+                 self.report({'WARNING'}, "No UV Map found on object")
+                 
+            bpy.ops.object.mode_set(mode='OBJECT')
+        except Exception as e:
+            self.report({'ERROR'}, f"UV Export failed: {e}")
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 3. Create Link File (Auto-Discovery)
+        import tempfile
+        link_file = os.path.join(tempfile.gettempdir(), "comfyui_blender_latest.txt")
+        try:
+            with open(link_file, 'w') as f:
+                f.write(version_export_path)
+        except: pass
+
+        # =========================================================================
+        # 4. EXPORT CURRENT TEXTURES (Added functionality)
+        # =========================================================================
+        # We also export the Albedo/Diffuse texture if available so user has color context.
+        # This fixes "exported texture is B&W/wireframe" confusion.
+        
+        target_map = {
+            'Base Color': 'blender_albedo.png', # Primary desire
+            # We can add others if needed, but Albedo is usually what they want for "Color"
+        }
+        
+        # Helper to find BSDF
+        materials = []
+        if obj.active_material and obj.active_material.use_nodes:
+             materials.append(obj.active_material)
+        elif obj.material_slots:
+             for slot in obj.material_slots:
+                  if slot.material and slot.material.use_nodes:
+                       materials.append(slot.material)
+
+        import shutil
+        found_albedo = False
+
+        for mat in materials:
+             if found_albedo: break # Just get the first one for "Reference" to avoid clutter? Or all?
+             # Let's just get the active material's albedo
+             
+             nodes = mat.node_tree.nodes
+             bsdf = None
+             for n in nodes:
+                  if n.type == 'BSDF_PRINCIPLED':
+                       bsdf = n
+                       break
+             
+             if not bsdf: continue
+             
+             if 'Base Color' in bsdf.inputs and bsdf.inputs['Base Color'].is_linked:
+                  link = bsdf.inputs['Base Color'].links[0]
+                  if link.from_node.type == 'TEX_IMAGE':
+                       image = link.from_node.image
+                       if image:
+                            save_path = os.path.join(version_export_path, "blender_albedo.png")
+                            try:
+                                 copied = False
+                                 if image.source == 'FILE':
+                                      src = bpy.path.abspath(image.filepath)
+                                      if os.path.exists(src) and os.path.isfile(src):
+                                           shutil.copy(src, save_path)
+                                           copied = True
+                                 if not copied:
+                                      image.save_render(save_path) # Try save_render for packing
+                                 found_albedo = True
+                                 self.report({'INFO'}, "Included Albedo Texture")
+                            except Exception as e:
+                                 print(f"Error saving Albedo: {e}")
+
+        # 5. Also write a small JSON metadata file with transform info (Position/Scale)
+        # This answers "read info... on texture location positioning"
+        import json
+        info = {
+            "name": obj.name,
+            "location": list(obj.location),
+            "rotation": list(obj.rotation_euler),
+            "scale": list(obj.scale),
+            "uv_maps": [uv.name for uv in obj.data.uv_layers]
+        }
+        with open(os.path.join(version_export_path, "mesh_info.json"), 'w') as f:
+            json.dump(info, f, indent=2)
+
+        self.report({'INFO'}, f"Sent Mesh, UVs & Color to {final_folder_name}")
+        
         return {'FINISHED'}
 
 class COMFY360_PT_Panel(bpy.types.Panel):
@@ -1117,8 +1723,54 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         
         box4 = layout.box()
         box4.label(text="PBR Sync", icon='SHADING_RENDERED')
-        box4.prop(scene, "comfy360_export_path", text="Buffer Path")
-        box4.operator("comfy360.send_textures", text="Send Active Textures", icon='EXPORT')
+        
+        # Use Preferences for global path persistence
+        try:
+             # Robust addon name resolution
+             addon_name = __package__ if __package__ else __name__
+             prefs = context.preferences.addons[addon_name].preferences
+             box4.prop(prefs, "comfy360_export_path", text="Buffer Path")
+        except Exception as e:
+             box4.label(text="Error accessing preferences")
+             print(f"[ComfyUI-360] Prefs Error: {e}")
+             
+        box4.operator("comfy360.send_mesh_data", text="1. Send Mesh & UVs", icon='UV_DATA')
+        box4.operator("comfy360.send_textures", text="2. Send Active Textures (Back)", icon='EXPORT')
+
+
+        layout.separator()
+        
+        box5 = layout.box()
+        box5.label(text="Auto-Rigger Tools", icon='ARMATURE_DATA')
+        box5.prop(scene, "comfy360_clean_voxel_size", text="Voxel Size")
+        box5.prop(scene, "comfy360_clean_decimate_ratio", text="Decimate Ratio")
+        box5.operator("comfy360.clean_and_rig", text="Clean Active Mesh", icon='MOD_REMESH')
+        
+        box5.label(text="Quick Rigging", icon='POSE_HLT')
+        box5.operator("comfy360.quick_rig", text="Add Basic Humanoid Rig", icon='ARMATURE_DATA')
+        box5.operator("comfy360.export_external", text="Prep for Mixamo/AccuRig", icon='FILE_3D')
+        
+        # Check for Voxel Heat Diffuse Skinning
+        try:
+            import addon_utils
+            is_enabled, _ = addon_utils.check("voxel_heat_diffuse_skinning")
+            if is_enabled:
+                 box5.operator("object.voxel_heat_diffuse_skinning", text="Apply Voxel Skinning (Paid Addon)", icon='mod_skin')
+        except: pass
+
+class ComfyUI360Prefs(bpy.types.AddonPreferences):
+    bl_idname = __package__ if __package__ else __name__
+
+    comfy360_export_path: bpy.props.StringProperty(
+        name="Texture Buffer Path",
+        description="Path where textures are saved for ComfyUI to pick up (e.g. ComfyUI/input/from_blender)",
+        subtype='DIR_PATH',
+        default=""
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "comfy360_export_path")
 
 classes = (
     COMFY360_OT_StartListener,
@@ -1127,17 +1779,22 @@ classes = (
     COMFY360_OT_TestConnection,
     COMFY360_OT_ApplyLighting,
     COMFY360_OT_SendTextures,
+    COMFY360_OT_SendMeshData,
+    COMFY360_OT_CleanAndRig,
+    COMFY360_OT_QuickRig,
+    COMFY360_OT_ExportForExternal,
     COMFY360_PT_Panel,
+    ComfyUI360Prefs,
 )
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     
-    # Register scene property
+    # Register scene property (Keep for backward compatibility/runtime vars)
     bpy.types.Scene.comfy360_export_path = bpy.props.StringProperty(
-        name="Texture Buffer Path",
-        description="Path where textures are saved for ComfyUI to pick up (e.g. ComfyUI/input/from_blender)",
+        name="Texture Buffer Path (Deprecated)",
+        description="Deprecated: Use Addon Preferences",
         subtype='DIR_PATH'
     )
     bpy.types.Scene.comfy360_is_running = bpy.props.BoolProperty(
@@ -1167,6 +1824,20 @@ def register():
     bpy.types.Scene.comfy360_light_intensity = bpy.props.FloatProperty(name="Intensity", default=1.0, min=0.0, max=10.0)
     bpy.types.Scene.comfy360_light_color = bpy.props.StringProperty(name="Color", default="#FFFFFF")
     
+    # Auto-Rigger Properties
+    bpy.types.Scene.comfy360_clean_voxel_size = bpy.props.FloatProperty(
+        name="Voxel Size", 
+        description="Smaller = More Detail, Larger = Blockier/Less Polys", 
+        default=0.05, 
+        min=0.001, max=0.5, step=0.01, precision=3
+    )
+    bpy.types.Scene.comfy360_clean_decimate_ratio = bpy.props.FloatProperty(
+        name="Decimate Ratio", 
+        description="1.0 = Keep all polys, 0.1 = Keep 10%", 
+        default=0.1, 
+        min=0.001, max=1.0, step=0.05
+    )
+    
     print("[ComfyUI-360] Addon Registered Successfully")
 
 def unregister():
@@ -1182,6 +1853,10 @@ def unregister():
     del bpy.types.Scene.comfy360_light_intensity
     del bpy.types.Scene.comfy360_light_color
     del bpy.types.Scene.comfy360_export_path
+    
+    # Auto-Rigger
+    del bpy.types.Scene.comfy360_clean_voxel_size
+    del bpy.types.Scene.comfy360_clean_decimate_ratio
     
     global _STOP_EVENT
     _STOP_EVENT.set()

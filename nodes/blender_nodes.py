@@ -3,6 +3,7 @@
 
 import socket
 import os
+import tempfile
 import folder_paths
 import numpy as np
 import imageio
@@ -125,6 +126,79 @@ class PreviewModelInBlender:
             print(f"Uncaught Error sending to Blender: {e}")
             
          return {}
+
+class PreviewTextureOnMesh:
+    def __init__(self):
+        self.output_dir = folder_paths.get_temp_directory()
+        self.type = "temp"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "albedo_map": ("IMAGE", ),
+                "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
+                "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
+            },
+            "optional": {
+                "roughness_map": ("IMAGE", ),
+                "normal_map": ("IMAGE", ),
+                "metallic_map": ("IMAGE", ),
+                "alpha_map": ("IMAGE", ),
+                "emission_map": ("IMAGE", ),
+            }
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "send_texture"
+    OUTPUT_NODE = True
+    CATEGORY = "Geekatplay Studio/360 HDRI"
+
+    def send_texture(self, albedo_map, blender_ip_address="127.0.0.1", blender_listen_port=8119, roughness_map=None, normal_map=None, metallic_map=None, alpha_map=None, emission_map=None):
+        # Save to temp dir
+        output_dir = folder_paths.get_temp_directory()
+        
+        # Message Builder
+        message_parts = ["TEXTURE_UPDATE:"]
+        
+        # Helper to save and append
+        def process_map(image_tensor, type_name, filename_suffix):
+            if image_tensor is not None:
+                filename = f"ComfyUI_{filename_suffix}_Temp.png"
+                filepath = os.path.join(output_dir, filename)
+                
+                # Convert
+                img_np = image_tensor[0].cpu().numpy()
+                img_np = (np.clip(img_np, 0, 1) * 255).astype(np.uint8)
+                imageio.imwrite(filepath, img_np)
+                
+                message_parts.append(f"{type_name}:{filepath}")
+
+        process_map(albedo_map, "ALBEDO", "Albedo")
+        process_map(roughness_map, "ROUGHNESS", "Roughness")
+        process_map(normal_map, "NORMAL", "Normal")
+        process_map(metallic_map, "METALLIC", "Metallic")
+        process_map(alpha_map, "ALPHA", "Alpha")
+        process_map(emission_map, "EMISSION", "Emission")
+        
+        # Reconstruct message
+        full_message = "|".join(message_parts)
+        
+        # Send
+        host = blender_ip_address
+        port = blender_listen_port
+        
+        print(f"[ComfyUI-360] Sending Texture Update to Blender Active Object...")
+        
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(5)
+                s.connect((host, port))
+                s.sendall(full_message.encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending to Blender: {e}")
+
+        return {}
 
 class PreviewHeightmapInBlender:
     def __init__(self):
@@ -573,6 +647,7 @@ class LoadBlenderPBR:
         return {
             "required": {
                 "folder_name": ("STRING", {"default": "from_blender"}),
+                "load_mode": (["Single Folder", "Latest Subfolder"], {"default": "Single Folder"}),
             },
             "optional": {
                 "force_reload": ("INT", {"default": 0, "min": 0, "max": 10000}), 
@@ -584,58 +659,281 @@ class LoadBlenderPBR:
     FUNCTION = "load_textures"
     CATEGORY = "Geekatplay Studio/360 HDRI"
 
-    def load_textures(self, folder_name="from_blender", force_reload=0):
-        # Determine path in input folder
-        input_dir = folder_paths.get_input_directory()
-        target_dir = os.path.join(input_dir, folder_name)
+    def load_textures(self, folder_name="from_blender", load_mode="Single Folder", force_reload=0):
+        # Determine path
+        # Check if folder_name is essentially an absolute path
+        if os.path.isabs(folder_name) and os.path.exists(folder_name):
+            target_dir = folder_name
+        else:
+            input_dir = folder_paths.get_input_directory()
+            target_dir = os.path.join(input_dir, folder_name)
         
+        # Strip quotes just in case
+        target_dir = target_dir.strip('"').strip("'")
+        
+        # Latest Subfolder Logic
+        if load_mode == "Latest Subfolder" and os.path.exists(target_dir):
+             subdirs = [os.path.join(target_dir, d) for d in os.listdir(target_dir) if os.path.isdir(os.path.join(target_dir, d))]
+             if subdirs:
+                 # Sort by time
+                 latest_subdir = max(subdirs, key=os.path.getmtime)
+                 print(f"[ComfyUI-360] LoadBlenderPBR: Found latest subfolder -> {latest_subdir}")
+                 target_dir = latest_subdir
+             else:
+                 print(f"[ComfyUI-360] LoadBlenderPBR: No subfolders found in {target_dir}, using root.")
+
+        print(f"[ComfyUI-360] Loading textures from: {target_dir}")
+        
+        # 3. Fallback / Auto-Discovery Logic
+        if not os.path.exists(target_dir) or (folder_name == "from_blender" and load_mode == "Latest Subfolder"):
+            # If standard location failed, OR if we are on defaults, check the "Link File" from Blender
+            # This allows Blender to tell us where it put the files (e.g. custom path or temp path)
+            link_file = os.path.join(tempfile.gettempdir(), "comfy_360_last_export.txt")
+            if os.path.exists(link_file):
+                try:
+                    with open(link_file, "r") as f:
+                        linked_path = f.read().strip()
+                    if os.path.exists(linked_path):
+                         print(f"[ComfyUI-360] Auto-Discovery: Found link from Blender -> {linked_path}")
+                         target_dir = linked_path
+                         # Since this is the specific timestamped folder, we don't need 'Latest Subfolder' logic anymore usually
+                         # But let's verify if user wants to override? No, this is likely what they want.
+                except:
+                     pass
+
         if not os.path.exists(target_dir):
             print(f"[Warn] Buffer directory not found: {target_dir}")
-            # Return empty black images if folder doesn't exist
-            # Create a 1x1 black image
-            black = torch.zeros((1, 64, 64, 3))
-            return (black, black, black, black, black, black)
+            
+            # Check for common temp locations used by our addon as backup
+            temp_loc = os.path.join(tempfile.gettempdir(), "comfy_blender_export")
+            if os.path.exists(temp_loc):
+                print(f"[ComfyUI-360] Found temp export in: {temp_loc}")
+                target_dir = temp_loc
+                # Re-apply mode logic if we switched to temp parent
+                if load_mode == "Latest Subfolder":
+                     subdirs = [os.path.join(target_dir, d) for d in os.listdir(target_dir) if os.path.isdir(os.path.join(target_dir, d))]
+                     if subdirs:
+                         latest_subdir = max(subdirs, key=os.path.getmtime)
+                         target_dir = latest_subdir
+            
+            elif os.path.exists(folder_name):
+                 target_dir = folder_name
+                 print(f"[ComfyUI-360] Found path relative to CWD: {target_dir}")
 
-        def load_safe(fname, is_alpha=False):
-             fpath = os.path.join(target_dir, fname)
+        if not os.path.exists(target_dir):
+            print(f"[Error] Could not find any texture buffer at {target_dir}")
+            black = torch.zeros((1, 64, 64, 3))
+            return (black, black, black, black, black, black, black)
+
+        # Helper to load single image
+        def load_one(fpath, is_alpha=False, target_size=None):
              if not os.path.exists(fpath):
-                return torch.zeros((1, 64, 64, 3))
-             
+                # print(f"File not found: {fpath}") 
+                return None
              try:
                  i = Image.open(fpath)
                  
                  # Fix Exif orientation
-                 # (Usually stripped for PBR maps but good practice)
                  from PIL import ImageOps
                  i = ImageOps.exif_transpose(i)
                  
                  if is_alpha:
                      if i.mode != 'RGBA':
                          i = i.convert('RGBA')
-                     # Extract Alpha if needed or just keep RGBA
-                     # ComfyUI usually handles [B,H,W,C]. If C=4, it's RGBA.
-                     pass 
                  else:
                      i = i.convert("RGB")
+                 
+                 if target_size and i.size != target_size:
+                     i = i.resize(target_size, Image.LANCZOS)
                      
                  image = np.array(i).astype(np.float32) / 255.0
-                 image = torch.from_numpy(image)[None,]
-                 
-                 # If grayscale loaded as RGB, fine.
-                 return image
+                 return torch.from_numpy(image)[None,]
              except Exception as e:
-                 print(f"Error loading {fname}: {e}")
-                 return torch.zeros((1, 64, 64, 3))
+                 print(f"Error loading {fpath}: {e}")
+                 return None
 
-        albedo = load_safe("blender_albedo.png")
-        roughness = load_safe("blender_roughness.png")
-        normal = load_safe("blender_normal.png")
-        metallic = load_safe("blender_metallic.png")
-        alpha = load_safe("blender_alpha.png", is_alpha=True)
-        emission = load_safe("blender_emission.png")
-        specular = load_safe("blender_specular.png")
+        # Determine batch mode
+        import re
+        max_idx = -1
         
-        return (albedo, roughness, normal, metallic, alpha, emission, specular)
+        # List files once
+        files = os.listdir(target_dir)
+        print(f"[ComfyUI-360] Found {len(files)} files in buffer.")
+        
+        pattern = re.compile(r"^(\d+)_blender_.*\.png$")
+        
+        for f in files:
+            m = pattern.match(f)
+            if m:
+                idx = int(m.group(1))
+                if idx > max_idx:
+                     max_idx = idx
 
-    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE")
-    RETURN_NAMES = ("Albedo", "Roughness", "Normal", "Metallic", "Alpha", "Emission", "Specular")
+        print(f"[ComfyUI-360] Max Index found: {max_idx}")
+
+        def load_batch(base_name, is_alpha=False):
+             # Single mode (legacy or single file without prefix)
+             if max_idx == -1:
+                 # Check for non-prefixed file first
+                 fpath = os.path.join(target_dir, base_name)
+                 if os.path.exists(fpath):
+                     res = load_one(fpath, is_alpha)
+                     if res is not None:
+                         return res
+                 
+                 # If not found, maybe we have 0_blender_... but max_idx detection failed? 
+                 # Unlikely if logic is correct.
+                 # Return black
+                 return torch.zeros((1, 64, 64, 4 if is_alpha else 3))
+
+             # Multi mode
+             first_size = None # (W, H)
+             
+             # First pass: find first valid image size
+             for i in range(max_idx + 1):
+                 fname = f"{i}_{base_name}"
+                 fpath = os.path.join(target_dir, fname)
+                 if os.path.exists(fpath):
+                      try:
+                          with Image.open(fpath) as img:
+                              first_size = img.size
+                              break
+                      except: pass
+             
+             if first_size is None:
+                  first_size = (64, 64)
+
+             # Second pass: load and stack
+             tensors = []
+             for i in range(max_idx + 1):
+                 fname = f"{i}_{base_name}"
+                 fpath = os.path.join(target_dir, fname)
+                 
+                 # Check if file exists, if not trying legacy for index 0?
+                 # No, if max_idx > -1, we expect prefixed files.
+                 
+                 res = load_one(fpath, is_alpha, target_size=first_size)
+                 if res is None:
+                     # Create blank of correct size
+                     res = torch.zeros((1, first_size[1], first_size[0], 4 if is_alpha else 3))
+                 tensors.append(res)
+            
+             if not tensors:
+                  return torch.zeros((1, 64, 64, 4 if is_alpha else 3))
+                  
+             return torch.cat(tensors, dim=0)
+
+        albedo = load_batch("blender_albedo.png")
+        roughness = load_batch("blender_roughness.png")
+        normal = load_batch("blender_normal.png")
+        metallic = load_batch("blender_metallic.png")
+        alpha = load_batch("blender_alpha.png", is_alpha=True)
+        emission = load_batch("blender_emission.png")
+        specular = load_batch("blender_specular.png")
+        uv_layout = load_batch("uv_layout.png", is_alpha=True) # Usually has transparency
+        
+        return (albedo, roughness, normal, metallic, alpha, emission, specular, uv_layout, target_dir)
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE", "STRING")
+    RETURN_NAMES = ("Albedo", "Roughness", "Normal", "Metallic", "Alpha", "Emission", "Specular", "UV Layout", "Directory Path")
+
+
+class SaveAndSendPBRToBlender:
+    def __init__(self):
+        self.type = "pbr_sender"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "albedo_map": ("IMAGE", ),
+                "directory_path": ("STRING", {"forceInput": True, "default": ""}), 
+                "blender_ip_address": ("STRING", {"default": "127.0.0.1"}),
+                "blender_listen_port": ("INT", {"default": 8119, "min": 1024, "max": 65535, "step": 1}),
+            },
+            "optional": {
+                "roughness_map": ("IMAGE", ),
+                "normal_map": ("IMAGE", ),
+                "metallic_map": ("IMAGE", ),
+                "alpha_map": ("IMAGE", ),
+                "emission_map": ("IMAGE", ),
+            }
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "save_and_send"
+    OUTPUT_NODE = True
+    CATEGORY = "Geekatplay Studio/360 HDRI"
+
+    def save_and_send(self, albedo_map, directory_path, blender_ip_address="127.0.0.1", blender_listen_port=8119, roughness_map=None, normal_map=None, metallic_map=None, alpha_map=None, emission_map=None):
+        # Determine output folder
+        output_dir = ""
+        is_temp = False
+        
+        if directory_path and os.path.exists(directory_path) and os.path.isdir(directory_path):
+             output_dir = directory_path
+             print(f"[ComfyUI-360] Saving PBR to Reference Directory: {output_dir}")
+        else:
+             output_dir = folder_paths.get_temp_directory()
+             is_temp = True
+             print(f"[ComfyUI-360] Reference Directory invalid, using Temp: {output_dir}")
+
+        # Message Builder
+        message_parts = ["TEXTURE_UPDATE:"]
+        
+        # Helper to save and append
+        def process_map(image_tensor, type_name, filename_suffix, standard_name):
+            if image_tensor is not None:
+                # If we are in specific folder, use standard name. If temp, use safe temp name.
+                if is_temp:
+                    filename = f"ComfyUI_{filename_suffix}_Temp.png"
+                else:
+                    filename = standard_name
+
+                filepath = os.path.join(output_dir, filename)
+                
+                # Convert
+                # Handle possible batch dimension [B, H, W, C] -> take first
+                if image_tensor.ndim == 4:
+                     img_np = image_tensor[0].cpu().numpy()
+                else:
+                     img_np = image_tensor.cpu().numpy()
+                     
+                img_np = (np.clip(img_np, 0, 1) * 255).astype(np.uint8)
+                imageio.imwrite(filepath, img_np)
+                
+                print(f"[ComfyUI-360] Saved {type_name} -> {filepath}")
+                message_parts.append(f"{type_name}:{filepath}")
+
+        # Usage of standard names ensures they overwrite the "blender_" originals if desired, 
+        # OR we can use "generated_" prefix. 
+        # The user said "if it is loaded image from directory... we need save generated textures there".
+        # Let's use "generated_" prefix to distinguish from "blender_" source? 
+        # OR just overwrite? 
+        # Usually standard PBR naming is better. Let's use "comfy_" prefix to be safe and clear.
+        
+        process_map(albedo_map, "ALBEDO", "Albedo", "comfy_albedo.png")
+        process_map(roughness_map, "ROUGHNESS", "Roughness", "comfy_roughness.png")
+        process_map(normal_map, "NORMAL", "Normal", "comfy_normal.png")
+        process_map(metallic_map, "METALLIC", "Metallic", "comfy_metallic.png")
+        process_map(alpha_map, "ALPHA", "Alpha", "comfy_alpha.png")
+        process_map(emission_map, "EMISSION", "Emission", "comfy_emission.png")
+        
+        # Reconstruct message
+        full_message = "|".join(message_parts)
+        
+        # Send
+        host = blender_ip_address
+        port = blender_listen_port
+        
+        print(f"[ComfyUI-360] Sending Texture Update to Blender...")
+        
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(5)
+                s.connect((host, port))
+                s.sendall(full_message.encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending to Blender: {e}")
+
+        return {}

@@ -9,7 +9,7 @@ Includes Blender integration for live preview, PBR maps generation, and scene sy
 
 from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image, GeneratePoleMask
 from .nodes.seamless_nodes import SimpleSeamlessTile, Heal360Seam, SeamlessTileVAE, PreviewSeamlessTile
-from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, SyncLightingToBlender, PreviewModelInBlender, PreviewMeshInBlender
+from .nodes.blender_nodes import PreviewInBlender, PreviewHeightmapInBlender, SyncLightingToBlender, PreviewModelInBlender, PreviewMeshInBlender, LoadBlenderPBR, PreviewTextureOnMesh, SaveAndSendPBRToBlender
 from .nodes.pbr_nodes import SimplePBRGenerator, TerrainPromptMaker, SimpleHeightmapNormalizer, TerrainTexturePromptMaker, TerrainHeightFieldPromptMaker, ColorToHeightmap, TerrainErosionPromptMaker, MaterialTexturePromptMaker
 from .nodes.texture_nodes import TextureScrambler
 from .nodes.ollama_nodes import OllamaVision, OllamaLightingEstimator
@@ -29,7 +29,10 @@ NODE_CLASS_MAPPINGS = {
     "PreviewHeightmapInBlender": PreviewHeightmapInBlender,
     "PreviewModelInBlender": PreviewModelInBlender,
     "PreviewMeshInBlender": PreviewMeshInBlender,
+    "PreviewTextureOnMesh": PreviewTextureOnMesh,
+    "SaveAndSendPBRToBlender": SaveAndSendPBRToBlender,
     "SyncLightingToBlender": SyncLightingToBlender,
+    "LoadBlenderPBR": LoadBlenderPBR,
     "SimplePBRGenerator": SimplePBRGenerator,
     "TerrainPromptMaker": TerrainPromptMaker,
     "TerrainTexturePromptMaker": TerrainTexturePromptMaker,
@@ -68,7 +71,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PreviewHeightmapInBlender": "Preview Heightmap in Blender",
     "PreviewModelInBlender": "Preview Model in Blender (GLB)",
     "PreviewMeshInBlender": "Preview Mesh in Blender (Send)",
+    "PreviewTextureOnMesh": "Preview Texture on Selected Object",
     "SyncLightingToBlender": "Sync Lighting to Blender",
+    "LoadBlenderPBR": "Receive from Blender (PBR)",
     "SimplePBRGenerator": "Simple PBR Generator",
     "TerrainPromptMaker": "Terrain Prompt Maker (Ollama)",
     "TerrainTexturePromptMaker": "Terrain Texture Prompt Maker (Ollama)",
