@@ -73,28 +73,33 @@ class SaveFakeHDRI:
             
             # Ensure data is float32
             img_output = img_linear.astype(np.float32)
-            
-            # imageio.imwrite with .exr extension requires the 'freeimage' or 'pyav' plugin usually,
-            # but 'imageio[ffmpeg]' might be trying to use ffmpeg which can be tricky for EXR.
-            # Let's explicitly try to use the 'exr' format if available, or fallback to 'freeimage'.
-            # However, imageio's default behavior for .exr often relies on the 'freeimage' plugin.
-            # The error "expected bytes, NoneType found" in pyav suggests it's trying to use pyav (ffmpeg)
-            # and failing to initialize the stream properly for EXR.
-            
+
+            saved = False
+            # Method 1: Try OpenCV (Robust for EXR)
             try:
-                imageio.imwrite(filepath, img_output, format="EXR")
-            except Exception:
-                # Fallback: try without explicit format, or try 'freeimage' if installed
-                # If pyav is hijacking .exr, we might need to force a different plugin or just use 'tif' as a fallback?
-                # No, user wants EXR.
-                # Let's try to force the 'freeimage' plugin if possible, or just let imageio decide but handle the error.
-                # The error comes from pyav. Let's try to disable pyav for this write.
+                import cv2
+                # OpenCV expects BGR
+                img_bgr = cv2.cvtColor(img_output, cv2.COLOR_RGB2BGR)
+                saved = cv2.imwrite(filepath, img_bgr)
+            except Exception as e:
+                print(f"[SaveFakeHDRI] OpenCV save failed: {e}")
+
+            if not saved:
+                # Method 2: Try ImageIO
                 try:
-                    with imageio.get_writer(filepath, format="EXR", plugin="freeimage") as writer:
-                        writer.append_data(img_output)
-                except Exception:
-                    imageio.imwrite(filepath, img_output)
-            
+                    # We try to use imageio. Explicitly providing format="EXR"
+                    imageio.imwrite(filepath, img_output, format="EXR")
+                except Exception as e:
+                    print(f"[SaveFakeHDRI] imageio EXR save failed: {e}. Trying fallback...")
+                    # Fallback: try without explicit format or try to catch the PyAV plugin issue
+                    try:
+                        # Try standard write, hoping it finds a suitable plugin (likely FreeImage if installed)
+                        imageio.imwrite(filepath, img_output)
+                    except Exception as e2:
+                        print(f"[SaveFakeHDRI] All save methods failed. Last error: {e2}")
+                        # If everything fails, re-raise the last exception so the user knows
+                        raise e2
+
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
