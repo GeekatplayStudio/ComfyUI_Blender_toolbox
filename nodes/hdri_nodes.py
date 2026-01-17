@@ -89,7 +89,11 @@ class SaveFakeHDRI:
                 # No, user wants EXR.
                 # Let's try to force the 'freeimage' plugin if possible, or just let imageio decide but handle the error.
                 # The error comes from pyav. Let's try to disable pyav for this write.
-                imageio.imwrite(filepath, img_output, plugin="freeimage")
+                try:
+                    with imageio.get_writer(filepath, format="EXR", plugin="freeimage") as writer:
+                        writer.append_data(img_output)
+                except Exception:
+                    imageio.imwrite(filepath, img_output)
             
             results.append({
                 "filename": file,

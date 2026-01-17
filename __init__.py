@@ -18,8 +18,11 @@ from .nodes.tripo_nodes import Geekatplay_Tripo_ModelGen, Geekatplay_Tripo_Anima
 from .nodes.meshy_nodes import Geekatplay_Meshy_TextTo3D, Geekatplay_Meshy_ImageTo3D
 from .nodes.hitem3d_nodes import Geekatplay_HiTem3D_Gen
 from .nodes.geekatplay_key_manager import Geekatplay_ApiKey_Manager
+from .nodes.flux_terrain_nodes import FluxTerrainPromptGenerator, FluxOptionalImageRef
 
 NODE_CLASS_MAPPINGS = {
+    "FluxTerrainPromptGenerator": FluxTerrainPromptGenerator,
+    "FluxOptionalImageRef": FluxOptionalImageRef,
     "SaveFakeHDRI": SaveFakeHDRI,
     "ImageTo360Latent": ImageTo360Latent,
     "Rotate360Image": Rotate360Image,
@@ -65,6 +68,8 @@ NODE_CLASS_MAPPINGS = {
     "Geekatplay_Meshy_ImageTo3D": Geekatplay_Meshy_ImageTo3D,
     "Geekatplay_HiTem3D_Gen": Geekatplay_HiTem3D_Gen,
     "Geekatplay_ApiKey_Manager": Geekatplay_ApiKey_Manager,
+    "FluxOptionalImageRef": FluxOptionalImageRef,
+    "FluxTerrainPromptGenerator": FluxTerrainPromptGenerator,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
