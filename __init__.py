@@ -19,6 +19,7 @@ from .nodes.meshy_nodes import Geekatplay_Meshy_TextTo3D, Geekatplay_Meshy_Image
 from .nodes.hitem3d_nodes import Geekatplay_HiTem3D_Gen
 from .nodes.geekatplay_key_manager import Geekatplay_ApiKey_Manager
 from .nodes.flux_terrain_nodes import FluxTerrainPromptGenerator, FluxOptionalImageRef
+from .nodes.geometry_ops import GapFillHoles, GapBlenderVoxelRemesh, GapFaceNormalsFix, GapBlenderDecimate, GapBlenderSubdivide, GapBlenderBoolean, GapBlenderSmartUV
 
 NODE_CLASS_MAPPINGS = {
     "FluxTerrainPromptGenerator": FluxTerrainPromptGenerator,
@@ -68,8 +69,13 @@ NODE_CLASS_MAPPINGS = {
     "Geekatplay_Meshy_ImageTo3D": Geekatplay_Meshy_ImageTo3D,
     "Geekatplay_HiTem3D_Gen": Geekatplay_HiTem3D_Gen,
     "Geekatplay_ApiKey_Manager": Geekatplay_ApiKey_Manager,
-    "FluxOptionalImageRef": FluxOptionalImageRef,
-    "FluxTerrainPromptGenerator": FluxTerrainPromptGenerator,
+    "GapFillHoles": GapFillHoles,
+    "GapBlenderVoxelRemesh": GapBlenderVoxelRemesh,
+    "GapFaceNormalsFix": GapFaceNormalsFix,
+    "GapBlenderDecimate": GapBlenderDecimate,
+    "GapBlenderSubdivide": GapBlenderSubdivide,
+    "GapBlenderBoolean": GapBlenderBoolean,
+    "GapBlenderSmartUV": GapBlenderSmartUV,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -117,6 +123,15 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Geekatplay_Meshy_ImageTo3D": "Meshy Image to 3D (Geekatplay)",
     "Geekatplay_HiTem3D_Gen": "HiTem3D Generator (Geekatplay)",
     "Geekatplay_ApiKey_Manager": "API Key Manager (Geekatplay)",
+    "FluxTerrainPromptGenerator": "Flux Terrain Prompt Generator",
+    "FluxOptionalImageRef": "Flux Optional Image Ref",
+    "GapFillHoles": "Fill Holes (Topology)",
+    "GapBlenderVoxelRemesh": "Remesh (Blender Voxel)",
+    "GapFaceNormalsFix": "Fix Normals (Topology)",
+    "GapBlenderDecimate": "Decimate Mesh (Blender)",
+    "GapBlenderSubdivide": "Subdivide Mesh (Blender)",
+    "GapBlenderBoolean": "Boolean Operation (Blender)",
+    "GapBlenderSmartUV": "Smart UV Unwrap (Blender)",
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']

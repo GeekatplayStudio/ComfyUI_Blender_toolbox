@@ -57,7 +57,7 @@ class MeshyAPI:
             "Content-Type": "application/json"
         }
 
-    def create_text_to_3d_task(self, prompt, art_style, negative_prompt, mode="preview"):
+    def create_text_to_3d_task(self, prompt, art_style, negative_prompt, mode="preview", **kwargs):
         url = f"{self.BASE_URL}/v2/text-to-3d"
         payload = {
             "mode": mode,
@@ -66,19 +66,47 @@ class MeshyAPI:
             "negative_prompt": negative_prompt
         }
         
+        # Add optional parameters from kwargs if they are not None/Empty
+        valid_keys = [
+            "ai_model", "topology", "target_polycount", "should_remesh", 
+            "symmetry_mode", "pose_mode", "seed", "should_rig"
+        ]
+        
+        for key in valid_keys:
+            if key in kwargs and kwargs[key] is not None:
+                # Handle boolean logic or specific value mapping if needed
+                payload[key] = kwargs[key]
+
         response = requests.post(url, headers=self.headers, json=payload)
         self._check_error(response)
         return response.json()["result"]
 
-    def create_image_to_3d_task(self, image_uri, enable_pbr=True):
+    def create_image_to_3d_task(self, image_uri, enable_pbr=True, **kwargs):
         url = f"{self.BASE_URL}/v1/image-to-3d"
         payload = {
             "image_url": image_uri,
             "enable_pbr": enable_pbr
         }
         
+        # Add optional parameters
+        valid_keys = [
+            "model_type", "ai_model", "topology", "target_polycount", 
+            "should_remesh", "should_texture", "symmetry_mode", 
+            "pose_mode", "texture_prompt", "should_rig"
+        ]
+        
+        for key in valid_keys:
+            if key in kwargs and kwargs[key] is not None:
+                payload[key] = kwargs[key]
+        
         response = requests.post(url, headers=self.headers, json=payload)
         self._check_error(response)
+        
+        # V1 API might return the task object directly or wrapped in result (handled by consumer usually, 
+        # but here the response of create_image_to_3d usually follows standard creation response {result: id})
+        # Wait, the documentation says "Returns: The result property... contains the task id".
+        # So we expect { result: "id" } for CREATION.
+        
         return response.json()["result"]
 
     def get_task(self, task_id, task_type="text-to-3d"):
@@ -88,7 +116,10 @@ class MeshyAPI:
         
         response = requests.get(url, headers=self.headers)
         self._check_error(response)
-        return response.json()["result"]
+        data = response.json()
+        if "result" in data:
+            return data["result"]
+        return data
 
     def poll_task(self, task_id, task_type="text-to-3d", timeout=600):
         start_time = time.time()
@@ -126,6 +157,14 @@ class Geekatplay_Meshy_TextTo3D:
             "optional": {
                 "negative_prompt": ("STRING", {"multiline": True, "default": "ugly, blurry, low quality"}),
                 "api_key": ("STRING", {"multiline": False, "default": "", "label": "Meshy API Key"}),
+                "ai_model": (["latest", "meshy-4"], {"default": "latest"}),
+                "topology": (["triangle", "quad"], {"default": "triangle"}),
+                "target_polycount": ("INT", {"default": 30000, "min": 100, "max": 300000}),
+                "should_remesh": ("BOOLEAN", {"default": True}),
+                "symmetry_mode": (["auto", "on", "off"], {"default": "auto"}),
+                "pose_mode": (["default", "a-pose", "t-pose"], {"default": "default"}),
+                "should_rig": ("BOOLEAN", {"default": False, "label": "Auto-Rigging"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             }
         }
 
@@ -134,14 +173,27 @@ class Geekatplay_Meshy_TextTo3D:
     FUNCTION = "generate"
     CATEGORY = "Geekatplay/Meshy"
 
-    def generate(self, prompt, mode, art_style, negative_prompt, api_key):
+    def generate(self, prompt, mode, art_style, negative_prompt, api_key, 
+                 ai_model="latest", topology="triangle", target_polycount=30000, 
+                 should_remesh=True, symmetry_mode="auto", pose_mode="default", should_rig=False, seed=0):
         if not api_key:
             raise Exception("Meshy API Key is required. Connect the Geekatplay API Key Manager.")
             
         meshy = MeshyAPI(api_key)
         
+        kwargs = {
+            "ai_model": ai_model,
+            "topology": topology,
+            "target_polycount": target_polycount,
+            "should_remesh": should_remesh,
+            "symmetry_mode": symmetry_mode,
+            "pose_mode": "" if pose_mode == "default" else pose_mode,
+            "should_rig": should_rig,
+            "seed": seed if seed > 0 else None
+        }
+
         print(f"Submitting Meshy Text-to-3D Task: {prompt[:30]}...")
-        task_id = meshy.create_text_to_3d_task(prompt, art_style, negative_prompt, mode)
+        task_id = meshy.create_text_to_3d_task(prompt, art_style, negative_prompt, mode, **kwargs)
         print(f"Task ID: {task_id}")
         
         result = meshy.poll_task(task_id, "text-to-3d")
@@ -158,6 +210,16 @@ class Geekatplay_Meshy_ImageTo3D:
             },
             "optional": {
                 "api_key": ("STRING", {"multiline": False, "default": "", "label": "Meshy API Key"}),
+                "model_type": (["standard", "lowpoly"], {"default": "standard"}),
+                "ai_model": (["latest", "meshy-4"], {"default": "latest"}),
+                "topology": (["triangle", "quad"], {"default": "triangle"}),
+                "target_polycount": ("INT", {"default": 30000, "min": 100, "max": 300000}),
+                "should_remesh": ("BOOLEAN", {"default": True}),
+                "should_texture": ("BOOLEAN", {"default": True}),
+                "symmetry_mode": (["auto", "on", "off"], {"default": "auto"}),
+                "pose_mode": (["default", "a-pose", "t-pose"], {"default": "default"}),
+                "should_rig": ("BOOLEAN", {"default": False, "label": "Auto-Rigging"}),
+                "texture_prompt": ("STRING", {"multiline": True, "default": ""}),
             }
         }
 
@@ -166,7 +228,9 @@ class Geekatplay_Meshy_ImageTo3D:
     FUNCTION = "generate"
     CATEGORY = "Geekatplay/Meshy"
 
-    def generate(self, image, enable_pbr, api_key):
+    def generate(self, image, enable_pbr, api_key, model_type="standard", ai_model="latest", 
+                 topology="triangle", target_polycount=30000, should_remesh=True, 
+                 should_texture=True, symmetry_mode="auto", pose_mode="default", should_rig=False, texture_prompt=""):
         if not api_key:
             raise Exception("Meshy API Key is required.")
             
@@ -177,8 +241,21 @@ class Geekatplay_Meshy_ImageTo3D:
         # However, for this implementation request, we attempt data URI.
         image_uri = image_to_data_uri(image)
         
+        kwargs = {
+            "model_type": model_type,
+            "ai_model": ai_model,
+            "topology": topology,
+            "target_polycount": target_polycount,
+            "should_remesh": should_remesh,
+            "should_texture": should_texture,
+            "symmetry_mode": symmetry_mode,
+            "pose_mode": "" if pose_mode == "default" else pose_mode,
+            "should_rig": should_rig,
+            "texture_prompt": texture_prompt if texture_prompt.strip() else None
+        }
+
         print(f"Submitting Meshy Image-to-3D Task...")
-        task_id = meshy.create_image_to_3d_task(image_uri, enable_pbr)
+        task_id = meshy.create_image_to_3d_task(image_uri, enable_pbr, **kwargs)
         print(f"Task ID: {task_id}")
         
         result = meshy.poll_task(task_id, "image-to-3d")

@@ -1,0 +1,314 @@
+{
+    "last_node_id": 16,
+    "last_link_id": 16,
+    "nodes": [
+      {
+        "id": 16,
+        "type": "Note",
+        "pos": [
+          1400,
+          -100
+        ],
+        "size": [
+          300,
+          320
+        ],
+        "flags": {},
+        "order": 0,
+        "mode": 0,
+        "inputs": [],
+        "outputs": [],
+        "properties": {
+          "text": "INSTRUCTIONS:\n\n1. Ensure Blender is running with the 'ComfyUI Blender Toolbox Sync' addon enabled.\n\n2. In Blender sidebar > ComfyUI > Connection:\n   - Click 'Start Listener'.\n\n3. Generate a 3D model using Meshy Nodes (Step A).\n\n4. Connect the model output to 'Preview Model In Blender' (Step B).\n   - This sends the mesh to Blender automatically.\n\n5. IN BLENDER:\n   - Select the object.\n   - Edit UVs or Geometry.\n   - Press '1. Send Mesh & UVs' in the ComfyUI > Connection > PBR Sync panel.\n   - Optionally Press '2. Send Active Textures' if you want to keep textures.\n\n6. Back in ComfyUI (Step C):\n   - 'Load Blender PBR Textures' will auto-detect the files sent from Blender.\n   - Use 'Load Image' inputs to re-texture using ComfyUI flows."
+        },
+        "widgets_values": [
+          "INSTRUCTIONS:\n\n1. Ensure Blender is running with the 'ComfyUI Blender Toolbox Sync' addon enabled.\n\n2. In Blender sidebar > ComfyUI > Connection:\n   - Click 'Start Listener'.\n\n3. Generate a 3D model using Meshy Nodes (Step A).\n\n4. Connect the model output to 'Preview Model In Blender' (Step B).\n   - This sends the mesh to Blender automatically.\n\n5. IN BLENDER:\n   - Select the object.\n   - Edit UVs or Geometry.\n   - Press '1. Send Mesh & UVs' in the ComfyUI > Connection > PBR Sync panel.\n   - Optionally Press '2. Send Active Textures' if you want to keep textures.\n\n6. Back in ComfyUI (Step C):\n   - 'Load Blender PBR Textures' will auto-detect the files sent from Blender.\n   - Use 'Load Image' inputs to re-texture using ComfyUI flows."
+        ]
+      },
+      {
+        "id": 1,
+        "type": "Geekatplay_Meshy_TextTo3D",
+        "pos": [
+          100,
+          100
+        ],
+        "size": {
+          "0": 400,
+          "1": 300
+        },
+        "flags": {},
+        "order": 1,
+        "mode": 0,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "model_path",
+            "type": "STRING",
+            "links": [
+              1
+            ],
+            "shape": 3,
+            "slot_index": 0
+          },
+          {
+            "name": "task_id",
+            "type": "STRING",
+            "links": [],
+            "shape": 3,
+            "slot_index": 1
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "Geekatplay_Meshy_TextTo3D"
+        },
+        "widgets_values": [
+          "a futuristic sci-fi helmet, cyberpunk style, high detail",
+          "preview",
+          "realistic",
+          "ugly, blurry, low quality",
+          "",
+          "latest",
+          "triangle",
+          30000,
+          true,
+          "auto",
+          "default",
+          false,
+          0
+        ]
+      },
+      {
+        "id": 2,
+        "type": "PreviewModelInBlender",
+        "pos": [
+          600,
+          100
+        ],
+        "size": {
+          "0": 300,
+          "1": 100
+        },
+        "flags": {},
+        "order": 2,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "model_path",
+            "type": "STRING",
+            "link": 1
+          }
+        ],
+        "outputs": [],
+        "properties": {
+          "Node name for S&R": "PreviewModelInBlender"
+        },
+        "widgets_values": [
+          "",
+          "127.0.0.1",
+          8119
+        ]
+      },
+      {
+        "id": 4,
+        "type": "LoadBlenderPBR",
+        "pos": [
+          600,
+          300
+        ],
+        "size": {
+          "0": 300,
+          "1": 250
+        },
+        "flags": {},
+        "order": 3,
+        "mode": 0,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "albedo",
+            "type": "IMAGE",
+            "links": [
+              5
+            ],
+            "shape": 3,
+            "slot_index": 0
+          },
+          {
+            "name": "roughness",
+            "type": "IMAGE",
+            "links": [],
+            "shape": 3,
+            "slot_index": 1
+          },
+          {
+            "name": "normal",
+            "type": "IMAGE",
+            "links": [],
+            "shape": 3,
+            "slot_index": 2
+          },
+          {
+            "name": "metallic",
+            "type": "IMAGE",
+            "links": [],
+            "shape": 3,
+            "slot_index": 3
+          },
+          {
+            "name": "uv_layout_mask",
+            "type": "IMAGE",
+            "links": [
+              6
+            ],
+            "shape": 3,
+            "slot_index": 4
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "LoadBlenderPBR"
+        },
+        "widgets_values": [
+          "Auto-Detect"
+        ]
+      },
+      {
+        "id": 5,
+        "type": "PreviewImage",
+        "pos": [
+          1000,
+          200
+        ],
+        "size": {
+          "0": 300,
+          "1": 300
+        },
+        "flags": {},
+        "order": 4,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "images",
+            "type": "IMAGE",
+            "link": 5
+          }
+        ],
+        "outputs": [],
+        "properties": {
+          "Node name for S&R": "PreviewImage"
+        },
+        "widgets_values": []
+      },
+      {
+        "id": 6,
+        "type": "PreviewImage",
+        "pos": [
+          1000,
+          550
+        ],
+        "size": {
+          "0": 300,
+          "1": 300
+        },
+        "flags": {},
+        "order": 5,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "images",
+            "type": "IMAGE",
+            "link": 6
+          }
+        ],
+        "outputs": [],
+        "properties": {
+          "Node name for S&R": "PreviewImage"
+        },
+        "widgets_values": []
+      },
+      {
+        "id": 10,
+        "type": "PreviewTextureOnMesh",
+        "pos": [
+          1000,
+          -100
+        ],
+        "size": {
+          "0": 300,
+          "1": 200
+        },
+        "flags": {},
+        "order": 6,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "albedo_map",
+            "type": "IMAGE",
+            "link": null
+          },
+          {
+            "name": "roughness_map",
+            "type": "IMAGE",
+            "link": null
+          },
+          {
+            "name": "normal_map",
+            "type": "IMAGE",
+            "link": null
+          },
+          {
+            "name": "metallic_map",
+            "type": "IMAGE",
+            "link": null
+          },
+          {
+            "name": "alpha_map",
+            "type": "IMAGE",
+            "link": null
+          },
+          {
+            "name": "emission_map",
+            "type": "IMAGE",
+            "link": null
+          }
+        ],
+        "outputs": [],
+        "properties": {
+          "Node name for S&R": "PreviewTextureOnMesh"
+        },
+        "widgets_values": [
+          "127.0.0.1",
+          8119
+        ]
+      }
+    ],
+    "links": [
+      [
+        1,
+        1,
+        0,
+        2,
+        0,
+        "STRING"
+      ],
+      [
+        5,
+        4,
+        0,
+        5,
+        0,
+        "IMAGE"
+      ],
+      [
+        6,
+        4,
+        4,
+        6,
+        0,
+        "IMAGE"
+      ]
+    ],
+    "groups": [],
+    "config": {},
+    "extra": {},
+    "version": 0.4
+}

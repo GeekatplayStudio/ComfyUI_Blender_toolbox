@@ -19,6 +19,7 @@ import os
 import queue
 import math
 import shutil
+import subprocess
 
 # Global variables for thread management
 _SERVER_THREAD = None
@@ -1005,26 +1006,58 @@ def update_active_object_material(pbr_data):
         print(f"[ComfyUI-360] Updated {input_socket_name} with {os.path.basename(path)}")
     
     # Connect Textures
+    
+    # Header for compatibility
+    # Blender 4.0+ Mapping
+    socket_map = {
+        'Base Color': 'Base Color',
+        'Roughness': 'Roughness',
+        'Metallic': 'Metallic',
+        'Alpha': 'Alpha',
+        'Normal': 'Normal',
+        'Emission': 'Emission', # 3.x
+        'Emission Color': 'Emission Color', # 4.0+
+        'Specular': 'Specular', # 3.x
+        'Specular IOR Level': 'Specular IOR Level', # 4.0+
+        'Transmission': 'Transmission', # 3.x
+        'Transmission Weight': 'Transmission Weight', # 4.0+
+        'IOR': 'IOR'
+    }
+
+    # Helper to find correct socket name
+    def get_socket(names):
+        if isinstance(names, str): names = [names]
+        for name in names:
+            if name in bsdf.inputs:
+                return name
+        return None
+
     if "ALBEDO" in pbr_data:
-        connect_texture(pbr_data["ALBEDO"], 'Base Color', is_non_color=False, location=(-300, 300))
+        s_name = get_socket('Base Color')
+        if s_name: connect_texture(pbr_data["ALBEDO"], s_name, is_non_color=False, location=(-300, 300))
         
     if "ROUGHNESS" in pbr_data:
-        connect_texture(pbr_data["ROUGHNESS"], 'Roughness', is_non_color=True, location=(-300, 0))
+        s_name = get_socket('Roughness')
+        if s_name: connect_texture(pbr_data["ROUGHNESS"], s_name, is_non_color=True, location=(-300, 0))
         
     if "METALLIC" in pbr_data:
-        connect_texture(pbr_data["METALLIC"], 'Metallic', is_non_color=True, location=(-300, -150))
+        s_name = get_socket('Metallic')
+        if s_name: connect_texture(pbr_data["METALLIC"], s_name, is_non_color=True, location=(-300, -150))
         
     if "ALPHA" in pbr_data:
-        connect_texture(pbr_data["ALPHA"], 'Alpha', is_non_color=True, location=(-300, -300))
-        # Ensure blend mode is set
-        mat.blend_method = 'HASHED'
-        if hasattr(mat, 'shadow_method'): mat.shadow_method = 'HASHED'
+        s_name = get_socket('Alpha')
+        if s_name: 
+            connect_texture(pbr_data["ALPHA"], s_name, is_non_color=True, location=(-300, -300))
+            # Ensure blend mode is set
+            mat.blend_method = 'HASHED'
+            # Blender 4.2+ Deprecation check
+            if bpy.app.version < (4, 2, 0) and hasattr(mat, 'shadow_method'):
+                 mat.shadow_method = 'HASHED'
 
     if "EMISSION" in pbr_data:
-        # Try 'Emission Color' (4.0) first, then 'Emission'
-        target_socket = 'Emission Color' if 'Emission Color' in bsdf.inputs else 'Emission'
-        if target_socket in bsdf.inputs:
-             connect_texture(pbr_data["EMISSION"], target_socket, is_non_color=False, location=(-300, -450))
+        s_name = get_socket(['Emission Color', 'Emission'])
+        if s_name:
+             connect_texture(pbr_data["EMISSION"], s_name, is_non_color=False, location=(-300, -450))
 
     if "NORMAL" in pbr_data:
         # specific logic for Normal Map node
@@ -1036,15 +1069,16 @@ def update_active_object_material(pbr_data):
                 
                 # Check for Normal Map node
                 norm_node = None
-                if 'Normal' in bsdf.inputs and bsdf.inputs['Normal'].is_linked:
-                    link = bsdf.inputs['Normal'].links[0]
+                s_name = get_socket('Normal')
+                if s_name and bsdf.inputs[s_name].is_linked:
+                    link = bsdf.inputs[s_name].links[0]
                     if link.from_node.type == 'NORMAL_MAP':
                         norm_node = link.from_node
                 
                 if not norm_node:
                     norm_node = nodes.new('ShaderNodeNormalMap')
                     norm_node.location = (-150, -200)
-                    links.new(norm_node.outputs['Normal'], bsdf.inputs['Normal'])
+                    if s_name: links.new(norm_node.outputs['Normal'], bsdf.inputs[s_name])
                 
                 # Check input to Normal Map node
                 tex_node = None
@@ -1184,46 +1218,40 @@ class COMFY360_OT_SendTextures(bpy.types.Operator):
         except:
             base_path = ""
 
-        # Deduced ComfyUI Output Path logic
+        # Deduced ComfyUI Path logic (Auto-Discovery)
         export_path = ""
         
         # 1. Direct Manual Path (High Priority)
         # If user set a path manually in preferences, use it.
         if base_path and os.path.exists(base_path):
-             # Heuristic: If they pointed to ComfyUI root or output folder specifically, 
-             # we might want to organize it, but if they pointed to a random folder "Textures", 
-             # we should just use it.
-             
-             # Case A: User pointed to a generic root (contains 'custom_nodes' or 'ComfyUI' in path)
-             is_root_like = "ComfyUI" in base_path or "custom_nodes" in os.listdir(base_path)
-             
-             if is_root_like and "output" in os.listdir(base_path):
-                  export_path = os.path.join(base_path, "output", "blender")
-             elif os.path.basename(base_path).lower() == "output":
-                  export_path = os.path.join(base_path, "blender")
-             else:
-                  # Case B: Custom folder (e.g. D:\Textures) -> Use directly
-                  export_path = base_path
+             export_path = base_path
 
-        # 2. Try to deduce relative to this script (if no manual path or invalid)
+        # 2. Auto-Discovery: Try to find 'ComfyUI/output' relative to this script
         if not export_path:
-             # Script is in .../custom_nodes/Suite/blender_scripts/addon.py
              try:
+                 # This script is in custom_nodes/ComfyUI-Blender-Toolbox/blender_scripts/
+                 # So root ComfyUI is 3 levels up: ../../../
                  addon_dir = os.path.dirname(os.path.abspath(__file__))
-                 # Go up to ComfyUI/
-                 # .../blender_scripts/.. /.. /.. 
                  possible_root = os.path.abspath(os.path.join(addon_dir, "..", "..", ".."))
+                 
+                 # Check for 'output' folder in ComfyUI root
                  possible_output = os.path.join(possible_root, "output")
                  if os.path.exists(possible_output) and os.path.isdir(possible_output):
-                      export_path = os.path.join(possible_output, "blender")
-             except:
-                 pass
-        
-        # 3. Fallback to Temp
+                      # We create a specific 'from_blender' folder in output
+                      export_path = os.path.join(possible_output, "from_blender")
+                      if not os.path.exists(export_path):
+                           os.makedirs(export_path)
+                      self.report({'INFO'}, f"Auto-detected ComfyUI Output: {export_path}")
+             except Exception as e:
+                 print(f"[ComfyUI-360] Auto-discovery failed: {e}")
+
+        # 3. Fallback to Temp (Safest default)
         if not export_path:
              import tempfile
              export_path = os.path.join(tempfile.gettempdir(), "comfy_blender_export")
-             self.report({'WARNING'}, f"Using default temp path: {export_path}")
+             if not os.path.exists(export_path):
+                 os.makedirs(export_path, exist_ok=True)
+             self.report({'INFO'}, f"Using default temp path: {export_path}")
 
         # Create model specific timestamped folder
         import datetime
@@ -1242,6 +1270,7 @@ class COMFY360_OT_SendTextures(bpy.types.Operator):
 
         # NOTE: We do NOT clean up old files anymore, as we are creating a unique folder for each export.
         
+        # Handle Blender 4.0+ input names
         target_map = {
             'Base Color': 'blender_albedo.png',
             'Roughness': 'blender_roughness.png',
@@ -1249,8 +1278,8 @@ class COMFY360_OT_SendTextures(bpy.types.Operator):
             'Metallic': 'blender_metallic.png',
             'Alpha': 'blender_alpha.png',
             'Emission': 'blender_emission.png',
-            'Emission Color': 'blender_emission.png',
-            'Specular IOR Level': 'blender_specular.png',
+            'Emission Color': 'blender_emission.png', # 4.0
+            'Specular IOR Level': 'blender_specular.png', # 4.0
             'Specular': 'blender_specular.png'
         }
         
@@ -1267,7 +1296,7 @@ class COMFY360_OT_SendTextures(bpy.types.Operator):
             
             if not bsdf:
                 continue
-                
+            
             # Prefix for this material index
             prefix = f"{idx}_"
             
@@ -1285,23 +1314,36 @@ class COMFY360_OT_SendTextures(bpy.types.Operator):
                                 save_path = os.path.join(version_export_path, filename)
                                 try:
                                     copied = False
+                                    # Ensure we use abspath logic correctly
                                     if image.source == 'FILE':
-                                        src = bpy.path.abspath(image.filepath)
-                                        if os.path.exists(src) and os.path.isfile(src):
-                                            shutil.copy(src, save_path)
-                                            copied = True
+                                        try:
+                                            src = bpy.path.abspath(image.filepath)
+                                            if os.path.exists(src) and os.path.isfile(src):
+                                                shutil.copy(src, save_path)
+                                                copied = True
+                                        except: pass
+
                                     if not copied:
-                                        prev = image.filepath_raw
+                                        # Save internal/packed or unsaved image
+                                        # SAVE AND RESTORE STATE
+                                        prev_path = image.filepath_raw
+                                        prev_fmt = image.file_format
+                                        
                                         try:
                                             image.filepath_raw = save_path
                                             image.file_format = 'PNG'
                                             image.save()
+                                        except Exception as e:
+                                            print(f"Error saving image data: {e}")
                                         finally:
-                                            image.filepath_raw = prev
+                                            # Restore state critical for scene integrity
+                                            image.filepath_raw = prev_path
+                                            image.file_format = prev_fmt
+                                            
                                     found_any_global = True
                                     print(f"[ComfyUI-360] Saved {filename} for material {mat.name}")
                                 except Exception as e:
-                                    print(f"Error saving {filename}: {e}")
+                                    print(f"Error processing {filename}: {e}")
 
         if found_any_global:
             self.report({'INFO'}, f"Textures exported to {version_export_path}")
@@ -1324,6 +1366,47 @@ class COMFY360_OT_SendTextures(bpy.types.Operator):
         else:
             self.report({'WARNING'}, "No texture nodes found connected to Principled BSDF")
 
+        return {'FINISHED'}
+
+class COMFY360_OT_FillHoles(bpy.types.Operator):
+    """Fills all holes in the mesh geometry"""
+    bl_idname = "comfy360.fill_holes"
+    bl_label = "Fill Holes"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh first!")
+            return {'CANCELLED'}
+            
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        # Fill holes with default limit (0 = all)
+        bpy.ops.mesh.fill_holes(sides=0)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        
+        self.report({'INFO'}, "Filled Holes")
+        return {'FINISHED'}
+
+class COMFY360_OT_FixNormals(bpy.types.Operator):
+    """Recalculates Normals Outside"""
+    bl_idname = "comfy360.fix_normals"
+    bl_label = "Recalculate Normals"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh first!")
+            return {'CANCELLED'}
+            
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.normals_make_consistent(inside=False)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        
+        self.report({'INFO'}, "Normals Recalculated")
         return {'FINISHED'}
 
 class COMFY360_OT_CleanAndRig(bpy.types.Operator):
@@ -1666,6 +1749,26 @@ class COMFY360_PT_Panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        
+        # Safe property getters helper
+        def safe_prop(layout_obj, data, prop_name, text=None, **kwargs):
+            # 1. Simple existence check
+            exists = hasattr(data, prop_name)
+            
+            # 2. Advanced check for Custom Properties (ID Properties) not in RNA yet
+            if not exists and hasattr(data, 'keys'):
+                 if prop_name in data.keys():
+                      exists = True
+            
+            if exists:
+                 try:
+                     if text: layout_obj.prop(data, prop_name, text=text, **kwargs)
+                     else: layout_obj.prop(data, prop_name, **kwargs)
+                 except Exception as e:
+                     layout_obj.label(text=f"UI Error: {prop_name}", icon='ERROR')
+            else:
+                 layout_obj.label(text=f"Missing: {prop_name}", icon='INFO')
+
         is_running = scene.get("comfy360_is_running", False)
         port = scene.get("comfy360_listener_port", DEFAULT_PORT)
         host = scene.get("comfy360_listener_ip", DEFAULT_HOST)
@@ -1698,8 +1801,8 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         else:
             row = box.row()
             row.label(text="Status: Stopped", icon='X')
-            box.prop(scene, "comfy360_listener_ip", text="Host")
-            box.prop(scene, "comfy360_listener_port", text="Port")
+            safe_prop(box, scene, "comfy360_listener_ip", text="Host")
+            safe_prop(box, scene, "comfy360_listener_port", text="Port")
             box.operator("comfy360.start_listener", text=f"Start Listener", icon='PLAY')
             box.operator("comfy360.test_connection", text="Debug: Test Connection", icon='CONSOLE')
             
@@ -1707,10 +1810,10 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         
         box2 = layout.box()
         box2.label(text="Lighting Settings", icon='LIGHT')
-        box2.prop(scene, "comfy360_light_azimuth", text="Azimuth")
-        box2.prop(scene, "comfy360_light_elevation", text="Elevation")
-        box2.prop(scene, "comfy360_light_intensity", text="Intensity")
-        box2.prop(scene, "comfy360_light_color", text="Color")
+        safe_prop(box2, scene, "comfy360_light_azimuth", text="Azimuth")
+        safe_prop(box2, scene, "comfy360_light_elevation", text="Elevation")
+        safe_prop(box2, scene, "comfy360_light_intensity", text="Intensity")
+        safe_prop(box2, scene, "comfy360_light_color", text="Color")
         box2.operator("comfy360.apply_lighting", text="Apply Lighting", icon='LIGHT_SUN')
 
         layout.separator()
@@ -1731,32 +1834,79 @@ class COMFY360_PT_Panel(bpy.types.Panel):
              prefs = context.preferences.addons[addon_name].preferences
              box4.prop(prefs, "comfy360_export_path", text="Buffer Path")
         except Exception as e:
-             box4.label(text="Error accessing preferences")
-             print(f"[ComfyUI-360] Prefs Error: {e}")
+             box4.label(text="Path Error (Check Prefs)")
              
         box4.operator("comfy360.send_mesh_data", text="1. Send Mesh & UVs", icon='UV_DATA')
         box4.operator("comfy360.send_textures", text="2. Send Active Textures (Back)", icon='EXPORT')
 
-
         layout.separator()
         
-        box5 = layout.box()
-        box5.label(text="Auto-Rigger Tools", icon='ARMATURE_DATA')
-        box5.prop(scene, "comfy360_clean_voxel_size", text="Voxel Size")
-        box5.prop(scene, "comfy360_clean_decimate_ratio", text="Decimate Ratio")
-        box5.operator("comfy360.clean_and_rig", text="Clean Active Mesh", icon='MOD_REMESH')
-        
-        box5.label(text="Quick Rigging", icon='POSE_HLT')
-        box5.operator("comfy360.quick_rig", text="Add Basic Humanoid Rig", icon='ARMATURE_DATA')
-        box5.operator("comfy360.export_external", text="Prep for Mixamo/AccuRig", icon='FILE_3D')
-        
-        # Check for Voxel Heat Diffuse Skinning
+        # --- BOX 5: MESH CLEANUP ---
         try:
-            import addon_utils
-            is_enabled, _ = addon_utils.check("voxel_heat_diffuse_skinning")
-            if is_enabled:
-                 box5.operator("object.voxel_heat_diffuse_skinning", text="Apply Voxel Skinning (Paid Addon)", icon='mod_skin')
-        except: pass
+            box5 = layout.box()
+            box5.label(text="Mesh Cleanup Tools", icon='MESH_DATA')
+
+            # Info on Selected Object
+            obj = context.active_object
+            if obj and obj.type == 'MESH':
+                row = box5.row()
+                row.alignment = 'CENTER'
+                # Calculate poly count properly
+                try:
+                    count = len(obj.data.polygons)
+                    row.label(text=f"Selected: {obj.name} ({count} Faces)", icon='OUTLINER_OB_MESH')
+                except:
+                    row.label(text=f"Selected: {obj.name}", icon='OUTLINER_OB_MESH')
+            else:
+                box5.label(text="Select a Mesh to see tools")
+
+            if obj and obj.type == 'MESH':
+                # Voxel Remesh Settings
+                col = box5.column(align=True)
+                safe_prop(col, scene, "comfy360_clean_voxel_size", text="Voxel Size")
+                col.label(text="   (Smaller = More Detail, 0.01 = 1cm)", icon='SMALL_TRI_RIGHT_VEC')
+                
+                # Decimate Settings
+                col.separator()
+                safe_prop(col, scene, "comfy360_clean_decimate_ratio", text="Decimate Ratio")
+                
+                # Dynamic info - SAFE ACCESS
+                ratio = getattr(scene, "comfy360_clean_decimate_ratio", 0.1)
+                if ratio > 0.0001: # Avoid ZeroDivision
+                    reduction_factor = 1.0 / ratio
+                    pct = int(ratio * 100)
+                    col.label(text=f"   Reduces geometry by {reduction_factor:.1f}x (Keeps {pct}%)", icon='SMALL_TRI_RIGHT_VEC')
+                
+                # Action Buttons
+                col.separator()
+                row = col.row(align=True)
+                row.operator("comfy360.fill_holes", text="Fill Holes", icon='MESH_CIRCLE')
+                row.operator("comfy360.fix_normals", text="Fix Normals", icon='NORMALS_FACE')
+                
+                col.separator()
+                col.operator("comfy360.clean_and_rig", text="Auto-Clean (Remesh + Decimate)", icon='MOD_REMESH')
+        except Exception as e:
+            layout.label(text=f"Cleanup Panel Error: {e}", icon='ERROR')
+
+        layout.separator()
+
+        # --- BOX 6: AUTO RIGGING ---
+        try:
+            box6 = layout.box()
+            box6.label(text="Auto-Rigging", icon='ARMATURE_DATA')
+            box6.operator("comfy360.quick_rig", text="Add Basic Humanoid Rig", icon='POSE_HLT')
+            box6.operator("comfy360.export_external", text="Prep for Mixamo/AccuRig", icon='FILE_3D')
+            
+            # Check for Voxel Heat Diffuse Skinning
+            try:
+                import addon_utils
+                is_enabled, _ = addon_utils.check("voxel_heat_diffuse_skinning")
+                if is_enabled:
+                     box6.separator()
+                     box6.operator("object.voxel_heat_diffuse_skinning", text="Apply Voxel Skinning (Paid Addon)", icon='MOD_SKIN')
+            except: pass
+        except Exception as e:
+            layout.label(text=f"Rigging Panel Error: {e}", icon='ERROR')
 
 class ComfyUI360Prefs(bpy.types.AddonPreferences):
     bl_idname = __package__ if __package__ else __name__
@@ -1780,6 +1930,8 @@ classes = (
     COMFY360_OT_ApplyLighting,
     COMFY360_OT_SendTextures,
     COMFY360_OT_SendMeshData,
+    COMFY360_OT_FillHoles,
+    COMFY360_OT_FixNormals,
     COMFY360_OT_CleanAndRig,
     COMFY360_OT_QuickRig,
     COMFY360_OT_ExportForExternal,
@@ -1789,7 +1941,15 @@ classes = (
 
 def register():
     for cls in classes:
-        bpy.utils.register_class(cls)
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError:
+            try:
+                bpy.utils.unregister_class(cls)
+                bpy.utils.register_class(cls)
+            except: pass
+        except Exception as e:
+            print(f"[ComfyUI-360] Registration Error: {e}")
     
     # Register scene property (Keep for backward compatibility/runtime vars)
     bpy.types.Scene.comfy360_export_path = bpy.props.StringProperty(
@@ -1827,13 +1987,13 @@ def register():
     # Auto-Rigger Properties
     bpy.types.Scene.comfy360_clean_voxel_size = bpy.props.FloatProperty(
         name="Voxel Size", 
-        description="Smaller = More Detail, Larger = Blockier/Less Polys", 
+        description="Grid cell size in meters. Smaller values capture more detail but increase poly count. Example: 0.01 = 1cm blocks", 
         default=0.05, 
         min=0.001, max=0.5, step=0.01, precision=3
     )
     bpy.types.Scene.comfy360_clean_decimate_ratio = bpy.props.FloatProperty(
         name="Decimate Ratio", 
-        description="1.0 = Keep all polys, 0.1 = Keep 10%", 
+        description="Target Face Count Ratio. 1.0 = Keep Original (100%), 0.5 = Remove half (50%), 0.1 = Keep 10%", 
         default=0.1, 
         min=0.001, max=1.0, step=0.05
     )

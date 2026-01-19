@@ -62,7 +62,28 @@ python installer/install_pbr_extractor.py
 
 ---
 
-## 📚 Node Reference Guide
+## � Included Workflows
+Inside the `workflows/` folder, you will find production-ready JSON workflows:
+
+### 🌟 New & Featured
+*   **`Geekatplay_Hunyuan3d_v2.1.json`**: **(New)** State-of-the-art Image-to-3D generation using Hunyuan3D v2.1.
+*   **`Geekatplay_Flux2_Heightmap_Generator.json`**: **(New)** Generate 16-bit precision terrain heightmaps using Flux.
+*   **`Geekatplay_Heightmap_To_Blender.json`**: **(New)** Bridge to visualize heightmaps in Blender instantly.
+*   **`Geekatplay_Flux_360_HDRI_Updated.json`**: **(New)** Create 360° Panoramic HDRIs with Flux.
+
+### 3D Generation
+*   **`Geekatplay_Tripo_3D_Workflow.json`**: Fast Text/Image-to-3D via Tripo API.
+*   **`Geekatplay_Meshy_3D_Workflow.json`**: High-Quality 3D via Meshy API.
+*   **`Geekatplay_HiTem3D_Workflow.json`**: Single/Multi-view generation via HiTem3D.
+
+### Texturing & Materials
+*   **`Geekatplay_PBR_Texture_Studio_workflow.json`**: Extract Albedo, Normal, Roughness, Metallic from any image (Ubisoft CHORD).
+*   **`Geekatplay_Blender_RoundTrip_Sync.json`**: Send generic meshes from Blender -> ComfyUI -> Texturing -> Blender.
+*   **`Geekatplay_texture_sdxl_seamless_workflow.json`**: Generate seamless textures with SDXL.
+
+---
+
+## �📚 Node Reference Guide
 
 ### 🧱 PBR & Texture Tools
 
@@ -198,9 +219,15 @@ Analyzes an image to guess the sun's position (elevation/azimuth) and color temp
 
 ### 🛠️ Prompt & Heightmap Utilities
 
-#### **Terrain Prompt Maker (Ollama)**
+#### **Terrain Prompt Maker**
 *Category: `Geekatplay Studio/360 HDRI/Terrain`*
-Helper to generate rich terrain descriptions.
+Helper to generate rich terrain descriptions for SDXL or standard models.
+
+#### **Flux Terrain Prompt Generator**
+*Category: `Geekatplay Studio/360 HDRI/Terrain`*
+New specialized prompt generator for Flux.
+*   **Features**: Controls for Erosion Type (Hydraulic, Thermal, Glacial, etc.), Erosion Strength, Season, and Color Scheme (Grayscale/Rainbow).
+*   **Outputs**: separate Positive and Negative prompts optimized for Flux heightmap generation.
 
 #### **Terrain Texture Prompt Maker**
 *Category: `Geekatplay Studio/360 HDRI/Terrain`*
