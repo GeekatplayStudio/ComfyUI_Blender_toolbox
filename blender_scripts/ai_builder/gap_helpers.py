@@ -143,7 +143,7 @@ class Builder:
         self.s.extend([smooth] * len(faces))
         return self
 
-    def box(self, center, dims, mat=0, angle_z=0.0):
+    def box(self, center, dims, *, mat=0, angle_z=0.0):
         x, y, z = center
         dx, dy, dz = [d / 2.0 for d in dims]
         ca, sa = cos(angle_z), sin(angle_z)
@@ -153,11 +153,11 @@ class Builder:
         faces = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
         return self.add(verts, faces, mat)
 
-    def plane(self, center, size, mat=0, thickness=0.02):
+    def plane(self, center, size, *, mat=0, thickness=0.02):
         """A thin closed slab (planes with zero thickness are not manifold)."""
-        return self.box(center, (size[0], size[1], thickness), mat)
+        return self.box(center, (size[0], size[1], thickness), mat=mat)
 
-    def cylinder(self, a, b, r, mat=0, n=16, r2=None, smooth=True):
+    def cylinder(self, a, b, r, r2=None, *, mat=0, n=16, smooth=True):
         a, b = Vector(a), Vector(b)
         axis = (b - a)
         if axis.length < 1e-9:
@@ -174,10 +174,10 @@ class Builder:
         faces.append(tuple(n + i for i in range(n)))
         return self.add(verts, faces, mat, smooth)
 
-    def cone(self, a, b, r1, r2=0.001, mat=0, n=16, smooth=True):
-        return self.cylinder(a, b, r1, mat, n, max(r2, 0.0005), smooth)
+    def cone(self, a, b, r1, r2=0.001, *, mat=0, n=16, smooth=True):
+        return self.cylinder(a, b, r1, max(r2, 0.0005), mat=mat, n=n, smooth=smooth)
 
-    def lathe(self, center, profile, mat=0, n=32, smooth=True):
+    def lathe(self, center, profile, *, mat=0, n=32, smooth=True):
         """profile: list of (z, radius) from bottom to top; radii at ends may be tiny but > 0."""
         x, y, z0 = center
         prof = [(z, max(r, 0.0005)) for z, r in profile]
@@ -190,12 +190,12 @@ class Builder:
         faces.append(tuple((len(prof) - 1) * n + i for i in range(n)))
         return self.add(verts, faces, mat, smooth)
 
-    def sphere(self, center, r, mat=0, n=24, smooth=True):
+    def sphere(self, center, r, *, mat=0, n=24, smooth=True):
         rings = max(4, n // 2)
         profile = [(-r * cos(pi * k / rings), max(0.0005, r * sin(pi * k / rings))) for k in range(rings + 1)]
-        return self.lathe(center, profile, mat, n, smooth)
+        return self.lathe(center, profile, mat=mat, n=n, smooth=smooth)
 
-    def torus(self, center, R, r, mat=0, n=32, k=12, axis=(0, 0, 1), smooth=True):
+    def torus(self, center, R, r, *, mat=0, n=32, k=12, axis=(0, 0, 1), smooth=True):
         c = Vector(center)
         ax = Vector(axis).normalized()
         ref = Vector((1, 0, 0)) if abs(ax.x) < 0.9 else Vector((0, 1, 0))
@@ -210,7 +210,7 @@ class Builder:
                  for i in range(n) for j in range(k)]
         return self.add(verts, faces, mat, smooth)
 
-    def tube(self, points, r, mat=0, n=10, smooth=True):
+    def tube(self, points, r, *, mat=0, n=10, smooth=True):
         pts = [Vector(p) for p in points]
         if len(pts) < 2:
             return self
@@ -233,7 +233,7 @@ class Builder:
         faces.append(tuple((len(pts) - 1) * n + j for j in range(n)))
         return self.add(verts, faces, mat, smooth)
 
-    def prism(self, polygon_xz, depth, origin, mat=0, angle_z=0.0):
+    def prism(self, polygon_xz, depth, origin, *, mat=0, angle_z=0.0):
         """Extrude a 2D outline given in the X/Z plane through local Y (depth). Closed at both ends.
         polygon_xz must be counter-clockwise, non self-intersecting."""
         ca, sa = cos(angle_z), sin(angle_z)
@@ -763,7 +763,7 @@ def ring_positions(radius, count, z=0.0, phase=0.0, center=(0.0, 0.0), axis="Z")
     return out
 
 
-def rivet_ring(builder, center, radius, count, rivet_r=0.004, mat=0, protrusion=0.6, axis="Z",
+def rivet_ring(builder, center, radius, count, rivet_r=0.004, *, mat=0, protrusion=0.6, axis="Z",
                phase=0.0, n=8):
     """A ring of dome-headed rivets/studs around `center` at `radius`.
 
@@ -780,7 +780,7 @@ def rivet_ring(builder, center, radius, count, rivet_r=0.004, mat=0, protrusion=
     return builder
 
 
-def bolt(builder, center, r=0.005, height=0.004, mat=0, n=6, axis="Z"):
+def bolt(builder, center, r=0.005, height=0.004, *, mat=0, n=6, axis="Z"):
     """A single hex bolt head standing proud of a surface."""
     a, _, _ = _basis(axis)
     c = Vector(center)
@@ -788,13 +788,17 @@ def bolt(builder, center, r=0.005, height=0.004, mat=0, n=6, axis="Z"):
     return builder
 
 
-def trim_ring(builder, center, radius, tube_r=0.004, mat=0, axis="Z", n=48, k=10):
-    """A raised collar / beading / trim band encircling a body."""
+def trim_ring(builder, center, radius, tube_r=0.004, *, mat=0, axis="Z", n=48, k=10, phase=0.0):
+    """A raised collar / beading / trim band encircling a body.
+
+    `phase` is accepted and ignored: a full ring looks the same at any rotation. It exists because
+    it is a natural thing to pass alongside rivet_ring, and crashing over it helps nobody.
+    """
     builder.torus(center, radius, tube_r, mat=mat, n=n, k=k, axis=_basis(axis)[0])
     return builder
 
 
-def panel_seams(builder, center, radius, z0, z1, count=6, width=0.003, depth=0.004, mat=0, phase=0.0):
+def panel_seams(builder, center, radius, z0, z1, *, count=6, width=0.003, depth=0.004, mat=0, phase=0.0):
     """Vertical seams dividing a cylindrical surface into panels.
 
     Modelled as thin raised strips on the surface (closed boxes), which reads as a panel line in

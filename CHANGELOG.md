@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.3
+
+- **Every build failure in the wild was a helper signature mistake**, not a modelling problem: `Builder.cylinder() got multiple values for argument 'mat'`, `trim_ring() got an unexpected keyword argument 'phase'`, `panel_seams() missing 1 required positional argument: 'z1'`. Three fixes:
+  - `mat` and the other options are now **keyword-only** on every Builder primitive and detail helper, and the argument order is consistent (`cylinder` used to take `mat` before `r2` while `cone` took `r2` before `mat` — an API bug that guaranteed confusion).
+  - A failed script now comes back with the **correct signature and docstring** of the helper it called wrongly, so the retry is a correction rather than another guess.
+  - The signatures in the prompt are now exact, and a test introspects the real module inside Blender and fails if they ever drift apart.
+- **Full debug log per session** (`<session>/debug.log` and the new **AI Debug Log** node): every prompt sent, every raw model reply, every generated script, the retrieved reference chunks, Blender's stdout, validation totals and every error, in order — with filters for errors only, prompts only, or the last step.
+- **Report text now renders as a proper scrollable monospace text box** instead of one truncated line, with a "Copy text" button. Applies to the Build report, Plan, Reference brief and the new debug log.
+- `trim_ring` accepts (and ignores) `phase`, since it is natural to pass alongside `rivet_ring` and a full ring looks identical at any rotation.
+
 ## 2.2.2
 
 - **Send Scene to Blender** node: loads a finished `.blend` into the Blender you already have open, keeping material node trees, collections, lights and cameras (a GLB export would flatten them). Modes: `append` (non-destructive, the default), `link`, `open`.

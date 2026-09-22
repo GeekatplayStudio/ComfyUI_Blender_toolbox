@@ -181,6 +181,53 @@ def focus_viewport_on_new(built):
     print(f"[gap] viewport framed on {len(objects)} new object(s)", flush=True)
 
 
+def signature_hint(exc, tb_text, helpers_module):
+    """Turn a signature mistake into the correct signature.
+
+    'trim_ring() got an unexpected keyword argument phase' is useless on its own - the model just
+    guesses again. Returning the real signature plus its docstring makes the next attempt a fix.
+    """
+    import inspect
+    import re as _re
+
+    message = str(exc)
+    names = set(_re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\(\)", message))
+    names |= set(_re.findall(r"Builder\.([A-Za-z_][A-Za-z0-9_]*)", message))
+    for line in (tb_text or "").splitlines():
+        m = _re.search(r"\b([a-z_][a-z0-9_]*)\(", line)
+        if m:
+            names.add(m.group(1))
+    if isinstance(exc, (TypeError, AttributeError)):
+        names |= set(_re.findall(r"'([A-Za-z_][A-Za-z0-9_]*)'", message))
+
+    lines = []
+    seen = set()
+    builder_cls = getattr(helpers_module, "Builder", None)
+    for name in names:
+        if name in seen or name.startswith("_"):
+            continue
+        target = getattr(helpers_module, name, None)
+        label = name
+        if target is None and builder_cls is not None:
+            target = getattr(builder_cls, name, None)
+            label = f"Builder.{name}"
+        if target is None or not callable(target):
+            continue
+        try:
+            sig = str(inspect.signature(target)).replace("(self, ", "(").replace("(self)", "()")
+        except (TypeError, ValueError):
+            continue
+        seen.add(name)
+        doc = (inspect.getdoc(target) or "").strip().splitlines()
+        summary = doc[0] if doc else ""
+        lines.append(f"  {label}{sig}" + (f"\n      {summary}" if summary else ""))
+    if not lines:
+        return ""
+    return ("CORRECT SIGNATURES for the gap_helpers functions involved (parameters after '*' are "
+            "KEYWORD-ONLY - you must write mat=..., n=..., not pass them positionally):\n"
+            + "\n".join(sorted(lines)))
+
+
 def execute_job(job, save=True, scene_source=None):
     """Execute the script, validate, probe, save, render. Never raises; returns the result dict."""
     t0 = time.time()
@@ -212,6 +259,11 @@ def execute_job(job, save=True, scene_source=None):
             result["ok"] = False
             result["error"] = f"{type(e).__name__}: {e}"
             result["traceback"] = traceback.format_exc()
+            # Most failures are the model guessing a helper's signature. Hand back the real one so
+            # the retry is a correction rather than another guess.
+            hint = signature_hint(e, result["traceback"], gap_helpers)
+            if hint:
+                result["api_hint"] = hint
         result["timings"]["exec_s"] = round(time.time() - t_exec, 2)
 
         for line in tee.getvalue().splitlines():

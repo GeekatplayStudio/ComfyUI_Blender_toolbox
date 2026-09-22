@@ -84,6 +84,10 @@ class SceneBuilderAgent:
                 self.opt["log"](msg)
             except Exception:
                 pass
+        try:
+            self.session.debug(msg)
+        except Exception:
+            pass
 
     def _detect_blender_version(self):
         path = self.runner.blender_path or ""
@@ -124,9 +128,15 @@ class SceneBuilderAgent:
                 self.log(f"Reference image {i}/{total}: {key} pass ({model})")
                 text = self.client.chat(msgs, images=[b64], json_mode=True, model=model,
                                         temperature=0.1, max_tokens=4096)
+                self.session.debug(f"REFERENCE IMAGE {i}/{total} - {key.upper()} PASS RAW REPLY",
+                                   text, divider=True)
                 data = extract_json(text)
+                if not isinstance(data, (dict, list)):
+                    self.log(f"  WARNING: {key} pass did not return usable JSON - "
+                             f"the vision model may be too small or the reply was truncated")
                 entry[key] = data if isinstance(data, (dict, list)) else {"raw": text[:2000]}
             entry = self._resolve_sizes(entry)
+            self.session.debug(f"REFERENCE IMAGE {i}/{total} - RESOLVED TO METERS", entry)
             analyses.append(entry)
             self.log(f"  -> {len(entry.get('structure', {}).get('parts', []))} parts, "
                      f"{len(entry.get('detail', {}).get('details', []))} detail features, "
@@ -137,8 +147,10 @@ class SceneBuilderAgent:
         msgs = prompts.build_reference_merge_messages(prompt, json.dumps(analyses, indent=1)[:20000])
         brief = self.client.chat(msgs, temperature=0.2, max_tokens=4096)
         if len(brief.strip()) < 200:  # merge produced nothing usable - fall back to the raw numbers
+            self.log("  merge returned too little text; rebuilding the brief from the raw numbers")
             brief = self._brief_from_analysis(analyses[0], prompt)
         self.session.set_reference_brief(brief)
+        self.session.debug("FINAL BUILD SPECIFICATION", brief, divider=True)
         return brief, analyses
 
     @staticmethod
@@ -216,7 +228,11 @@ class SceneBuilderAgent:
         self.log(f"Planning (max {max_steps} steps) with {self.client.cfg['model']}")
         msgs = prompts.build_planner_messages(prompt, reference_brief or self.session.state.get("reference_brief", ""),
                                               self.session.scene_summary(), max_steps)
+        self.session.debug("PLANNER - PROMPT SENT", divider=True)
+        for m in msgs:
+            self.session.debug(f"  [{m['role']}]", m["content"])
         text = self.client.chat(msgs, json_mode=True, temperature=0.2)
+        self.session.debug("PLANNER - RAW MODEL REPLY", text)
         data = extract_json(text)
         steps = []
         if isinstance(data, dict):
@@ -232,8 +248,10 @@ class SceneBuilderAgent:
                               "category": str(s.get("category") or "edit"),
                               "instruction": str(s.get("instruction") or s.get("description"))})
         if not clean:
+            self.log("  planner returned no usable steps; building the whole request as one step")
             clean = [{"title": "Build", "category": "edit", "instruction": prompt.strip()}]
         self.session.set_plan(clean)
+        self.session.debug("PLAN", self.plan_to_text(clean))
         return clean
 
     @staticmethod
@@ -280,7 +298,13 @@ class SceneBuilderAgent:
             msgs = prompts.build_codegen_messages(
                 instruction, self.session.scene_summary(), self.session.history_summary(), reference_brief,
                 rag_context, self.blender_version, collection_name, scene_is_new, feedback, previous_code)
+            self.session.debug(f"STEP {idx} '{title}' ATTEMPT {attempts} - PROMPT SENT", divider=True)
+            for m in msgs:
+                self.session.debug(f"  [{m['role']}]", m["content"])
+            self.session.debug(f"STEP {idx} ATTEMPT {attempts} - RETRIEVED REFERENCE CHUNKS",
+                               "\n".join(f"{c['source']} :: {c['title']} (score {c['score']})" for c in chunks))
             text = self.client.chat(msgs)
+            self.session.debug(f"STEP {idx} ATTEMPT {attempts} - RAW MODEL REPLY", text)
             code = extract_code(text)
             if not code.strip():
                 feedback = "Your reply contained no ```python code block. Return the complete script in one code block."
@@ -290,6 +314,7 @@ class SceneBuilderAgent:
             script_path = self.session.next_script_path(attempts)
             with open(script_path, "w", encoding="utf-8") as f:
                 f.write(code)
+            self.session.debug(f"STEP {idx} ATTEMPT {attempts} - GENERATED SCRIPT ({script_path})", code)
             scan = scan_code(code) if self.opt["safety_scan"] else {"blocked": [], "warnings": []}
             if not scene_is_new and self.opt["safety_scan"]:
                 # Protect the existing scene: wiping it is only allowed when the instruction asks for it.
@@ -318,11 +343,25 @@ class SceneBuilderAgent:
                 save=(self.opt["live_save"] if self.opt["execution_mode"] == "live" else True),
             )
             result["safety"] = scan
+            self.session.debug(f"STEP {idx} ATTEMPT {attempts} - BLENDER RESULT", {
+                "ok": result.get("ok"), "error": result.get("error"),
+                "built": result.get("built"), "timings": result.get("timings"),
+                "render_path": result.get("render_path"), "saved_blend": result.get("saved_blend"),
+                "validation_totals": (result.get("validation") or {}).get("totals"),
+                "validation_issues": [i for i in (result.get("validation") or {}).get("issues", [])
+                                      if i.get("severity") == "error"][:20],
+                "api_hint": result.get("api_hint"),
+            })
+            if result.get("traceback"):
+                self.session.debug(f"STEP {idx} ATTEMPT {attempts} - TRACEBACK", result["traceback"])
+            if result.get("stdout"):
+                self.session.debug(f"STEP {idx} ATTEMPT {attempts} - BLENDER STDOUT", result["stdout"][-6000:])
             if result.get("ok"):
                 self.log(f"Step {idx} OK in {result.get('timings', {}).get('total_s', '?')}s")
                 break
             feedback = feedback_for_retry(result)
             previous_code = code
+            self.session.debug(f"STEP {idx} ATTEMPT {attempts} - FEEDBACK FOR RETRY", feedback)
             self.log(f"Step {idx} failed: {str(result.get('error'))[:300]}")
         ok = bool(result and result.get("ok"))
         summary = self._turn_summary(title, instruction, result)

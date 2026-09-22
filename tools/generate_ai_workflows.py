@@ -182,6 +182,9 @@ def wf_complete(out_dir):
           connect={"text": (ana, 0)})
     g.add("GapStringViewer", (700, 540), (420, 200), title="Model info / quality tips",
           connect={"text": (llm, 1)})
+    dbg = g.add("GapAIDebugLog", (2260, -80), (520, 260), connect={"session": (sess, 0)})
+    g.add("GapStringViewer", (2260, 220), (520, 560), title="DEBUG LOG (what each stage actually did)",
+          connect={"text": (dbg, 0)})
     g.dump(os.path.join(out_dir, "Geekatplay_AI_Scene_Builder_Complete.json"))
 
 

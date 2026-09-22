@@ -82,6 +82,7 @@ For live mode also (re)install the Blender addon: `blender_scripts/blender_toolb
 | **AI Visual Refiner (Compare to Reference & Fix)** | Renders the scene, puts it beside your reference image, asks the vision model what is wrong (silhouette, missing parts, shape, placement, materials, detail density), turns the critique into correction steps and executes them. Repeats until the resemblance score hits `target_score`. This is what closes the gap to a reference — one generate-and-hope pass never sees its own output. |
 | **Blender Bridge Check (Is Blender Open?)** | Full round trip to a running Blender: reports its version, the addon version, the open file, what is in the scene, and whether live AI execution is allowed. Outputs `connected` and `live_exec_allowed` booleans. |
 | **Send Scene to Blender (Append/Link/Open)** | Loads a finished `.blend` into the Blender you already have open, with materials, collections, lights and cameras intact. |
+| **AI Debug Log (Full Step-by-Step Trace)** | Reads `<session>/debug.log`: every prompt sent, every raw model reply, every generated script, the retrieved reference chunks, Blender's stdout, validation totals and every error, in order. Filters: everything / errors and warnings only / prompts and replies only / last step only. |
 | **AI Scene Validator** | QA any session scene: polygons, normals, textures, names; optional auto-fix; preview render; `passed` boolean. |
 
 Execution options shared by the builder nodes:
@@ -243,6 +244,24 @@ ComfyUI/output/ai_scene_builder/<session>/
 ```
 
 ---
+
+## When a build comes out wrong: read the debug log
+
+`<session>/debug.log` records the whole run in order, so you can see *which stage* failed rather
+than guessing from the final render. Add the **AI Debug Log** node, or open the file directly.
+
+Read it top to bottom and stop at the first thing that looks wrong:
+
+| What you see in the log | What it means | What to do |
+|---|---|---|
+| The build specification has every part at a similar size, or fewer than 8 parts | The vision model did not really look at the image | Use a bigger vision model — the Model Config node names the best one you have installed |
+| `WARNING: <pass> did not return usable JSON` | The reply was truncated or malformed | Raise `max_tokens`, or use a bigger vision model |
+| The plan says "create a cylinder for the body" | The planner is producing primitives instead of assemblies | Raise `max_steps`, or use a bigger code model |
+| `TypeError: ... got an unexpected keyword argument` / `missing 1 required positional argument` | The model guessed a helper's signature | The log's `api_hint` shows the correct signature and the retry usually fixes it; three failures in a row means the code model is too small |
+| The script is right but the render looks wrong | A modelling problem, not a pipeline problem | Use the **AI Visual Refiner** — it compares the render to your reference and fixes the differences |
+
+`log_path` is an output, so you can wire it into a file node, and the text box has a **Copy text**
+button for pasting the log somewhere.
 
 ## Tuning tips
 

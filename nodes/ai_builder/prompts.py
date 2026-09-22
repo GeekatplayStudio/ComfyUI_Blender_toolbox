@@ -174,7 +174,9 @@ HARD RULES
 3. Allowed imports only: bpy, bmesh, mathutils, math, random, itertools, gap_helpers.
    No file, network or process access (no os, subprocess, socket, open, eval, exec).
 4. `from gap_helpers import *` gives you tested, version-safe helpers. USE THEM instead of
-   hand-writing shader node trees or primitive maths:
+   hand-writing shader node trees or primitive maths. These signatures are EXACT - parameters
+   listed after `*` are KEYWORD-ONLY, so write mat=..., n=..., count=... rather than passing them
+   positionally, and never invent a parameter that is not listed here:
 {helpers_summary}
 5. Geometry must be closed and manifold with outward normals, no zero-area faces, no loose vertices.
    Builder primitives already guarantee this - prefer them over from_pydata.
@@ -339,34 +341,69 @@ def build_correction_messages(critique_json_text, scene_summary, reference_brief
     ]
 
 
+# EXACT signatures of gap_helpers. Parameters after `*` are KEYWORD-ONLY.
+# tests/test_ai_builder.py introspects the real module and fails if this drifts out of sync.
+HELPER_SIGNATURES = """   B = Builder()   # mat= accepts a slot index, a Material from make_material(), or a material name
+   B.box(center, dims, *, mat=0, angle_z=0.0)
+   B.plane(center, size, *, mat=0, thickness=0.02)
+   B.cylinder(a, b, r, r2=None, *, mat=0, n=16, smooth=True)
+   B.cone(a, b, r1, r2=0.001, *, mat=0, n=16, smooth=True)
+   B.lathe(center, profile, *, mat=0, n=32, smooth=True)
+       # profile = [(z, radius), ...] bottom to top
+   B.sphere(center, r, *, mat=0, n=24, smooth=True)
+   B.torus(center, R, r, *, mat=0, n=32, k=12, axis=(0, 0, 1), smooth=True)
+   B.tube(points, r, *, mat=0, n=10, smooth=True)
+   B.prism(polygon_xz, depth, origin, *, mat=0, angle_z=0.0)
+       # outline given in the X/Z plane, extruded along Y
+   B.build(name, collection=None, material=None, angle_deg=35.0, merge_dist=0.0)
+   DETAIL (the Builder is always the FIRST argument):
+   rivet_ring(builder, center, radius, count, rivet_r=0.004, *, mat=0, protrusion=0.6, axis='Z', phase=0.0, n=8)
+   bolt(builder, center, r=0.005, height=0.004, *, mat=0, n=6, axis='Z')
+   trim_ring(builder, center, radius, tube_r=0.004, *, mat=0, axis='Z', n=48, k=10, phase=0.0)
+   panel_seams(builder, center, radius, z0, z1, *, count=6, width=0.003, depth=0.004, mat=0, phase=0.0)
+   porthole(builder, center, outer_r=0.05, inner_r=0.035, depth=0.02, mat_frame=0, mat_glass=1, normal='Y', rivets=0, rivet_r=0.004, phase=0.0)
+   star_shape(builder, center, outer_r=0.02, inner_r=None, points=5, depth=0.004, mat=0, normal='Y', angle=0.0)
+   crescent_shape(builder, center, r=0.02, cut_offset=None, depth=0.004, mat=0, normal='Y', angle=0.0, segments=28)
+   ring_positions(radius, count, z=0.0, phase=0.0, center=(0.0, 0.0), axis='Z')
+   SILHOUETTE / SHAPE:
+   ogive_profile(height, radius, steps=16, z0=0.0, tip_radius=0.0008, shoulder=0.0)
+       # bullet / rounded point   -> feed the result to B.lathe
+   dome_profile(height, radius, steps=14, z0=0.0, tip_radius=0.0008)
+       # hemisphere cap           -> feed the result to B.lathe
+   barrel_profile(height, radius, waist=0.85, steps=14, z0=0.0)
+       # bulged body              -> feed the result to B.lathe
+   stepped_profile(sections, z0=0.0)
+       # sections = [(height, radius), ...] stacked rings -> B.lathe
+   fin_blade(builder, base_point, outward, height, length, thickness=0.008, sweep=0.55, mat_frame=0, mat_face=None, frame_width=0.006, curve_steps=10, z0=0.0)
+   hollow_port(body_obj, center, radius, depth, direction='Y', mat_rim=None, mat_interior=None, rim_width=0.004, collection=None, name=None)
+       # a REAL opening: cut the bare body BEFORE adding rivets/seams
+   cut_holes(obj, cutters, remove_cutters=True, solver='EXACT', min_kept=0.55)
+       # booleans need non-self-intersecting input; it refuses and restores if the cut destroys the mesh
+   MATERIALS / SCENE:
+   make_material(name, base_color=(0.8, 0.8, 0.8), metallic=0.0, roughness=0.5, emission_color=None, emission_strength=0.0, alpha=1.0, noise=None, textures=None, ior=1.45)
+   assign_material(obj, mat, slot=0)
+   set_smooth(obj, angle_deg=35.0)
+   get_or_create_collection(name, parent=None)
+   add_light(kind='POINT', location=(0, 0, 5), energy=1000.0, color=(1.0, 1.0, 1.0), name='Light', target=None, size=1.0, spot_angle_deg=45.0, collection=None)
+   add_sun(elevation_deg=45.0, azimuth_deg=135.0, strength=3.0, color=(1.0, 0.95, 0.9), name='Sun_Key', angle_deg=1.0, collection=None)
+   add_camera(location=(12, -12, 8), target=(0, 0, 1), lens_mm=35.0, name='Camera_Main', ortho=False, ortho_scale=20.0, make_active=True, collection=None)
+   frame_camera_to_scene(camera, margin=1.15, direction=(1.0, -1.3, 0.75))
+   set_world(color=(0.05, 0.07, 0.1), strength=1.0, hdri_path=None, name='World', gradient=False, horizon_color=None)
+   terrain(name='Terrain', size=(60.0, 60.0), resolution=96, height=3.0, noise_scale=0.05, seed=1, octaves=4, collection=None, material=None, thickness=1.0, falloff=0.0)
+   scatter(template, count=50, area=(-20, 20, -20, 20), seed=1, scale_range=(0.8, 1.2), min_distance=1.0, surface=None, collection=None, rotate_z=True, name_prefix=None, max_tries=30)
+   array_copies(obj, count, offset=(2.0, 0.0, 0.0), collection=None)
+   duplicate(obj, name, location=None, collection=None, linked_data=True)
+   delete_objects(names)
+       # ONLY when the instruction says to remove something
+   clear_scene()
+       # ONLY when the instruction says to start over
+   log_built(obj)
+"""
+
+
 def helpers_summary():
-    """Short signature list injected into the system prompt (kept in sync with gap_helpers.py)."""
-    return """   get_or_create_collection(name) -> Collection
-   B = Builder(); B.box(center,(sx,sy,sz),mat=,angle_z=); B.plane(center,(sx,sy)); B.cylinder(a,b,r,n=16,r2=);
-       B.cone(a,b,r1,r2); B.sphere(center,r,n=24); B.torus(center,R,r,axis=); B.tube([pts],r);
-       B.lathe(center,[(z,radius),...],n=32); B.prism(polygon_xz,depth,origin,angle_z=);
-       obj = B.build("Name", collection, material_or_list)
-   DETAIL HELPERS (use these for realism):
-       rivet_ring(B, center, radius, count, rivet_r, mat=, protrusion=, axis="Z")  ring of rivets/studs
-       bolt(B, center, r, height, mat=, n=6)                                       single hex bolt head
-       trim_ring(B, center, radius, tube_r, mat=, axis="Z")                        raised collar/beading
-       panel_seams(B, center, radius, z0, z1, count, width=, depth=, mat=)         vertical panel divisions
-       porthole(B, center, outer_r, inner_r, depth, mat_frame=, mat_glass=, normal="Y", rivets=0)
-       star_shape(B, center, outer_r, inner_r, points=5, depth=, mat=, normal="Y", angle=0)
-       crescent_shape(B, center, r, cut_offset, depth=, mat=, normal="Y", angle=0)
-       ring_positions(radius, count, z=0, phase=0) -> [(x,y,z), ...]   for placing your own parts
-   make_material(name, base_color=(r,g,b), metallic=0, roughness=0.5, emission_color=None,
-                 emission_strength=0, alpha=1, ior=1.45, noise=dict(scale,detail,color_a,color_b,bump),
-                 textures=dict(base_color,roughness,normal,metallic,scale))
-   assign_material(obj, mat); set_smooth(obj, angle_deg=35)
-   add_light(kind,location,energy,color,name,target=,size=,spot_angle_deg=); add_sun(elev,azim,strength,color,name)
-   add_camera(location,target,lens_mm=35,name,ortho=,ortho_scale=); frame_camera_to_scene(cam,margin=1.15)
-   set_world(color,strength,hdri_path=None)
-   terrain(name,size,resolution,height,noise_scale,seed,collection=,material=,falloff=)
-   scatter(template,count,area,seed,scale_range,min_distance,surface=,collection=)
-   array_copies(obj,count,offset,collection=); duplicate(obj,name,location=,collection=)
-   delete_objects(names); clear_scene()   (ONLY when told to remove things)
-   log_built(obj)"""
+    """Signature list injected into the system prompt, kept in sync with gap_helpers.py by a test."""
+    return HELPER_SIGNATURES
 
 
 def build_codegen_messages(instruction, scene_summary, history, reference_brief, rag_context,

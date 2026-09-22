@@ -663,6 +663,81 @@ class GapAISendSceneToBlender:
         return {"ui": {"text": [report]}, "result": (bool(result.get("ok")), report, path)}
 
 
+class GapAIDebugLog:
+    """Read the full debug log for a session: every prompt, every raw reply, every generated
+    script, Blender's stdout, validation totals and every error, in order.
+
+    When a build comes out wrong this tells you which stage went wrong and what it actually saw -
+    the brief, the plan, or the code. The file is <session>/debug.log, so you can also open it in
+    an editor or paste it somewhere.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "session": (SESSION_TYPE,),
+                "show": (["everything", "errors and warnings only", "prompts and replies only",
+                          "last step only"], {"default": "everything"}),
+                "max_chars": ("INT", {"default": 60000, "min": 1000, "max": 1000000, "step": 1000,
+                              "tooltip": "Tail length. The whole file is always on disk regardless."}),
+            },
+            "optional": {
+                "clear_log": ("BOOLEAN", {"default": False,
+                              "tooltip": "Delete the log before reading, to start a clean record. "
+                                         "Turn it off again after one run."}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("log", "log_path")
+    FUNCTION = "read"
+    CATEGORY = CATEGORY
+    OUTPUT_NODE = True
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("nan")
+
+    def read(self, session, show, max_chars, clear_log=False):
+        sess = SceneSession.from_payload(session)
+        if clear_log:
+            try:
+                if os.path.exists(sess.debug_path):
+                    os.remove(sess.debug_path)
+            except OSError as e:
+                print(f"[AI Scene Builder] could not clear the debug log: {e}")
+        text = sess.read_debug(max_chars=1000000)
+        if show == "errors and warnings only":
+            keep = ("fail", "error", "warning", "traceback", "refused", "blocked", "rejected",
+                    "missing", "could not", "timed out")
+            text = "\n".join(l for l in text.splitlines() if any(k in l.lower() for k in keep))
+        elif show == "prompts and replies only":
+            blocks, current, keeping = [], [], False
+            for line in text.splitlines():
+                marker = ("PROMPT SENT" in line or "RAW MODEL REPLY" in line
+                          or "BUILD SPECIFICATION" in line or line.startswith("=" * 20))
+                if marker:
+                    if keeping and current:
+                        blocks.append("\n".join(current))
+                    current, keeping = [line], not line.startswith("=" * 20)
+                elif keeping:
+                    current.append(line)
+            if keeping and current:
+                blocks.append("\n".join(current))
+            text = "\n".join(blocks)
+        elif show == "last step only":
+            marker = text.rfind("STEP ")
+            if marker > 0:
+                start = text.rfind("=" * 20, 0, marker)
+                text = text[start if start > 0 else marker:]
+        if len(text) > max_chars:
+            text = f"... showing the last {max_chars} characters of {len(text)} ...\n" + text[-max_chars:]
+        header = (f"DEBUG LOG - session '{sess.name}'\nfile: {sess.debug_path}\n"
+                  f"filter: {show}\n{'-' * 70}\n")
+        return {"ui": {"text": [header + text]}, "result": (header + text, sess.debug_path)}
+
+
 class GapAISceneValidator:
     """Validate (and optionally auto-fix) the session scene: polygons, normals, textures, names."""
 
@@ -727,6 +802,7 @@ NODE_CLASS_MAPPINGS = {
     "GapAIVisualRefiner": GapAIVisualRefiner,
     "GapAIBlenderBridgeCheck": GapAIBlenderBridgeCheck,
     "GapAISendSceneToBlender": GapAISendSceneToBlender,
+    "GapAIDebugLog": GapAIDebugLog,
     "GapAISceneValidator": GapAISceneValidator,
 }
 
@@ -741,5 +817,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GapAIVisualRefiner": "AI Visual Refiner (Compare to Reference & Fix)",
     "GapAIBlenderBridgeCheck": "Blender Bridge Check (Is Blender Open?)",
     "GapAISendSceneToBlender": "Send Scene to Blender (Append/Link/Open)",
+    "GapAIDebugLog": "AI Debug Log (Full Step-by-Step Trace)",
     "GapAISceneValidator": "AI Scene Validator (Polygons/Normals/Textures/Names)",
 }

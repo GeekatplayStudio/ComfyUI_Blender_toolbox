@@ -52,6 +52,8 @@ def feedback_for_retry(result):
     parts = []
     if result.get("error"):
         parts.append("PYTHON EXCEPTION:\n" + (result.get("traceback") or result["error"])[-3000:])
+    if result.get("api_hint"):
+        parts.append(result["api_hint"])
     v = result.get("validation")
     if v and not v.get("passed"):
         parts.append("VALIDATION ERRORS (must be zero):")

@@ -1,6 +1,6 @@
 {
-  "last_node_id": 15,
-  "last_link_id": 18,
+  "last_node_id": 17,
+  "last_link_id": 20,
   "nodes": [
     {
       "id": 1,
@@ -130,7 +130,8 @@
             4,
             5,
             8,
-            12
+            12,
+            19
           ],
           "slot_index": 0
         },
@@ -695,6 +696,87 @@
       },
       "widgets_values": [],
       "title": "Model info / quality tips"
+    },
+    {
+      "id": 16,
+      "type": "GapAIDebugLog",
+      "pos": [
+        2260,
+        -80
+      ],
+      "size": [
+        520,
+        260
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "log",
+          "type": "STRING",
+          "links": [
+            20
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "log_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIDebugLog"
+      },
+      "widgets_values": [
+        "everything",
+        60000,
+        false
+      ]
+    },
+    {
+      "id": 17,
+      "type": "GapStringViewer",
+      "pos": [
+        2260,
+        220
+      ],
+      "size": [
+        520,
+        560
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "DEBUG LOG (what each stage actually did)"
     }
   ],
   "links": [
@@ -839,6 +921,22 @@
       5,
       1,
       15,
+      0,
+      "STRING"
+    ],
+    [
+      19,
+      4,
+      0,
+      16,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      20,
+      16,
+      0,
+      17,
       0,
       "STRING"
     ]

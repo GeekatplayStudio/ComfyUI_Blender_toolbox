@@ -27,24 +27,68 @@ app.registerExtension({
 			};
 		}
 
-		if (nodeData.name === "GapStringViewer") {
+		// Nodes that display a block of report text. A single-line widget truncates reports to one
+		// unreadable line, so these get a real scrollable, selectable, monospace textarea.
+		const TEXT_DISPLAY_NODES = ["GapStringViewer", "GapAIDebugLog"];
+		if (TEXT_DISPLAY_NODES.includes(nodeData.name)) {
+			const ensureTextArea = function (node) {
+				if (node.gapTextWidget) return node.gapTextWidget;
+				const el = document.createElement("textarea");
+				el.readOnly = true;
+				el.spellcheck = false;
+				el.wrap = "off";                 // keep table-ish report columns aligned
+				Object.assign(el.style, {
+					width: "100%", height: "100%", boxSizing: "border-box",
+					background: "#1a1a1a", color: "#d8d8d8",
+					border: "1px solid #2f2f2f", borderRadius: "4px",
+					padding: "6px 8px", resize: "none", overflow: "auto",
+					fontFamily: "Consolas, 'Courier New', monospace",
+					fontSize: "11px", lineHeight: "1.35",
+				});
+				const widget = node.addDOMWidget(nodeData.name + "_text", "textarea", el, {
+					serialize: false,
+					// keep the textarea filling the node as it is resized
+					getMinHeight: () => 120,
+				});
+				widget.inputEl = el;
+				node.gapTextWidget = widget;
+				return widget;
+			};
+
+			const onNodeCreated = nodeType.prototype.onNodeCreated;
+			nodeType.prototype.onNodeCreated = function () {
+				onNodeCreated?.apply(this, arguments);
+				// addDOMWidget exists in current ComfyUI frontends; fall back to a multiline widget.
+				if (typeof this.addDOMWidget === "function") {
+					ensureTextArea(this);
+					if (this.size[1] < 220) this.size[1] = 220;
+					if (this.size[0] < 420) this.size[0] = 420;
+				}
+				const btn = this.addWidget("button", "Copy text", null, () => {
+					const text = this.gapTextValue || "";
+					if (!text) return;
+					navigator.clipboard?.writeText(text).then(() => {
+						btn.name = "Copied";
+						this.setDirtyCanvas(true);
+						setTimeout(() => { btn.name = "Copy text"; this.setDirtyCanvas(true); }, 1200);
+					});
+				});
+			};
+
 			const onExecuted = nodeType.prototype.onExecuted;
 			nodeType.prototype.onExecuted = function (message) {
 				onExecuted?.apply(this, arguments);
-				if (message && message.text) {
-                    // Update the first widget if it exists and is a text widget, or add it
-                    const text = message.text[0];
-                    if (this.widgets && this.widgets.length > 0) {
-                        this.widgets[0].value = text;
-                    } else {
-                        // Create widget if missing (though python def should create it via input)
-                        // Actually input is forceInput, so likely converted to slot.
-                        // We want a display widget.
-                        const w = this.addWidget("text", "Text", text, () => {}, { multiline: true });
-                        w.inputEl.readOnly = true;
-                    }
-                    this.onResize?.(this.size);
+				if (!message || !message.text) return;
+				const text = Array.isArray(message.text) ? message.text.join("\n") : String(message.text);
+				this.gapTextValue = text;
+				if (typeof this.addDOMWidget === "function") {
+					const w = ensureTextArea(this);
+					w.inputEl.value = text;
+					w.inputEl.scrollTop = 0;
+				} else if (this.widgets && this.widgets.length > 0) {
+					this.widgets[0].value = text;   // older frontend: at least show something
 				}
+				this.setDirtyCanvas(true, true);
 			};
 		}
         

@@ -19,7 +19,7 @@ import json
 import os
 import re
 import shutil
-import time
+import time  # noqa: F401  (used by debug timestamps and turn records)
 
 from . import config
 
@@ -85,6 +85,38 @@ class SceneSession:
                 shutil.move(src, os.path.join(archive, item))
         for d in (self.scripts_dir, self.results_dir, self.renders_dir):
             os.makedirs(d, exist_ok=True)
+
+    # ---------------------------------------------------------------- debug log
+    @property
+    def debug_path(self):
+        return os.path.join(self.root, "debug.log")
+
+    def debug(self, section, body="", divider=False):
+        """Append to <session>/debug.log - the complete record of a run.
+
+        Everything goes here: the exact prompts sent, the raw model reply, the generated script,
+        the safety scan, Blender's stdout, the validation totals and every error. When a build
+        comes out wrong this file says which stage went wrong and what it actually saw.
+        """
+        try:
+            os.makedirs(self.root, exist_ok=True)
+            with open(self.debug_path, "a", encoding="utf-8", errors="replace") as f:
+                if divider:
+                    f.write("\n" + "=" * 100 + "\n")
+                f.write(f"[{time.strftime('%H:%M:%S')}] {section}\n")
+                if body:
+                    text = body if isinstance(body, str) else json.dumps(body, indent=1, default=str)
+                    f.write("\n".join("    " + line for line in text.splitlines()) + "\n")
+        except Exception as e:  # logging must never break a build
+            print(f"[AI Scene Builder] could not write debug log: {e}")
+
+    def read_debug(self, max_chars=200000):
+        try:
+            with open(self.debug_path, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            return text[-max_chars:] if len(text) > max_chars else text
+        except OSError:
+            return "(no debug log yet - run a build first)"
 
     def save(self):
         self.state["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")

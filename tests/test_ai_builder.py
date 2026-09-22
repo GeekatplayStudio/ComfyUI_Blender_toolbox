@@ -5,6 +5,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -288,6 +289,87 @@ class TestBlenderIntegration(unittest.TestCase):
         self.assertTrue(s.blend_exists())
         self.assertEqual({b["name"] for b in result["built"]}, {"Tower_Test", "Ground"})
         self.assertIn("Camera_Main", result["scene"]["cameras"])
+
+    def test_prompt_signatures_match_the_real_helpers(self):
+        """The signatures advertised to the model must be the real ones.
+
+        Every build failure in the wild so far was the model calling a helper with the wrong
+        arguments. If this list drifts from gap_helpers.py the model is being lied to, so the
+        signatures are introspected inside Blender and compared.
+        """
+        from nodes.ai_builder.prompts import HELPER_SIGNATURES
+        probe = ("import inspect, json, sys\n"
+                 "sys.path.insert(0, r'{d}')\n"
+                 "import gap_helpers as g\n"
+                 "out = {{}}\n"
+                 "for n in dir(g.Builder):\n"
+                 "    f = getattr(g.Builder, n)\n"
+                 "    if callable(f) and not n.startswith('_'):\n"
+                 "        out['B.' + n] = str(inspect.signature(f)).replace('(self, ', '(').replace('(self)', '()')\n"
+                 "for n in g.__all__:\n"
+                 "    f = getattr(g, n, None)\n"
+                 "    if callable(f) and not isinstance(f, type) and getattr(f, '__module__', '') == 'gap_helpers':\n"
+                 "        out[n] = str(inspect.signature(f))\n"
+                 "print('SIGJSON' + json.dumps(out))\n").format(d=config.BLENDER_SCRIPTS_DIR.replace("\\", "\\\\"))
+        script = os.path.join(tempfile.mkdtemp(prefix="sigprobe-"), "probe.py")
+        with open(script, "w", encoding="utf-8") as f:
+            f.write(probe)
+        proc = subprocess.run([self.blender, "--background", "--factory-startup", "--python", script],
+                              capture_output=True, text=True, timeout=300, encoding="utf-8", errors="replace")
+        line = next((l for l in (proc.stdout or "").splitlines() if l.startswith("SIGJSON")), None)
+        self.assertIsNotNone(line, msg=f"probe failed:\n{proc.stdout[-1500:]}\n{proc.stderr[-800:]}")
+        real = json.loads(line[len("SIGJSON"):])
+
+        # Index the prompt by the declaration lines only: a line whose first token is "name(".
+        # Prose elsewhere may mention a helper by name without giving its signature.
+        declared = {}
+        for line in HELPER_SIGNATURES.splitlines():
+            stripped = line.strip()
+            if "(" not in stripped or stripped.startswith("#"):
+                continue
+            head = stripped[:stripped.index("(")]
+            if head and all(ch.isalnum() or ch in "._" for ch in head):
+                declared.setdefault(head, stripped[len(head):])
+
+        wrong = []
+        for name, signature in real.items():
+            advertised = declared.get(name)
+            if advertised is None:
+                continue  # not advertised to the model, nothing to keep in sync
+            norm = lambda s: s.replace(" ", "").replace("'", "").replace('"', "")
+            if norm(advertised) != norm(signature):
+                wrong.append(f"{name}\n      prompt: {advertised}\n      real  : {signature}")
+        self.assertEqual(wrong, [], msg="prompts.HELPER_SIGNATURES is out of sync with gap_helpers.py:\n"
+                                        + "\n".join(wrong))
+
+    def test_signature_mistakes_produce_a_corrective_hint(self):
+        """A wrong helper call must come back with the correct signature, not just a TypeError."""
+        tmp = tempfile.mkdtemp(prefix="ai-hint-")
+        s = SceneSession("hint", root=os.path.join(tmp, "hint")).open()
+        script = s.next_script_path(1)
+        with open(script, "w", encoding="utf-8") as f:
+            f.write("from gap_helpers import *\nB = Builder()\n"
+                    "panel_seams(B, (0,0,0), 0.05, 0.0)\n")
+        runner = BlenderRunner(s, blender_path=self.blender, timeout=300)
+        result = runner.run_headless(script, validate=False, render=None)
+        self.assertFalse(result["ok"])
+        self.assertIn("panel_seams", result["error"])
+        self.assertIn("api_hint", result, msg="no corrective signature hint was returned")
+        self.assertIn("panel_seams(builder, center, radius, z0, z1", result["api_hint"])
+        self.assertIn("KEYWORD-ONLY", result["api_hint"])
+        feedback = feedback_for_retry(result)
+        self.assertIn("panel_seams(builder", feedback, msg="the hint never reaches the retry prompt")
+
+    def test_debug_log_records_every_stage(self):
+        tmp = tempfile.mkdtemp(prefix="ai-debug-")
+        s = SceneSession("dbg", root=os.path.join(tmp, "dbg")).open()
+        s.debug("PLANNER - RAW MODEL REPLY", '{"steps": []}', divider=True)
+        s.debug("STEP 1 ATTEMPT 1 - GENERATED SCRIPT", "from gap_helpers import *\n")
+        text = s.read_debug()
+        self.assertIn("PLANNER - RAW MODEL REPLY", text)
+        self.assertIn("GENERATED SCRIPT", text)
+        self.assertIn("from gap_helpers import *", text)
+        self.assertTrue(os.path.exists(s.debug_path))
 
     def test_failing_script_keeps_blend_and_reports(self):
         tmp = tempfile.mkdtemp(prefix="ai-blender-fail-")
