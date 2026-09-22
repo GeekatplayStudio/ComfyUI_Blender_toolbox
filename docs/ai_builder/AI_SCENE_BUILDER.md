@@ -79,6 +79,9 @@ For live mode also (re)install the Blender addon: `blender_scripts/blender_toolb
 | **AI Scene Builder (Complete Scene)** | Executes every plan step: generate → safety scan → run in Blender → validate → retry (`max_retries`) → preview. `stop_on_failure`, `dry_run`, auto-fixes, render settings. Outputs preview, blend path, report, all scripts, validation JSON, session. |
 | **AI Step Builder (Conversational)** | One instruction per run, building on the session scene: "now add a bridge". Same options and outputs. |
 | **AI Script Runner (Review & Execute)** | Runs a script you pasted/edited (e.g. from a dry run) with the same scan, validation and render. |
+| **AI Visual Refiner (Compare to Reference & Fix)** | Renders the scene, puts it beside your reference image, asks the vision model what is wrong (silhouette, missing parts, shape, placement, materials, detail density), turns the critique into correction steps and executes them. Repeats until the resemblance score hits `target_score`. This is what closes the gap to a reference — one generate-and-hope pass never sees its own output. |
+| **Blender Bridge Check (Is Blender Open?)** | Full round trip to a running Blender: reports its version, the addon version, the open file, what is in the scene, and whether live AI execution is allowed. Outputs `connected` and `live_exec_allowed` booleans. |
+| **Send Scene to Blender (Append/Link/Open)** | Loads a finished `.blend` into the Blender you already have open, with materials, collections, lights and cameras intact. |
 | **AI Scene Validator** | QA any session scene: polygons, normals, textures, names; optional auto-fix; preview render; `passed` boolean. |
 
 Execution options shared by the builder nodes:
@@ -175,6 +178,54 @@ Errors fail the step (the model gets the list and retries); warnings are reporte
 `validation_json` output and in `results/*.json`.
 
 ---
+
+## Getting the result into the Blender you have open
+
+A headless build runs in a **background** Blender, so nothing appears in your open window. There are
+two ways to see it on your desk, and they need different things switched on:
+
+| You want | Use | Requires in Blender |
+|---|---|---|
+| The finished model dropped into my current scene | **Send Scene to Blender** node (`mode=append`) | addon v2.2.1+, **Start Listener** |
+| To watch it being built, step by step | builder node with `execution_mode=live` | addon v2.2.1+, **Start Listener**, **Allow AI code execution** ON |
+
+**Send Scene to Blender** appends the session `.blend`, so material node trees, collections, lights
+and cameras all survive — exporting through GLB would flatten most of that. Modes:
+
+- `append` (default) — copies the objects into your current scene. Non-destructive: everything you
+  already had stays, and the build arrives in its own `Step_NN_*` collections.
+- `link` — references the objects read-only from the `.blend`; edits belong to the source file.
+- `open` — **replaces** the file you have open. Unsaved work is lost. Only use it deliberately.
+
+Optional inputs: `collections` (comma-separated, to import only part of a build), `clear_scene_first`,
+`frame_viewport` (selects and zooms onto what arrived).
+
+### Checking the bridge before you commit to a long build
+
+**Blender Bridge Check** does a real round trip rather than just opening a socket — a plain connect
+only proves *something* holds the port. The addon writes back its status, so the node can tell you:
+
+```
+BRIDGE OK - ComfyUI can talk to your running Blender
+  Blender        : 5.2.2 LTS
+  Toolbox addon  : 2.2.1
+  Listener       : 127.0.0.1:8119 (running)
+  Open file      : (unsaved scene)
+  Scene          : 'Scene' - 7 objects (5 meshes, 1 lights, camera: yes)
+  Render engine  : BLENDER_EEVEE
+  AI live exec   : BLOCKED (switch is off)
+```
+
+Outputs `connected` and `live_exec_allowed` as booleans (wire them into a Logic Switch to branch),
+plus the text above and the raw JSON. `raise_on_failure` stops the workflow when the bridge is down;
+leave it off to report and continue.
+
+Ready-made workflow: **`Geekatplay_AI_Build_And_Send_To_Blender.json`**.
+
+> **One listener at a time.** Two Blender instances used to be able to bind port 8119 at once on
+> Windows, which meant ComfyUI silently talked to whichever won the race. v2.2.1 claims the port
+> exclusively, so the second instance now reports the clash in its console instead. If the listener
+> refuses to start, close the other Blender (or give it a different port on both ends).
 
 ## Session folder layout
 

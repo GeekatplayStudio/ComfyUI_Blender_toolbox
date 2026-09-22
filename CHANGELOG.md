@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.2
+
+- **Send Scene to Blender** node: loads a finished `.blend` into the Blender you already have open, keeping material node trees, collections, lights and cameras (a GLB export would flatten them). Modes: `append` (non-destructive, the default), `link`, `open`.
+- **Blender Bridge Check** node: a real round trip, not just a socket connect. The addon answers with its version, the open file, the scene contents and whether live AI execution is allowed, so you can confirm the connection before starting a long build. Outputs `connected` and `live_exec_allowed`.
+- Addon 2.2.1 adds the `PING` and `BLEND_APPEND` commands that make the above possible. The socket protocol is fire-and-forget, so replies are written as JSON files the caller polls for.
+- **Duplicate listeners are no longer silent**: on Windows `SO_REUSEADDR` let a second Blender bind port 8119 as well, and ComfyUI then talked to whichever instance won `accept()`. The listener now claims the port exclusively, so a clash is reported instead of sending your build to the wrong window.
+- **AI Visual Refiner** node: renders the scene, compares it to the reference, and executes correction steps until the resemblance score reaches the target.
+- New workflow `Geekatplay_AI_Build_And_Send_To_Blender.json`.
+
 ## 2.2.1
 
 - **Auto-Rigger CLI completed**: the ComfyUI generation path was a stub that always exited with an error. It now uploads the reference image, patches the workflow's `LoadImage` node, queues the prompt, polls `/history` until completion, downloads the generated mesh and hands it to the Blender clean+rig step. Added `--timeout` and `--server` options and real HTTP error reporting.

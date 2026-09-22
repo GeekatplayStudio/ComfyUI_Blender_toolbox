@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-blender-toolbox"
 description = "A complete toolbox for 3D Gen, HDRI, PBR, AI Scene Building and Blender synchronization in ComfyUI."
-version = "2.2.1"
+version = "2.2.2"
 license = { file = "LICENSE" }
 authors = [{ name = "Vladimir Chopine (Geekatplay Studio)" }]
 requires-python = ">=3.10"

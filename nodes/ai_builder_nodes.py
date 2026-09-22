@@ -23,7 +23,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from .ai_builder import config
+from .ai_builder import bridge, config
 from .ai_builder.agent import AgentOptions, SceneBuilderAgent
 from .ai_builder.llm import LLMConfig, LLMClient
 from .ai_builder.session import SceneSession
@@ -537,6 +537,132 @@ class GapAIVisualRefiner:
                 "result": (preview, report, critique_json, sess.blend_path, int(final), sess.to_payload())}
 
 
+class GapAIBlenderBridgeCheck:
+    """Verify a running Blender is reachable and the toolbox bridge actually works.
+
+    A socket connect only proves something holds the port. This does a full round trip: the addon
+    writes back its version, the open file, the scene contents and whether live AI execution is
+    allowed - so you know what will and will not work before you queue a long build.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "host": ("STRING", {"default": "127.0.0.1"}),
+                "port": ("INT", {"default": 8119, "min": 1024, "max": 65535}),
+                "timeout_s": ("INT", {"default": 10, "min": 2, "max": 120,
+                              "tooltip": "How long to wait for Blender's reply. Raise it if Blender is busy."}),
+                "raise_on_failure": ("BOOLEAN", {"default": False,
+                                     "tooltip": "ON: stop the workflow when the bridge is down. "
+                                                "OFF: report the problem and carry on."}),
+            },
+        }
+
+    RETURN_TYPES = ("BOOLEAN", "BOOLEAN", "STRING", "STRING")
+    RETURN_NAMES = ("connected", "live_exec_allowed", "status", "status_json")
+    FUNCTION = "check"
+    CATEGORY = CATEGORY
+    OUTPUT_NODE = True
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("nan")
+
+    def check(self, host, port, timeout_s, raise_on_failure):
+        status = bridge.ping(host.strip() or "127.0.0.1", port, timeout=timeout_s)
+        text = bridge.describe(status)
+        print("[AI Scene Builder] " + text.replace("\n", "\n[AI Scene Builder] "))
+        if raise_on_failure and not status.get("ok"):
+            raise RuntimeError(text)
+        return {"ui": {"text": [text]},
+                "result": (bool(status.get("ok")), bool(status.get("ai_exec_allowed")),
+                           text, json.dumps(status, indent=1))}
+
+
+class GapAISendSceneToBlender:
+    """Load a finished scene into the Blender you have open, with materials and collections intact.
+
+    Appending the .blend keeps everything the headless build made: collections, material node
+    trees, lights and cameras. Exporting through GLB would flatten most of that, so this is the
+    way to get a completed build onto your desk.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mode": (["append", "link", "open"], {"default": "append",
+                         "tooltip": "append: copy the objects into your current scene (default, safe). "
+                                    "link: reference them read-only from the .blend. "
+                                    "open: REPLACE your open file with the built scene - unsaved work is lost."}),
+                "host": ("STRING", {"default": "127.0.0.1"}),
+                "port": ("INT", {"default": 8119, "min": 1024, "max": 65535}),
+                "frame_viewport": ("BOOLEAN", {"default": True,
+                                   "tooltip": "Select and zoom the viewport onto what was just imported."}),
+                "clear_scene_first": ("BOOLEAN", {"default": False,
+                                      "tooltip": "Delete every object in the open Blender scene before importing."}),
+                "timeout_s": ("INT", {"default": 180, "min": 5, "max": 3600}),
+            },
+            "optional": {
+                "session": (SESSION_TYPE,),
+                "blend_path": ("STRING", {"default": "",
+                               "tooltip": "Explicit .blend to send. Leave empty to use the session's scene.blend."}),
+                "collections": ("STRING", {"default": "",
+                                "tooltip": "Comma-separated collection names to import. Empty = all of them."}),
+            },
+        }
+
+    RETURN_TYPES = ("BOOLEAN", "STRING", "STRING")
+    RETURN_NAMES = ("sent", "report", "blend_path")
+    FUNCTION = "send"
+    CATEGORY = CATEGORY
+    OUTPUT_NODE = True
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("nan")
+
+    def send(self, mode, host, port, frame_viewport, clear_scene_first, timeout_s,
+             session=None, blend_path="", collections=""):
+        path = (blend_path or "").strip()
+        if not path and session is not None:
+            path = SceneSession.from_payload(session).blend_path
+        if not path:
+            report = "Give this node a session or an explicit blend_path."
+            return {"ui": {"text": [report]}, "result": (False, report, "")}
+        if not os.path.isfile(path):
+            report = (f"No .blend at {path}\nBuild the scene first - a headless build writes "
+                      f"scene.blend into the session folder.")
+            return {"ui": {"text": [report]}, "result": (False, report, path)}
+
+        status = bridge.ping(host.strip() or "127.0.0.1", port, timeout=min(timeout_s, 15))
+        if not status.get("ok"):
+            report = bridge.describe(status)
+            print("[AI Scene Builder] " + report.replace("\n", "\n[AI Scene Builder] "))
+            return {"ui": {"text": [report]}, "result": (False, report, path)}
+
+        names = [c.strip() for c in collections.split(",") if c.strip()]
+        if mode == "open":
+            print("[AI Scene Builder] mode 'open' REPLACES the file open in Blender; unsaved work is lost.")
+        result = bridge.append_blend(path, host.strip() or "127.0.0.1", port, mode=mode,
+                                     collections=names, clear_scene=clear_scene_first,
+                                     frame=frame_viewport, timeout=timeout_s)
+        if result.get("ok"):
+            report = (f"Sent to Blender {status.get('blender_version')} ({mode})\n"
+                      f"  from : {path}\n"
+                      f"  objects    : {len(result.get('appended_objects', []))}"
+                      f" ({', '.join(result.get('appended_objects', [])[:8])}"
+                      f"{' ...' if len(result.get('appended_objects', [])) > 8 else ''})\n"
+                      f"  collections: {', '.join(result.get('appended_collections', [])) or '(none)'}")
+            if mode == "append":
+                report += "\n  Materials, lights and cameras came across with the objects."
+        else:
+            report = f"Import failed: {result.get('error')}\n  blend: {path}"
+        print("[AI Scene Builder] " + report.replace("\n", "\n[AI Scene Builder] "))
+        return {"ui": {"text": [report]}, "result": (bool(result.get("ok")), report, path)}
+
+
 class GapAISceneValidator:
     """Validate (and optionally auto-fix) the session scene: polygons, normals, textures, names."""
 
@@ -599,6 +725,8 @@ NODE_CLASS_MAPPINGS = {
     "GapAIStepBuilder": GapAIStepBuilder,
     "GapAIScriptRunner": GapAIScriptRunner,
     "GapAIVisualRefiner": GapAIVisualRefiner,
+    "GapAIBlenderBridgeCheck": GapAIBlenderBridgeCheck,
+    "GapAISendSceneToBlender": GapAISendSceneToBlender,
     "GapAISceneValidator": GapAISceneValidator,
 }
 
@@ -611,5 +739,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GapAIStepBuilder": "AI Step Builder (Conversational)",
     "GapAIScriptRunner": "AI Script Runner (Review & Execute)",
     "GapAIVisualRefiner": "AI Visual Refiner (Compare to Reference & Fix)",
+    "GapAIBlenderBridgeCheck": "Blender Bridge Check (Is Blender Open?)",
+    "GapAISendSceneToBlender": "Send Scene to Blender (Append/Link/Open)",
     "GapAISceneValidator": "AI Scene Validator (Polygons/Normals/Textures/Names)",
 }

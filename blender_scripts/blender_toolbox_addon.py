@@ -4,10 +4,10 @@
 bl_info = {
     "name": "ComfyUI Blender Toolbox Sync",
     "author": "Geekatplay Studio (Vladimir Chopine)",
-    "version": (2, 2, 0),
+    "version": (2, 2, 1),
     "blender": (2, 80, 0),
     "location": "View3D > Sidebar > ComfyUI",
-    "description": "Sync assets from ComfyUI to Blender; opt-in AI Scene Builder live execution",
+    "description": "Sync assets from ComfyUI to Blender; bridge health check, scene import, opt-in AI live execution",
     "warning": "AI Scene Builder live mode executes model-generated Python when enabled",
     "category": "Import-Export",
 }
@@ -459,7 +459,15 @@ def create_landscape_from_heightmap(image_path, texture_path=None, use_pbr=False
 
 def server_loop(stop_event, host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Do NOT set SO_REUSEADDR here. On Windows it lets a second Blender bind the SAME port
+        # without an error, and ComfyUI then talks to whichever instance happens to win accept() -
+        # silently sending your build to the wrong window. SO_EXCLUSIVEADDRUSE makes the second
+        # bind fail loudly instead, which is what the error handler below reports.
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            except OSError:
+                pass
         try:
             s.bind((host, port))
             s.listen()
@@ -689,6 +697,12 @@ def process_queue():
         elif msg.startswith("AI_EXEC:"):
             handle_ai_exec(msg.replace("AI_EXEC:", "", 1).strip())
 
+        elif msg.startswith("PING:"):
+            handle_ping(msg.replace("PING:", "", 1).strip())
+
+        elif msg.startswith("BLEND_APPEND:"):
+            handle_blend_append(msg.replace("BLEND_APPEND:", "", 1).strip())
+
         else:
             # Standard image path (HDRI or Preview)
             print(f"[ComfyUI-360] Handling standard image: {msg}")
@@ -783,6 +797,160 @@ def handle_ai_exec(job_path):
     except Exception:
         pass
     print(f"[ComfyUI-360][AI] done ok={result.get('ok')} result={result_path}")
+
+
+def handle_ping(result_path):
+    """Answer a health check from ComfyUI by writing a small status JSON.
+
+    The socket protocol is fire-and-forget, so the reply is a file the caller polls for. This is
+    read-only and deliberately works even when 'Allow AI code execution' is OFF - it reports that
+    switch's state rather than needing it.
+    """
+    prefs = _ai_prefs()
+    scene = bpy.context.scene
+    status = {
+        "ok": True,
+        "pong": True,
+        "blender_version": bpy.app.version_string,
+        "addon_version": ".".join(str(x) for x in bl_info["version"]),
+        "ai_exec_allowed": bool(prefs and getattr(prefs, "comfy360_allow_ai_exec", False)),
+        "listener": {"host": scene.get("comfy360_listener_ip", DEFAULT_HOST),
+                     "port": scene.get("comfy360_listener_port", DEFAULT_PORT),
+                     "running": bool(_SERVER_THREAD and _SERVER_THREAD.is_alive())},
+        "blend_file": bpy.data.filepath,
+        "scene_name": scene.name,
+        "object_count": len(scene.objects),
+        "mesh_count": sum(1 for o in scene.objects if o.type == "MESH"),
+        "collections": [c.name for c in bpy.data.collections][:40],
+        "has_camera": scene.camera is not None,
+        "light_count": sum(1 for o in scene.objects if o.type == "LIGHT"),
+        "render_engine": scene.render.engine,
+        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    _ai_write_result(result_path, status)
+    print(f"[ComfyUI-360] PING answered -> {result_path}")
+
+
+def handle_blend_append(payload):
+    """Bring a finished .blend into THIS Blender session.
+
+    payload: "<blend path>|MODE:append|RESULT:<json path>|COLLECTIONS:A,B|CLEAR:false|FRAME:true"
+
+    MODE append  - copy objects/collections in (default; the source file is not touched afterwards)
+         link    - reference them (they stay owned by the source file, read-only here)
+         open    - replace the current session with the file (only when the user asked for it)
+    """
+    parts = payload.split("|")
+    blend_path = parts[0].strip()
+    opts = {}
+    for p in parts[1:]:
+        if ":" in p:
+            k, v = p.split(":", 1)
+            opts[k.strip().upper()] = v.strip()
+    result_path = opts.get("RESULT", "")
+    mode = (opts.get("MODE") or "append").lower()
+    wanted = [c for c in (opts.get("COLLECTIONS", "").split(",")) if c.strip()]
+    clear_first = str(opts.get("CLEAR", "false")).lower() == "true"
+    frame_after = str(opts.get("FRAME", "true")).lower() == "true"
+
+    result = {"ok": False, "mode": mode, "blend": blend_path, "appended_objects": [],
+              "appended_collections": [], "error": None,
+              "blender_version": bpy.app.version_string}
+    try:
+        if not os.path.isfile(blend_path):
+            raise FileNotFoundError(f"blend file not found: {blend_path}")
+
+        if mode == "open":
+            bpy.ops.wm.open_mainfile(filepath=blend_path)
+            result.update(ok=True, appended_objects=[o.name for o in bpy.context.scene.objects])
+            _ai_write_result(result_path, result)
+            print(f"[ComfyUI-360] Opened {blend_path}")
+            return
+
+        if clear_first:
+            for ob in list(bpy.context.scene.objects):
+                bpy.data.objects.remove(ob, do_unlink=True)
+
+        link = (mode == "link")
+        before = set(bpy.data.objects.keys())
+        linked_collections = []
+        with bpy.data.libraries.load(blend_path, link=link) as (src, dst):
+            available = list(src.collections)
+            names = [c for c in wanted if c in available] or available
+            dst.collections = names
+            if not names:  # file has no collections - fall back to loose objects
+                dst.objects = list(src.objects)
+            linked_collections = list(names)
+
+        scene_collection = bpy.context.scene.collection
+        for coll in bpy.data.collections:
+            if coll.name in linked_collections and coll.name not in scene_collection.children:
+                try:
+                    scene_collection.children.link(coll)
+                    result["appended_collections"].append(coll.name)
+                except RuntimeError:
+                    pass
+        # objects that arrived without a collection still need linking so they are visible
+        for name in set(bpy.data.objects.keys()) - before:
+            ob = bpy.data.objects[name]
+            if not ob.users_collection:
+                scene_collection.objects.link(ob)
+            result["appended_objects"].append(name)
+
+        bpy.context.view_layer.update()
+        if frame_after:
+            try:
+                focus_names = result["appended_objects"]
+                focus_viewport_on_names(focus_names)
+            except Exception as e:
+                print(f"[ComfyUI-360] could not frame the viewport: {e}")
+        result["ok"] = True
+        bpy.context.scene.comfy360_last_file = f"Appended: {os.path.basename(blend_path)}"
+        print(f"[ComfyUI-360] {mode}ed {len(result['appended_objects'])} objects, "
+              f"{len(result['appended_collections'])} collections from {blend_path}")
+    except Exception as e:
+        import traceback
+        result["error"] = f"{type(e).__name__}: {e}"
+        result["traceback"] = traceback.format_exc()[-1500:]
+        print(f"[ComfyUI-360] BLEND_APPEND failed: {result['error']}")
+    if result_path:
+        _ai_write_result(result_path, result)
+
+
+def focus_viewport_on_names(names):
+    """Select the given objects and frame every 3D view on them."""
+    view_layer = bpy.context.view_layer
+    objects = [bpy.data.objects.get(n) for n in names]
+    objects = [o for o in objects if o is not None]
+    for ob in bpy.context.scene.objects:
+        try:
+            ob.select_set(False)
+        except Exception:
+            pass
+    for ob in objects:
+        try:
+            ob.select_set(True)
+        except Exception:
+            pass
+    if objects:
+        view_layer.objects.active = objects[-1]
+    view_layer.update()
+    for window in getattr(bpy.context.window_manager, "windows", []):
+        for area in window.screen.areas:
+            if area.type != "VIEW_3D":
+                continue
+            region = next((r for r in area.regions if r.type == "WINDOW"), None)
+            if region is None:
+                continue
+            try:
+                with bpy.context.temp_override(window=window, area=area, region=region):
+                    if objects:
+                        bpy.ops.view3d.view_selected(use_all_regions=False)
+                    else:
+                        bpy.ops.view3d.view_all(use_all_regions=False)
+            except Exception:
+                pass
+            area.tag_redraw()
 
 
 class COMFY360_OT_OpenAIScripts(bpy.types.Operator):

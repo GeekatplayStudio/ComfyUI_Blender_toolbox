@@ -171,6 +171,10 @@ def wf_complete(out_dir):
     build = g.add("GapAISceneBuilder", (1180, -80), (460, 620),
                   values={"stop_on_failure": False},
                   connect={"session": (sess, 0), "llm": (llm, 0), "plan_json": (plan, 0), "reference_brief": (ana, 0)})
+    send = g.add("GapAISendSceneToBlender", (1180, 800), (460, 300),
+                 connect={"session": (sess, 0)})
+    g.add("GapStringViewer", (1700, 1000), (520, 200), title="Sent to Blender",
+          connect={"text": (send, 1)})
     g.add("PreviewImage", (1700, -80), (520, 360), title="Preview render", connect={"images": (build, 0)})
     g.add("GapStringViewer", (1700, 320), (520, 300), title="Build report", connect={"text": (build, 2)})
     g.add("GapStringViewer", (1700, 660), (520, 300), title="Plan", connect={"text": (plan, 1)})
@@ -251,6 +255,42 @@ def wf_review(out_dir):
     g.dump(os.path.join(out_dir, "Geekatplay_AI_Script_Review_Then_Run.json"))
 
 
+def wf_send_to_blender(out_dir):
+    g = Graph()
+    g.add("Note", (-40, -430), (780, 360), text=(
+        "BUILD AND SEND TO YOUR OPEN BLENDER (Geekatplay Studio - Vladimir Chopine)\n\n"
+        "Headless builds are fast and safe, but they happen in a background Blender. This workflow\n"
+        "builds the scene and then loads the finished .blend into the Blender you already have open,\n"
+        "with materials, collections, lights and cameras intact.\n\n"
+        "1. 'Blender Bridge Check' proves ComfyUI can reach your Blender BEFORE anything long runs.\n"
+        "   It reports the Blender version, the addon version, what is in your scene, and whether\n"
+        "   live AI execution is allowed. Queue it on its own any time to test the connection.\n"
+        "2. The Step Builder builds the object headlessly (fast, cannot disturb your open file).\n"
+        "3. 'Send Scene to Blender' imports the result into your session:\n"
+        "     append - copies the objects into your current scene (default; your work is kept)\n"
+        "     link   - references them read-only from the .blend\n"
+        "     open   - REPLACES your open file; unsaved work is lost\n\n"
+        "IN BLENDER (needed by both nodes): install addon v2.2.1 or newer, then press N in the 3D\n"
+        "viewport > ComfyUI tab > Start Listener. 'Allow AI code execution' is NOT required to send\n"
+        "a finished scene - that switch only gates execution_mode=live.\n\n" + SECURITY))
+    check = g.add("GapAIBlenderBridgeCheck", (-40, -40), (360, 200))
+    g.add("GapStringViewer", (-40, 200), (360, 280), title="Bridge status", connect={"text": (check, 2)})
+    sess = g.add("GapAISceneSession", (400, -40), (330, 150), values={"session_name": "send_to_blender"})
+    llm = g.add("GapAILLMConfig", (400, 160), (330, 300))
+    step = g.add("GapAIStepBuilder", (780, -40), (460, 600),
+                 values={"instruction": "Build a detailed brass desk bell: a domed body 0.09 m across and "
+                                        "0.07 m tall on a stepped base, with a trim ring at the rim, a ring "
+                                        "of 16 rivets above it, and a turned handle 0.05 m tall on top.",
+                         "step_title": "Object"},
+                 connect={"session": (sess, 0), "llm": (llm, 0)})
+    send = g.add("GapAISendSceneToBlender", (1290, -40), (460, 320),
+                 connect={"session": (sess, 0)})
+    g.add("PreviewImage", (1290, 320), (460, 340), title="Headless preview", connect={"images": (step, 0)})
+    g.add("GapStringViewer", (1800, -40), (460, 260), title="Import report", connect={"text": (send, 1)})
+    g.add("GapStringViewer", (1800, 240), (460, 300), title="Build report", connect={"text": (step, 2)})
+    g.dump(os.path.join(out_dir, "Geekatplay_AI_Build_And_Send_To_Blender.json"))
+
+
 def wf_validate(out_dir):
     g = Graph()
     g.add("Note", (-40, -320), (720, 200), text=(
@@ -273,4 +313,5 @@ if __name__ == "__main__":
     wf_single_step_with_refs(out)
     wf_conversational(out)
     wf_review(out)
+    wf_send_to_blender(out)
     wf_validate(out)

@@ -1,6 +1,6 @@
 {
-  "last_node_id": 13,
-  "last_link_id": 16,
+  "last_node_id": 15,
+  "last_link_id": 18,
   "nodes": [
     {
       "id": 1,
@@ -129,7 +129,8 @@
           "links": [
             4,
             5,
-            8
+            8,
+            12
           ],
           "slot_index": 0
         },
@@ -180,7 +181,7 @@
           "name": "llm_info",
           "type": "STRING",
           "links": [
-            16
+            18
           ],
           "slot_index": 1
         }
@@ -250,7 +251,7 @@
           "links": [
             7,
             11,
-            15
+            17
           ],
           "slot_index": 0
         },
@@ -313,7 +314,7 @@
           "name": "plan_text",
           "type": "STRING",
           "links": [
-            14
+            16
           ],
           "slot_index": 1
         }
@@ -371,7 +372,7 @@
           "name": "preview",
           "type": "IMAGE",
           "links": [
-            12
+            14
           ],
           "slot_index": 0
         },
@@ -385,7 +386,7 @@
           "name": "report",
           "type": "STRING",
           "links": [
-            13
+            15
           ],
           "slot_index": 2
         },
@@ -437,42 +438,71 @@
     },
     {
       "id": 9,
-      "type": "PreviewImage",
+      "type": "GapAISendSceneToBlender",
       "pos": [
-        1700,
-        -80
+        1180,
+        800
       ],
       "size": [
-        520,
-        360
+        460,
+        300
       ],
       "flags": {},
       "order": 9,
       "mode": 0,
       "inputs": [
         {
-          "name": "images",
-          "type": "IMAGE",
+          "name": "session",
+          "type": "GAP_AI_SESSION",
           "link": 12
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "sent",
+          "type": "BOOLEAN",
+          "links": [],
+          "slot_index": 0
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            13
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "blend_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 2
+        }
+      ],
       "properties": {
-        "Node name for S&R": "PreviewImage"
+        "Node name for S&R": "GapAISendSceneToBlender"
       },
-      "widgets_values": [],
-      "title": "Preview render"
+      "widgets_values": [
+        "append",
+        "127.0.0.1",
+        8119,
+        true,
+        false,
+        180,
+        "",
+        ""
+      ]
     },
     {
       "id": 10,
       "type": "GapStringViewer",
       "pos": [
         1700,
-        320
+        1000
       ],
       "size": [
         520,
-        300
+        200
       ],
       "flags": {},
       "order": 10,
@@ -496,53 +526,46 @@
         "Node name for S&R": "GapStringViewer"
       },
       "widgets_values": [],
-      "title": "Build report"
+      "title": "Sent to Blender"
     },
     {
       "id": 11,
-      "type": "GapStringViewer",
+      "type": "PreviewImage",
       "pos": [
         1700,
-        660
+        -80
       ],
       "size": [
         520,
-        300
+        360
       ],
       "flags": {},
       "order": 11,
       "mode": 0,
       "inputs": [
         {
-          "name": "text",
-          "type": "STRING",
+          "name": "images",
+          "type": "IMAGE",
           "link": 14
         }
       ],
-      "outputs": [
-        {
-          "name": "text",
-          "type": "STRING",
-          "links": [],
-          "slot_index": 0
-        }
-      ],
+      "outputs": [],
       "properties": {
-        "Node name for S&R": "GapStringViewer"
+        "Node name for S&R": "PreviewImage"
       },
       "widgets_values": [],
-      "title": "Plan"
+      "title": "Preview render"
     },
     {
       "id": 12,
       "type": "GapStringViewer",
       "pos": [
-        1180,
-        580
+        1700,
+        320
       ],
       "size": [
-        460,
-        200
+        520,
+        300
       ],
       "flags": {},
       "order": 12,
@@ -566,10 +589,80 @@
         "Node name for S&R": "GapStringViewer"
       },
       "widgets_values": [],
-      "title": "Reference brief (CHECK THIS FIRST)"
+      "title": "Build report"
     },
     {
       "id": 13,
+      "type": "GapStringViewer",
+      "pos": [
+        1700,
+        660
+      ],
+      "size": [
+        520,
+        300
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Plan"
+    },
+    {
+      "id": 14,
+      "type": "GapStringViewer",
+      "pos": [
+        1180,
+        580
+      ],
+      "size": [
+        460,
+        200
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Reference brief (CHECK THIS FIRST)"
+    },
+    {
+      "id": 15,
       "type": "GapStringViewer",
       "pos": [
         700,
@@ -580,13 +673,13 @@
         200
       ],
       "flags": {},
-      "order": 13,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
           "name": "text",
           "type": "STRING",
-          "link": 16
+          "link": 18
         }
       ],
       "outputs": [
@@ -695,41 +788,57 @@
     ],
     [
       12,
-      8,
+      4,
       0,
       9,
       0,
-      "IMAGE"
+      "GAP_AI_SESSION"
     ],
     [
       13,
-      8,
-      2,
+      9,
+      1,
       10,
       0,
       "STRING"
     ],
     [
       14,
-      7,
-      1,
+      8,
+      0,
       11,
       0,
-      "STRING"
+      "IMAGE"
     ],
     [
       15,
-      6,
-      0,
+      8,
+      2,
       12,
       0,
       "STRING"
     ],
     [
       16,
-      5,
+      7,
       1,
       13,
+      0,
+      "STRING"
+    ],
+    [
+      17,
+      6,
+      0,
+      14,
+      0,
+      "STRING"
+    ],
+    [
+      18,
+      5,
+      1,
+      15,
       0,
       "STRING"
     ]

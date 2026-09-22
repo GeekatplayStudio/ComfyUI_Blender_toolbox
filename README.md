@@ -96,6 +96,7 @@ Inside the `workflows/` folder, you will find production-ready JSON workflows:
 *   **`Geekatplay_AI_Single_Step_From_References.json`**: Reference images → one validated build step.
 *   **`Geekatplay_AI_Step_Builder_Conversational.json`**: Type an instruction, queue, look, type the next one — multi-pass building on the same scene.
 *   **`Geekatplay_AI_Script_Review_Then_Run.json`**: Dry run → read the generated script → paste into the runner → execute. The safest flow.
+*   **`Geekatplay_AI_Build_And_Send_To_Blender.json`**: Check the bridge, build headlessly, then load the finished scene into the Blender you have open.
 *   **`Geekatplay_AI_Scene_Validator.json`**: QA + auto-fix + preview render for any session scene.
 
 ![AI Scene Builder complete workflow](docs/images/ai_scene_builder_complete.png)
@@ -433,6 +434,9 @@ Quality scales with the model: a 32B local coder gets you this in ~7 minutes per
 | **AI Scene Builder (Complete Scene)** | Runs every plan step: generate → safety scan → execute → validate → retry → preview. |
 | **AI Step Builder (Conversational)** | One instruction per run, building on the existing scene. |
 | **AI Script Runner (Review & Execute)** | Executes a script you reviewed/edited (from a `dry_run`). |
+| **AI Visual Refiner** | Renders the scene, compares it side by side with your reference image, lists what is wrong (silhouette, missing parts, shapes, placement, materials, detail) and executes the fixes. Repeats until the resemblance score hits your target. |
+| **Blender Bridge Check** | Full round trip to a running Blender: its version, the addon version, the open file, the scene contents, and whether live AI execution is allowed. Outputs `connected` / `live_exec_allowed`. |
+| **Send Scene to Blender** | Loads a finished `.blend` into the Blender you already have open — append (default, keeps your work), link, or open. Materials, collections, lights and cameras come across intact. |
 | **AI Scene Validator** | Checks non-manifold edges, loose geometry, zero-area faces, flipped normals, duplicate vertices, missing textures, default names, camera/lights; optional auto-fix; `passed` output. |
 
 **Models**: local Ollama `qwen2.5-coder:14b` (default) / `qwen2.5-coder:32b` (best local) / `qwen3-coder:30b` for code, `qwen2.5vl:7b` or `qwen3-vl:4b` for references, `nomic-embed-text` for retrieval; or `claude-sonnet-5` / `claude-opus-5` via Anthropic, or any OpenAI-compatible endpoint.

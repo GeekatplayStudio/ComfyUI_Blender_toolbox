@@ -188,6 +188,66 @@ class TestRunnerJob(unittest.TestCase):
         self.assertIn("not found", result["error"])
 
 
+class TestBlenderBridge(unittest.TestCase):
+    """Offline checks of the ComfyUI -> running Blender bridge (no Blender required)."""
+
+    def test_ping_reports_dead_port_with_actionable_error(self):
+        from nodes.ai_builder import bridge
+        status = bridge.ping("127.0.0.1", 8198, timeout=2)
+        self.assertFalse(status["ok"])
+        self.assertEqual(status["stage"], "connect")
+        self.assertIn("Start Listener", status["error"])
+
+    def test_describe_formats_both_states(self):
+        from nodes.ai_builder import bridge
+        down = bridge.describe({"ok": False, "error": "nope"})
+        self.assertIn("BRIDGE NOT WORKING", down)
+        up = bridge.describe({
+            "ok": True, "blender_version": "5.2.2", "addon_version": "2.2.1",
+            "listener": {"host": "127.0.0.1", "port": 8119, "running": True},
+            "blend_file": "", "scene_name": "Scene", "object_count": 3, "mesh_count": 2,
+            "light_count": 1, "has_camera": True, "render_engine": "CYCLES", "ai_exec_allowed": False})
+        self.assertIn("BRIDGE OK", up)
+        self.assertIn("5.2.2", up)
+        self.assertIn("BLOCKED", up)
+        self.assertIn("Allow AI code execution", up)
+        allowed = bridge.describe({
+            "ok": True, "blender_version": "5.2.2", "addon_version": "2.2.1",
+            "listener": {"host": "127.0.0.1", "port": 8119, "running": True},
+            "blend_file": "x.blend", "scene_name": "Scene", "object_count": 1, "mesh_count": 1,
+            "light_count": 0, "has_camera": False, "render_engine": "CYCLES", "ai_exec_allowed": True})
+        self.assertIn("ALLOWED", allowed)
+
+    def test_append_rejects_missing_file(self):
+        from nodes.ai_builder import bridge
+        result = bridge.append_blend(os.path.join(tempfile.gettempdir(), "definitely_missing.blend"))
+        self.assertFalse(result["ok"])
+        self.assertIn("not found", result["error"])
+
+    def test_bridge_check_node_does_not_raise_by_default(self):
+        from nodes.ai_builder_nodes import GapAIBlenderBridgeCheck
+        out = GapAIBlenderBridgeCheck().check("127.0.0.1", 8198, 2, False)["result"]
+        connected, live_allowed, text, status_json = out
+        self.assertFalse(connected)
+        self.assertFalse(live_allowed)
+        self.assertIn("BRIDGE NOT WORKING", text)
+        self.assertFalse(json.loads(status_json)["ok"])
+        with self.assertRaises(RuntimeError):
+            GapAIBlenderBridgeCheck().check("127.0.0.1", 8198, 2, True)
+
+    def test_send_node_requires_a_blend(self):
+        from nodes.ai_builder_nodes import GapAISendSceneToBlender
+        sent, report, _ = GapAISendSceneToBlender().send(
+            "append", "127.0.0.1", 8198, True, False, 5, session=None, blend_path="")["result"]
+        self.assertFalse(sent)
+        self.assertIn("session or an explicit blend_path", report)
+        sent, report, _ = GapAISendSceneToBlender().send(
+            "append", "127.0.0.1", 8198, True, False, 5, session=None,
+            blend_path=os.path.join(tempfile.gettempdir(), "nope.blend"))["result"]
+        self.assertFalse(sent)
+        self.assertIn("No .blend", report)
+
+
 class TestBlenderIntegration(unittest.TestCase):
     """Real headless Blender run of step_runner + gap_helpers + validator (skipped without Blender)."""
 
