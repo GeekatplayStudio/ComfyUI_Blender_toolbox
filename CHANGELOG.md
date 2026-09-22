@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.5
+
+- **All 20 workflows audited, repaired and verified.** New `tools/check_workflows.py` validates node types (against a running ComfyUI when given `--server`), link-table integrity, socket/link agreement, required inputs, and whether saved widget values still line up with the current node definitions. The test suite now fails if any shipped workflow breaks, so they cannot rot silently again.
+- Fixed in the process:
+  - `Geekatplay_Blender_RoundTrip_Sync.json` had **two different links sharing id 23**, and the Reroute node was wired to the wrong one.
+  - `Geekatplay_Blender_RoundTrip_Simple.json` left the required `albedo_map` unconnected, so it could not be queued — now wired from `LoadBlenderPBR.Albedo`, completing the round trip.
+  - `Geekatplay_texture_sdxl_seamless_workflow.json` and `Geekatplay_SDXL_360_HDRI.json` carried stale link ids in output sockets, left over from earlier edits.
+  - `Geekatplay_Tripo_3D_Workflow.json` shipped pointing at a `.glb` generated on another machine.
+- All 18 UI workflows confirmed to load in a live ComfyUI with every node type resolved and every link valid.
+- README: workflow list completed (360°/terrain, round-trip simple, autorig template) and documents how to run the checker.
+
 ## 2.2.4
 
 - **Models now default to `auto`**: the Model Config node asks Ollama what is installed and takes the largest model able to do each job — the biggest purpose-built coder for the code, the biggest vision-capable model for reading the reference — and prints what it chose and why. Model size is the biggest quality factor in this pipeline, and the best model is rarely the one a workflow file happens to name (a tag like `qwen3.8:latest` hides a 27B model behind an unremarkable name). Type a model name to pin one instead; `-base` models are never chosen because they cannot follow instructions. For the anthropic provider `auto` means `claude-sonnet-5`.

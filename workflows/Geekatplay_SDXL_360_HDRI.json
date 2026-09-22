@@ -1280,7 +1280,6 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            58,
             62
           ]
         },
@@ -1288,7 +1287,6 @@
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            59,
             63,
             64
           ]

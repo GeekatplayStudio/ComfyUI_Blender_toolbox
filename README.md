@@ -13,7 +13,8 @@ A comprehensive suite of ComfyUI nodes designed for **3D Generation**, **Blender
 *   **Round-Trip Sync**: **NEW!** Send meshes/UVs from Blender to ComfyUI, texture them with AI, and send them back to Blender instantly.
 *   **Mesh Prep & Auto-Rig Export**: Local tools to Voxel Remesh, Decimate, and Export clean FBXs ready for external tools like Mixamo or AccuRig.
 *   **Ollama Vision**: Analyze images and suggest lighting/sun positions using local LLMs.
-*   **AI Scene Builder**: **NEW in 2.2!** Describe a scene (and drop in up to three reference images) and a local Ollama model — or Claude / OpenAI — writes and runs the Blender Python that models, textures and lights it. Multi-pass ("now add a bridge"), multi-step plans, automatic validation of polygons / normals / textures / names, self-repair retries, preview renders. Fully transparent: every script is saved before it runs. See [docs/ai_builder/AI_SCENE_BUILDER.md](docs/ai_builder/AI_SCENE_BUILDER.md).
+*   **AI Scene Builder**: **NEW in 2.2!** Describe a scene (and drop in up to three reference images) and a local Ollama model — or Claude / OpenAI — writes and runs the Blender Python that models, textures and lights it. Reference images are read in three focused vision passes; sizes come back in real meters. Multi-pass ("now add a bridge"), multi-step plans, automatic validation of polygons / normals / textures / names, self-repair retries with the correct API signature, preview renders, and a **visual refiner** that compares the render to your reference and fixes the differences. Models default to **`auto`** — the strongest one installed is chosen for you. Every prompt, reply, script and error is written to a per-session **debug log**. Fully transparent: every script is saved before it runs. See [docs/ai_builder/AI_SCENE_BUILDER.md](docs/ai_builder/AI_SCENE_BUILDER.md).
+*   **Live Blender Bridge**: Check from ComfyUI that Blender is open and the addon is current, then push a finished scene straight into your open session with materials, collections, lights and cameras intact.
 
 > ⚠️ **AI Scene Builder security**: it executes model-generated Python inside Blender. There is **no sandbox**. Scripts are saved to `output/ai_scene_builder/<session>/scripts/` before execution, a safety scan blocks file/network/process access, `dry_run` lets you read before running, and live execution inside your open Blender is **off** until you enable it in the addon. Read the [security section](docs/ai_builder/AI_SCENE_BUILDER.md#security--read-this-first) before use.
 
@@ -88,8 +89,15 @@ python installer/install_pbr_extractor.py
 
 ---
 
-## � Included Workflows
-Inside the `workflows/` folder, you will find production-ready JSON workflows:
+## 📂 Included Workflows
+Inside the `workflows/` folder you will find 20 production-ready JSON workflows. All of them are
+verified on every release — `tools/check_workflows.py` validates node types, link integrity and
+that saved widget values still match the current node definitions, and the test suite fails if any
+workflow breaks:
+
+```bash
+python tools/check_workflows.py --server http://127.0.0.1:8188
+```
 
 ### 🤖 AI Scene Builder (2.2)
 *   **`Geekatplay_AI_Scene_Builder_Complete.json`**: Reference images → brief → step plan → complete multi-step build with validation, retries and report.
@@ -112,10 +120,18 @@ Inside the `workflows/` folder, you will find production-ready JSON workflows:
 *   **`Geekatplay_Meshy_3D_Workflow.json`**: High-Quality 3D via Meshy API.
 *   **`Geekatplay_HiTem3D_Workflow.json`**: Single/Multi-view generation via HiTem3D.
 
+### 360° HDRI & Terrain
+*   **`Geekatplay_Flux_360_HDRI.json`** / **`_Updated.json`**: 360° panoramic HDRIs with Flux.
+*   **`Geekatplay_SDXL_360_HDRI.json`**: 360° HDRI pipeline with SDXL, Ollama lighting estimation and Blender sky preview.
+
 ### Texturing & Materials
 *   **`Geekatplay_PBR_Texture_Studio_workflow.json`**: Extract Albedo, Normal, Roughness, Metallic from any image (Ubisoft CHORD).
 *   **`Geekatplay_Blender_RoundTrip_Sync.json`**: Send generic meshes from Blender -> ComfyUI -> Texturing -> Blender.
+*   **`Geekatplay_Blender_RoundTrip_Simple.json`**: Minimal round trip: generate, preview in Blender, receive the PBR set back.
 *   **`Geekatplay_texture_sdxl_seamless_workflow.json`**: Generate seamless textures with SDXL.
+
+### Automation
+*   **`autorig_api.json`**: API-format template used by `blender_scripts/auto_rigger_cli.py` — image → Hunyuan3D mesh → Blender clean + rig → rigged GLB.
 
 ---
 

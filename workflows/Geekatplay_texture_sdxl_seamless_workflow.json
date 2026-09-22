@@ -108,7 +108,6 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            1,
             15
           ]
         },
@@ -116,7 +115,6 @@
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            2,
             16,
             19,
             20
@@ -159,7 +157,6 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            8,
             26
           ]
         }
@@ -295,7 +292,6 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            13,
             23
           ]
         }
@@ -504,7 +500,6 @@
           "name": "positive_prompt",
           "type": "STRING",
           "links": [
-            4,
             21,
             30
           ]
@@ -513,7 +508,6 @@
           "name": "negative_prompt",
           "type": "STRING",
           "links": [
-            5,
             22
           ]
         }

@@ -5,12 +5,14 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, ROOT_DIR)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import conftest  # noqa: F401,E402  (ComfyUI mocks)
 
@@ -102,6 +104,63 @@ class TestAutoModelSelection(unittest.TestCase):
         self.assertEqual(cfg["model"], config.DEFAULT_ANTHROPIC_MODEL)
         self.assertEqual(cfg["vision_model"], cfg["model"], "vision should reuse the main model")
         self.assertEqual(cfg["url"], config.DEFAULT_ANTHROPIC_URL)
+
+
+class TestShippedWorkflows(unittest.TestCase):
+    """Every workflow in workflows/ must stay loadable: valid links, and widget values that still
+    line up with the node definitions. Nodes gain inputs over time and a stale workflow silently
+    shifts every setting after the new one."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, os.path.join(ROOT_DIR, "tools"))
+        import check_workflows
+        cls.check = check_workflows
+        cls.nodes = check_workflows.toolbox_nodes()
+        cls.folder = os.path.join(ROOT_DIR, "workflows")
+
+    def test_every_workflow_is_structurally_sound(self):
+        problems = []
+        for name in sorted(os.listdir(self.folder)):
+            if not name.endswith(".json"):
+                continue
+            errors, _warnings, _notes = self.check.check_workflow(
+                os.path.join(self.folder, name), self.nodes, None)
+            if errors:
+                problems.append(name + ":\n    " + "\n    ".join(errors))
+        self.assertEqual(problems, [], msg="broken workflows:\n" + "\n".join(problems))
+
+    def test_seed_widgets_are_accounted_for(self):
+        """A seed serialises two values; forgetting the companion makes every workflow look broken."""
+        spec = self.check.widget_spec(self.nodes["Geekatplay_Tripo_ModelGen"])
+        self.assertIn("model_seed", spec)
+        self.assertIn("model_seed:control_after_generate", spec)
+        self.assertEqual(spec.index("model_seed") + 1, spec.index("model_seed:control_after_generate"))
+
+    def test_readme_lists_every_workflow(self):
+        """A workflow nobody can find is a workflow that does not exist."""
+        with open(os.path.join(ROOT_DIR, "README.md"), encoding="utf-8") as f:
+            readme = f.read()
+        listed = set(re.findall(r"`(Geekatplay_[\w.]+\.json|autorig_api\.json)`", readme))
+        on_disk = {f for f in os.listdir(self.folder) if f.endswith(".json")}
+        self.assertEqual(sorted(on_disk - listed), [], msg="workflows missing from the README")
+        self.assertEqual(sorted(listed - on_disk), [], msg="README names workflows that do not exist")
+
+    def test_templates_carry_no_machine_specific_paths(self):
+        """A shipped template must not reference a file generated on someone else's computer."""
+        offenders = []
+        for name in sorted(os.listdir(self.folder)):
+            if not name.endswith(".json"):
+                continue
+            with open(os.path.join(self.folder, name), encoding="utf-8") as f:
+                data = json.load(f)
+            for node in data.get("nodes", []):
+                if node.get("type") != "Preview3D":
+                    continue
+                for value in node.get("widgets_values") or []:
+                    if isinstance(value, str) and value.endswith((".glb", ".gltf", ".obj", ".fbx")):
+                        offenders.append(f"{name} node {node.get('id')}: {value}")
+        self.assertEqual(offenders, [], msg="stale asset references:\n" + "\n".join(offenders))
 
 
 class TestSafetyScan(unittest.TestCase):

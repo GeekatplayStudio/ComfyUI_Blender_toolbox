@@ -1,6 +1,6 @@
 {
   "last_node_id": 25,
-  "last_link_id": 35,
+  "last_link_id": 36,
   "nodes": [
     {
       "id": 11,
@@ -250,7 +250,7 @@
         {
           "name": "albedo_map",
           "type": "IMAGE",
-          "link": 23
+          "link": 36
         },
         {
           "name": "directory_path",
@@ -513,7 +513,7 @@
         {
           "name": "",
           "type": "*",
-          "link": 19
+          "link": 23
         }
       ],
       "outputs": [
@@ -521,7 +521,7 @@
           "name": "",
           "type": "IMAGE",
           "links": [
-            23
+            36
           ],
           "slot_index": 0
         }
@@ -669,7 +669,7 @@
       "STRING"
     ],
     [
-      23,
+      36,
       23,
       0,
       16,
