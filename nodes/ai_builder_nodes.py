@@ -186,8 +186,8 @@ class GapAILLMConfig:
         return {
             "required": {
                 "provider": (["ollama", "anthropic", "openai_compatible"], {"default": "ollama"}),
-                "model": ("STRING", {"default": config.DEFAULT_CODE_MODEL, "tooltip": "Code/planning model. Ollama: qwen2.5-coder:14b|32b, qwen3-coder:30b. Anthropic: claude-sonnet-5 / claude-opus-5."}),
-                "vision_model": ("STRING", {"default": config.DEFAULT_VISION_MODEL, "tooltip": "Model used for reference images. Ollama: qwen2.5vl:7b, qwen3-vl:4b, gemma3. For anthropic/openai leave = model."}),
+                "model": ("STRING", {"default": config.DEFAULT_CODE_MODEL, "tooltip": "Code/planning model. 'auto' picks the strongest coder installed in Ollama (recommended). Or pin one: qwen2.5-coder:32b, qwen3-coder:30b. Anthropic: claude-sonnet-5 / claude-opus-5."}),
+                "vision_model": ("STRING", {"default": config.DEFAULT_VISION_MODEL, "tooltip": "Model that reads the reference images. 'auto' picks the largest vision model installed (recommended - size matters more here than anywhere else). For anthropic/openai leave as 'auto' to reuse the main model."}),
                 "url": ("STRING", {"default": config.DEFAULT_OLLAMA_URL, "tooltip": "Ollama: http://127.0.0.1:11434 (or https://ollama.com). Anthropic: https://api.anthropic.com. OpenAI-compatible: base URL without /v1."}),
                 "temperature": ("FLOAT", {"default": config.DEFAULT_TEMPERATURE, "min": 0.0, "max": 1.5, "step": 0.05}),
                 "num_ctx": ("INT", {"default": config.DEFAULT_NUM_CTX, "min": 2048, "max": 262144, "step": 1024, "tooltip": "Ollama context window. Bigger = more scene state fits, more VRAM."}),
@@ -195,7 +195,7 @@ class GapAILLMConfig:
             },
             "optional": {
                 "api_key": ("STRING", {"default": "", "password": True, "tooltip": "Leave empty to use the API Key Manager (names: Anthropic, OpenAI, Ollama Cloud) or env vars."}),
-                "embed_model": ("STRING", {"default": config.DEFAULT_EMBED_MODEL, "tooltip": "Ollama embedding model for doc retrieval. Empty = keyword search only."}),
+                "embed_model": ("STRING", {"default": config.DEFAULT_EMBED_MODEL, "tooltip": "Ollama embedding model for doc retrieval. 'auto' picks one if installed; empty = keyword search only."}),
                 "keep_alive": ("STRING", {"default": config.DEFAULT_KEEP_ALIVE}),
                 "timeout_s": ("INT", {"default": config.DEFAULT_TIMEOUT[1], "min": 30, "max": 7200}),
             },
@@ -213,26 +213,62 @@ class GapAILLMConfig:
             url = config.DEFAULT_ANTHROPIC_URL
         if provider == "openai_compatible" and ("11434" in url or not url):
             url = config.DEFAULT_OPENAI_URL
-        if provider != "ollama" and (not vision_model.strip() or vision_model.strip() == config.DEFAULT_VISION_MODEL):
-            vision_model = model
-        cfg = LLMConfig(provider=provider, model=model.strip(), vision_model=vision_model.strip(), url=url,
+        model, vision_model, embed_model = model.strip(), vision_model.strip(), embed_model.strip()
+        auto = config.AUTO_MODEL
+        if provider != "ollama":
+            # Cloud providers have no model list to query; 'auto' just reuses the main model.
+            if model.lower() == auto:
+                model = config.DEFAULT_ANTHROPIC_MODEL if provider == "anthropic" else config.DEFAULT_OPENAI_MODEL
+            if vision_model.lower() == auto or not vision_model:
+                vision_model = model
+            if embed_model.lower() == auto:
+                embed_model = ""
+
+        cfg = LLMConfig(provider=provider, model=model, vision_model=vision_model, url=url,
                         api_key=api_key, temperature=temperature, num_ctx=num_ctx, max_tokens=max_tokens,
-                        embed_model=embed_model.strip(), keep_alive=keep_alive, timeout=(10, int(timeout_s)))
-        info = cfg.describe()
+                        embed_model=embed_model, keep_alive=keep_alive, timeout=(10, int(timeout_s)))
+        info = ""
         if provider == "ollama":
             client = LLMClient(cfg)
             details = client.ollama_model_details()
             available = list(details) or client.list_ollama_models()
-            if available:
-                base = {m.split(":")[0] for m in available}
-                missing = [m for m in (cfg["model"], cfg["vision_model"])
-                           if m and m not in available and m.split(":")[0] not in base]
-                info += "\navailable: " + ", ".join(available[:30])
-                if missing:
-                    info += "\nMISSING (run 'ollama pull <name>' or use installer/install_ai_builder.py): " + ", ".join(missing)
-                info += "\n" + self._quality_advice(cfg, details)
-            else:
-                info += f"\nWARNING: could not list models at {url} - is Ollama running?"
+            if not available:
+                info = cfg.describe() + f"\nWARNING: could not list models at {url} - is Ollama running?"
+                return (dict(cfg), info)
+
+            picks = client.pick_best_models(details)
+            chosen = []
+            for field, key, fallback in (("model", "code", config.FALLBACK_CODE_MODEL),
+                                         ("vision_model", "vision", config.FALLBACK_VISION_MODEL),
+                                         ("embed_model", "embed", config.FALLBACK_EMBED_MODEL)):
+                if str(cfg[field]).lower() != auto:
+                    continue
+                best = picks.get(key)
+                if best:
+                    cfg[field] = best
+                    chosen.append(f"  {field:<12} auto -> {picks['reasons'].get(key, best)}")
+                elif key == "embed":
+                    cfg[field] = ""      # retrieval falls back to keyword search, which is fine
+                    chosen.append("  embed_model  auto -> none installed, using keyword retrieval")
+                else:
+                    cfg[field] = fallback
+                    chosen.append(f"  {field:<12} auto -> nothing suitable installed; "
+                                  f"falling back to {fallback} (run installer/install_ai_builder.py)")
+
+            info = cfg.describe()
+            if chosen:
+                info += "\nAUTO-SELECTED (size is the biggest quality factor, so the largest capable model wins):\n" \
+                        + "\n".join(chosen)
+            base = {m.split(":")[0] for m in available}
+            missing = [m for m in (cfg["model"], cfg["vision_model"])
+                       if m and m not in available and m.split(":")[0] not in base]
+            info += "\navailable: " + ", ".join(available[:30])
+            if missing:
+                info += ("\nMISSING (run 'ollama pull <name>' or installer/install_ai_builder.py): "
+                         + ", ".join(missing))
+            info += "\n" + self._quality_advice(cfg, details)
+        else:
+            info = cfg.describe()
         return (dict(cfg), info)
 
     @staticmethod

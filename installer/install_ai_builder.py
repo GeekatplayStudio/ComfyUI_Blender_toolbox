@@ -117,9 +117,9 @@ def smoke_test(blender):
 def main():
     ap = argparse.ArgumentParser(description="Set up the AI Scene Builder")
     ap.add_argument("--ollama-url", default=config.DEFAULT_OLLAMA_URL)
-    ap.add_argument("--code-model", default=config.DEFAULT_CODE_MODEL)
-    ap.add_argument("--vision-model", default=config.DEFAULT_VISION_MODEL)
-    ap.add_argument("--embed-model", default=config.DEFAULT_EMBED_MODEL)
+    ap.add_argument("--code-model", default=config.FALLBACK_CODE_MODEL)
+    ap.add_argument("--vision-model", default=config.FALLBACK_VISION_MODEL)
+    ap.add_argument("--embed-model", default=config.FALLBACK_EMBED_MODEL)
     ap.add_argument("--skip-models", action="store_true", help="do not pull Ollama models")
     ap.add_argument("--smoke-test", action="store_true", help="run a tiny Blender build + validation")
     args = ap.parse_args()

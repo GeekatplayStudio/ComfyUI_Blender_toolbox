@@ -42,7 +42,21 @@ run with a local model when the prompt contains anything private.
 - **Blender 4.x or 5.x** installed (5.2 LTS tested). Auto-detected from `C:\Program Files\Blender Foundation\`,
   common Linux/macOS paths or `PATH`; override with the `BLENDER_PATH` environment variable or the
   node's `blender_path` input.
-- **A model**. Default is local **Ollama**:
+- **A model**. The Model Config node defaults every model field to **`auto`**, which asks Ollama
+  what is installed and takes the largest model able to do each job, printing what it chose:
+
+  ```
+  AUTO-SELECTED (size is the biggest quality factor, so the largest capable model wins):
+    model        auto -> qwen2.5-coder:32b (32.8B, purpose-built coder)
+    vision_model auto -> qwen3.8:latest (27.3B, largest model with vision)
+    embed_model  auto -> nomic-embed-text:latest
+  ```
+
+  This matters because the best model is rarely the one a workflow file happens to name — a tag
+  like `qwen3.8:latest` hides a 27B model behind an unremarkable name, and a 7B vision model
+  reports every part as the same size. Type a model name to pin one instead.
+
+  Local **Ollama** options if you prefer to choose:
   - code/planning: `qwen2.5-coder:14b` (default), `qwen2.5-coder:32b` (best local), `qwen3-coder:30b`
   - vision (reference images): `qwen2.5vl:7b` (default), `qwen3-vl:4b`, `gemma3`
   - embeddings (optional, better doc retrieval): `nomic-embed-text`

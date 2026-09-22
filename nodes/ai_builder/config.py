@@ -17,9 +17,18 @@ DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_ANTHROPIC_URL = "https://api.anthropic.com"
 DEFAULT_OPENAI_URL = "https://api.openai.com"
 
-DEFAULT_CODE_MODEL = "qwen2.5-coder:14b"
-DEFAULT_VISION_MODEL = "qwen2.5vl:7b"
-DEFAULT_EMBED_MODEL = "nomic-embed-text"
+# "auto" makes the Model Config node ask Ollama what is installed and pick the strongest model for
+# each job. Model size is the biggest quality factor here, and the best one is rarely whatever a
+# workflow file happens to name, so auto-selection is the default. Type a name to pin it instead.
+AUTO_MODEL = "auto"
+DEFAULT_CODE_MODEL = AUTO_MODEL
+DEFAULT_VISION_MODEL = AUTO_MODEL
+DEFAULT_EMBED_MODEL = AUTO_MODEL
+
+# Used only when nothing is installed yet, and by the installer as what to pull.
+FALLBACK_CODE_MODEL = "qwen2.5-coder:14b"
+FALLBACK_VISION_MODEL = "qwen2.5vl:7b"
+FALLBACK_EMBED_MODEL = "nomic-embed-text"
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"
 DEFAULT_OPENAI_MODEL = "gpt-5"
 

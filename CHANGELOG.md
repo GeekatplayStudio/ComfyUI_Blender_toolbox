@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.4
+
+- **Models now default to `auto`**: the Model Config node asks Ollama what is installed and takes the largest model able to do each job — the biggest purpose-built coder for the code, the biggest vision-capable model for reading the reference — and prints what it chose and why. Model size is the biggest quality factor in this pipeline, and the best model is rarely the one a workflow file happens to name (a tag like `qwen3.8:latest` hides a 27B model behind an unremarkable name). Type a model name to pin one instead; `-base` models are never chosen because they cannot follow instructions. For the anthropic provider `auto` means `claude-sonnet-5`.
+- **Stale addon warning**: the Blender Bridge Check compares the addon version running in Blender against the one shipped in this checkout and spells out the reinstall steps when it is older. A stale addon was the most confusing failure mode — the node exists, the socket connects, and the feature silently does nothing.
+
 ## 2.2.3
 
 - **Every build failure in the wild was a helper signature mistake**, not a modelling problem: `Builder.cylinder() got multiple values for argument 'mat'`, `trim_ring() got an unexpected keyword argument 'phase'`, `panel_seams() missing 1 required positional argument: 'z1'`. Three fixes:

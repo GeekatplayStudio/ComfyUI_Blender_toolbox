@@ -106,14 +106,14 @@
       },
       "widgets_values": [
         "ollama",
-        "qwen2.5-coder:14b",
-        "qwen2.5vl:7b",
+        "auto",
+        "auto",
         "http://127.0.0.1:11434",
         0.2,
         16384,
         8192,
         "",
-        "nomic-embed-text",
+        "auto",
         "10m",
         900
       ]

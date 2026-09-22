@@ -149,6 +149,48 @@ class LLMClient:
         except Exception:
             return []
 
+    def pick_best_models(self, details=None):
+        """Choose the strongest installed Ollama model for each job.
+
+        Model size is the biggest quality factor in this pipeline, and the best model is rarely the
+        one a workflow file happens to name - a tag like "qwen3.8:latest" hides a 27B model behind
+        an unremarkable name. Ranking by what Ollama actually reports beats hard-coding names.
+
+        Returns {"code": name|None, "vision": name|None, "embed": name|None, "reasons": {...}}.
+        """
+        details = details if details is not None else self.ollama_model_details()
+        if not details:
+            return {"code": None, "vision": None, "embed": None, "reasons": {}}
+
+        def size(name):
+            return details[name].get("params_b") or 0.0
+
+        def caps(name):
+            return set(details[name].get("capabilities") or [])
+
+        # Vision: must actually be able to see. Bigger reads the reference far more carefully.
+        vision = [n for n in details if "vision" in caps(n)]
+        best_vision = max(vision, key=size) if vision else None
+
+        # Code: prefer a purpose-built coder, then general models, biggest first. Base/instruct-less
+        # variants ("-base") only autocomplete and cannot follow instructions, so they are excluded.
+        usable = [n for n in details if "embedding" not in caps(n) and "-base" not in n.lower()]
+        coders = [n for n in usable if "coder" in n.lower() or "code" in n.lower()]
+        best_code = max(coders, key=size) if coders else (max(usable, key=size) if usable else None)
+
+        embed = [n for n in details if "embedding" in caps(n)]
+        best_embed = max(embed, key=size) if embed else None
+
+        reasons = {}
+        if best_vision:
+            reasons["vision"] = f"{best_vision} ({size(best_vision):g}B, largest model with vision)"
+        if best_code:
+            kind = "purpose-built coder" if best_code in coders else "largest general model"
+            reasons["code"] = f"{best_code} ({size(best_code):g}B, {kind})"
+        if best_embed:
+            reasons["embed"] = f"{best_embed}"
+        return {"code": best_code, "vision": best_vision, "embed": best_embed, "reasons": reasons}
+
     def ollama_model_details(self):
         """{name: {"params_b": float|None, "families": [...], "capabilities": [...]}}.
 

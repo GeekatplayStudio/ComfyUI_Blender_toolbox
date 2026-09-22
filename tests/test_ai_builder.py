@@ -55,6 +55,55 @@ class TestLLMHelpers(unittest.TestCase):
         self.assertIn("qwen2.5-coder:7b", cfg.describe())
 
 
+class TestAutoModelSelection(unittest.TestCase):
+    """'auto' must pick the strongest installed model for each job, offline and deterministically."""
+
+    DETAILS = {
+        "qwen2.5-coder:14b": {"params_b": 14.8, "capabilities": ["completion", "tools", "insert"]},
+        "qwen2.5-coder:32b": {"params_b": 32.8, "capabilities": ["completion", "tools", "insert"]},
+        "qwen2.5-coder:1.5b-base": {"params_b": 1.5, "capabilities": ["completion", "insert"]},
+        "qwen2.5vl:7b": {"params_b": 8.3, "capabilities": ["completion", "vision"]},
+        "qwen3.8:latest": {"params_b": 27.3, "capabilities": ["completion", "vision", "tools"]},
+        "qwen3:30b": {"params_b": 30.5, "capabilities": ["completion", "tools"]},
+        "nomic-embed-text:latest": {"params_b": 0.137, "capabilities": ["embedding"]},
+    }
+
+    def client(self):
+        from nodes.ai_builder.llm import LLMClient
+        return LLMClient(LLMConfig())
+
+    def test_picks_largest_capable_model_for_each_job(self):
+        picks = self.client().pick_best_models(self.DETAILS)
+        self.assertEqual(picks["code"], "qwen2.5-coder:32b", "should prefer the biggest real coder")
+        self.assertEqual(picks["vision"], "qwen3.8:latest",
+                         "vision must be chosen on size, even behind a ':latest' tag")
+        self.assertEqual(picks["embed"], "nomic-embed-text:latest")
+        self.assertIn("32.8B", picks["reasons"]["code"])
+
+    def test_base_models_are_never_chosen(self):
+        only_base = {"qwen2.5-coder:1.5b-base": self.DETAILS["qwen2.5-coder:1.5b-base"],
+                     "qwen3:30b": self.DETAILS["qwen3:30b"]}
+        picks = self.client().pick_best_models(only_base)
+        self.assertEqual(picks["code"], "qwen3:30b", "a -base model cannot follow instructions")
+
+    def test_no_models_installed_is_handled(self):
+        picks = self.client().pick_best_models({})
+        self.assertIsNone(picks["code"])
+        self.assertIsNone(picks["vision"])
+
+    def test_no_vision_model_installed(self):
+        picks = self.client().pick_best_models({"qwen3:30b": self.DETAILS["qwen3:30b"]})
+        self.assertIsNone(picks["vision"])
+        self.assertEqual(picks["code"], "qwen3:30b")
+
+    def test_cloud_provider_auto_resolves_without_ollama(self):
+        from nodes.ai_builder_nodes import GapAILLMConfig
+        cfg, info = GapAILLMConfig().build("anthropic", "auto", "auto", "", 0.2, 16384, 4096)
+        self.assertEqual(cfg["model"], config.DEFAULT_ANTHROPIC_MODEL)
+        self.assertEqual(cfg["vision_model"], cfg["model"], "vision should reuse the main model")
+        self.assertEqual(cfg["url"], config.DEFAULT_ANTHROPIC_URL)
+
+
 class TestSafetyScan(unittest.TestCase):
     def test_blocks_dangerous_patterns(self):
         code = "import os\nimport subprocess\nos.system('rm -rf /')\nbpy.ops.wm.save_mainfile()\nopen('x','w')\neval('1')\n"
@@ -218,6 +267,22 @@ class TestBlenderBridge(unittest.TestCase):
             "blend_file": "x.blend", "scene_name": "Scene", "object_count": 1, "mesh_count": 1,
             "light_count": 0, "has_camera": False, "render_engine": "CYCLES", "ai_exec_allowed": True})
         self.assertIn("ALLOWED", allowed)
+
+    def test_stale_addon_is_reported(self):
+        from nodes.ai_builder import bridge
+        shipped = bridge.repo_addon_version()
+        self.assertIsNotNone(shipped, "could not read the addon version from bl_info")
+        older = ".".join(str(p) for p in (shipped[0], shipped[1], max(shipped[2] - 1, 0)))
+        status = {"ok": True, "addon_version": older, "blender_version": "5.2.2",
+                  "listener": {"host": "127.0.0.1", "port": 8119, "running": True},
+                  "blend_file": "", "scene_name": "S", "object_count": 1, "mesh_count": 1,
+                  "light_count": 0, "has_camera": False, "render_engine": "CYCLES",
+                  "ai_exec_allowed": False}
+        self.assertIn("OUT OF DATE", bridge.addon_version_warning(status))
+        self.assertIn("OUT OF DATE", bridge.describe(status))
+        current = dict(status, addon_version=".".join(str(p) for p in shipped))
+        self.assertEqual(bridge.addon_version_warning(current), "")
+        self.assertNotIn("OUT OF DATE", bridge.describe(current))
 
     def test_append_rejects_missing_file(self):
         from nodes.ai_builder import bridge

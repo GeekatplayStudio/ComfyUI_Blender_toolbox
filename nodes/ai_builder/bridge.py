@@ -15,6 +15,7 @@ Commands used here (handled in blender_toolbox_addon.py):
 
 import json
 import os
+import re
 import socket
 import tempfile
 import time
@@ -111,6 +112,51 @@ def append_blend(blend_path, host="127.0.0.1", port=8119, mode="append", collect
     return data
 
 
+def repo_addon_version():
+    """The addon version shipped in this checkout, read from its bl_info."""
+    path = os.path.join(os.path.dirname(config.BLENDER_SCRIPTS_DIR), "blender_toolbox_addon.py")
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            head = f.read(4000)
+        m = re.search(r'"version"\s*:\s*\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)\)', head)
+        if m:
+            return tuple(int(g) for g in m.groups())
+    except OSError:
+        pass
+    return None
+
+
+def _as_tuple(text):
+    try:
+        return tuple(int(p) for p in str(text).split("."))
+    except (TypeError, ValueError):
+        return None
+
+
+def addon_version_warning(status):
+    """Warn when the addon running in Blender is older than the one in this checkout.
+
+    A stale addon is the single most confusing failure mode here: the node exists, the socket
+    connects, and the feature silently does not work because that Blender is running last month's
+    file from the user's addons folder.
+    """
+    running = _as_tuple(status.get("addon_version"))
+    shipped = repo_addon_version()
+    if not running or not shipped:
+        return ""
+    if running < shipped:
+        return ("\n  ADDON OUT OF DATE: Blender is running "
+                f"{'.'.join(map(str, running))} but this toolbox ships "
+                f"{'.'.join(map(str, shipped))}.\n"
+                "    Features added since then will not work. In Blender: Edit > Preferences >\n"
+                "    Add-ons, remove 'ComfyUI Blender Toolbox Sync', Install...\n"
+                "    blender_scripts/blender_toolbox_addon.py, enable it, then Start Listener again.")
+    if running > shipped:
+        return (f"\n  Note: Blender is running addon {'.'.join(map(str, running))}, newer than this "
+                f"checkout's {'.'.join(map(str, shipped))}.")
+    return ""
+
+
 def describe(status):
     """Human-readable summary of a ping result."""
     if not status.get("ok"):
@@ -128,6 +174,9 @@ def describe(status):
         f"  Render engine  : {status.get('render_engine')}",
         f"  AI live exec   : {'ALLOWED' if status.get('ai_exec_allowed') else 'BLOCKED (switch is off)'}",
     ]
+    stale = addon_version_warning(status)
+    if stale:
+        lines.append(stale.lstrip("\n"))
     if not status.get("ai_exec_allowed"):
         lines.append("    -> execution_mode='live' will be refused until you tick")
         lines.append("       ComfyUI tab > AI Scene Builder (Live) > Allow AI code execution.")
