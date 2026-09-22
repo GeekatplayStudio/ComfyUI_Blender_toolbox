@@ -117,11 +117,25 @@ def delete_key(name):
 
 
 def get_key(name):
+    """Read a secret by credential name.
+
+    The lookup is case-insensitive: a key saved as "Tripo3d" is found by "Tripo3D" or "tripo3d",
+    so nodes resolve credentials regardless of how the name was capitalised when it was saved.
+    """
     if not name or name == "None":
         return ""
     name = _validate_name(name)
     try:
-        return keyring.get_password(KEYRING_SERVICE, name) or ""
+        secret = keyring.get_password(KEYRING_SERVICE, name)
+        if secret:
+            return secret
+        wanted = name.casefold()
+        for stored in _read_index():
+            if stored != name and stored.casefold() == wanted:
+                secret = keyring.get_password(KEYRING_SERVICE, stored)
+                if secret:
+                    return secret
+        return ""
     except KeyringError as exc:
         raise RuntimeError(f"Could not read credential from the OS vault: {exc}") from exc
 

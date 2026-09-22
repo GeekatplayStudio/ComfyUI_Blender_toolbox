@@ -94,6 +94,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PreviewMeshInBlender": "Preview Mesh in Blender (Send)",
     "PreviewTextureOnMesh": "Preview Texture on Selected Object",
     "SyncLightingToBlender": "Sync Lighting to Blender",
+    "SaveAndSendPBRToBlender": "Save and Send PBR to Blender",
     "LoadBlenderPBR": "Receive from Blender (PBR)",
     "SimplePBRGenerator": "Simple PBR Generator",
     "TerrainPromptMaker": "Terrain Prompt Maker (Ollama)",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.1
+
+- **Auto-Rigger CLI completed**: the ComfyUI generation path was a stub that always exited with an error. It now uploads the reference image, patches the workflow's `LoadImage` node, queues the prompt, polls `/history` until completion, downloads the generated mesh and hands it to the Blender clean+rig step. Added `--timeout` and `--server` options and real HTTP error reporting.
+- **`workflows/autorig_api.json` rebuilt**: the template referenced `Hunyuan3D_Wrapper` and `Save3DMesh`, which do not exist in ComfyUI. Replaced with the working Hunyuan3D v2.1 chain (`ImageOnlyCheckpointLoader` → `CLIPVisionEncode` → `Hunyuan3Dv2Conditioning` → `KSampler` → `VAEDecodeHunyuan3D` → `VoxelToMesh` → `SaveGLB`). Verified end to end: image → generated mesh → rigged GLB.
+- **Credential lookup is now case-insensitive**: a key saved as `Tripo3d` is found when a node asks for `Tripo3D`. Previously such a mismatch silently reported a missing API key.
+- Added the missing display name for `SaveAndSendPBRToBlender` (it showed its raw class name in the node menu).
+
 ## 2.2.0
 
 - **AI Scene Builder** (new node family, `Geekatplay Studio/AI Scene Builder`):
