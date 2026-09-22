@@ -91,6 +91,7 @@ For live mode also (re)install the Blender addon: `blender_scripts/blender_toolb
 | **AI Reference Analyzer (Multi-Image)** | Up to three image inputs (batches count as multiple references) + your text → one structured **reference brief** (subject, style, layout, elements with sizes, materials, colors, lighting, camera, must-not-miss). Copies references to `refs/`. |
 | **AI Scene Planner** | Prompt (+ brief, + current scene) → ordered JSON plan of build steps. Or write your own steps in `manual_plan` (one per line, `Title: instruction`) to skip the model. |
 | **AI Scene Builder (Complete Scene)** | Executes every plan step: generate → safety scan → run in Blender → validate → retry (`max_retries`) → preview. `stop_on_failure`, `dry_run`, auto-fixes, render settings. Outputs preview, blend path, report, all scripts, validation JSON, session. |
+| **AI Whole-Object Builder (One Script, See & Revise)** | The frontier-model way: ONE complete script for the entire object → build into an empty scene → render → critic scores it against the reference → the model **revises the script** → rebuild from scratch. `rounds`, `target_score`; the best-scoring round is kept and its script is an output. Parts fit together because one author wrote them in one file. Best with Claude/GPT or a 27B+ vision-capable local model. |
 | **AI Step Builder (Conversational)** | One instruction per run, building on the session scene: "now add a bridge". Same options and outputs. |
 | **AI Script Runner (Review & Execute)** | Runs a script you pasted/edited (e.g. from a dry run) with the same scan, validation and render. |
 | **AI Visual Refiner (Compare to Reference & Fix)** | Renders the scene, puts it beside your reference image, asks the vision model what is wrong (silhouette, missing parts, shape, placement, materials, detail density), turns the critique into correction steps and executes them. Repeats until the resemblance score hits `target_score`. This is what closes the gap to a reference — one generate-and-hope pass never sees its own output. |
@@ -119,6 +120,7 @@ Execution options shared by the builder nodes:
 | File | What it does |
 |---|---|
 | `Geekatplay_AI_Scene_Builder_Complete.json` | References → brief → plan → complete multi-step build with report. |
+| `Geekatplay_AI_Whole_Object_See_And_Revise.json` | References → brief → ONE script for the whole object → render → critique → revise script → rebuild; best round kept. For large / vision-capable models. |
 | `Geekatplay_AI_Single_Step_From_References.json` | Reference images → one validated build step. |
 | `Geekatplay_AI_Step_Builder_Conversational.json` | Type, queue, look, type the next instruction. Multi-pass building. |
 | `Geekatplay_AI_Script_Review_Then_Run.json` | Dry run → read the script → paste into the runner → execute. Safest. |
@@ -165,6 +167,27 @@ render. Two rules keep this straight:
 - **AI Step Builder (Conversational)** adds to what exists — that is its purpose. It **warns** when
   the reference brief describes a different object than the session was built for (a robot brief
   into a rocket session), because that is almost always a forgotten `session_name`.
+
+### Two ways to build a whole object — steps or one script
+
+**Step mode** (`AI Scene Planner` → `AI Scene Builder (Complete Scene)`) splits the object into 4–8
+assembly steps and generates a script per step. It is the mode for small local coders, which cannot
+hold a 300-line consistent file, and for scenes you want to grow conversationally.
+
+**Whole-object mode** (`AI Whole-Object Builder`) is how a frontier model reproduces a reference
+(we analysed a ChatGPT-built 102-part rigged character: one 582-line script, 428 hand-typed
+coordinates, same primitives as `gap_helpers`, ~45 minutes of look-at-the-render-and-edit rounds).
+One script builds everything; every round **wipes the scene and rebuilds from the revised script**,
+so corrections never pile on top of old parts, and the same author wrote every part so they
+interlock. The critic scores each round 0–100 against the reference and the best round is kept —
+its script is the `script` output, ready to edit by hand or run through `AI Script Runner`.
+
+**The coder sees the picture.** In both modes, when the *code* model reports the `vision`
+capability (Claude, GPT, `qwen3-vl`, `qwen3.8`…), the reference images are attached to every code
+request, so shapes are read from the image rather than reconstructed from prose. A blind coder
+(`qwen2.5-coder`) works from the written specification and the log says so. This is the single
+biggest quality lever after model size: set `AI Model Config` to `provider=anthropic` and both the
+analysis and the code come from one model that can see.
 
 ### Multi-pass memory
 
@@ -319,6 +342,12 @@ button for pasting the log somewhere.
 
 - **Model size matters most.** `qwen2.5-coder:32b` needs far fewer retries than 7B. On a 12 GB GPU
   use `qwen2.5-coder:14b` with `num_ctx` 16384. Cloud `claude-sonnet-5` is the most reliable.
+- **Want it to look like the reference?** Use a code model that can *see* (the log prints whether
+  the coder received the images) and the **Whole-Object Builder**. With `provider=anthropic` this
+  is the closest thing to the "ChatGPT builds it in Blender" result; locally, `qwen3.8` (27B,
+  vision) as *both* model and vision_model beats a bigger blind coder for resemblance.
+- A dropped Ollama connection (it happens while swapping a large vision model for a large coder on
+  one GPU) is retried three times with a pause; the debug log shows each retry.
 - Keep steps concrete: sizes in meters, counts, positions relative to existing objects.
 - Use the Reference Analyzer even for text-only projects: it produces a consistent brief that all
   steps share, which keeps style and scale coherent.

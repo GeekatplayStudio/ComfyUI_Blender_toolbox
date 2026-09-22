@@ -252,7 +252,14 @@ CODEGEN_USER = """# STEP TO IMPLEMENT
 # REFERENCE NOTES (retrieved from the local Blender/toolbox docs - trust these over memory)
 {rag_context}
 
-Write the complete script now. One ```python block only."""
+{image_note}Write the complete script now. One ```python block only."""
+
+CODEGEN_IMAGE_NOTE = """# THE REFERENCE IMAGE(S) ARE ATTACHED
+You can see the object. Read shapes, proportions and details from the PICTURE first and use the
+specification's numbers to scale them. Where the specification is vague or wrong about a shape,
+the picture wins. Look at the silhouette of the part this step builds before you choose helpers.
+
+"""
 
 CODEGEN_RETRY = """The previous script for this step FAILED. Fix it and return the COMPLETE corrected script
 (one ```python block, full file - not a diff).
@@ -436,7 +443,7 @@ def helpers_summary():
 
 def build_codegen_messages(instruction, scene_summary, history, reference_brief, rag_context,
                            blender_version, collection_name, scene_is_new,
-                           feedback=None, previous_code=None):
+                           feedback=None, previous_code=None, sees_reference=False):
     scene_mode = "a NEW, EMPTY scene" if scene_is_new else "an EXISTING scene that must be extended"
     scene_mode_rule = (
         "Build the step's geometry; add lights or a camera only if the step asks for them."
@@ -456,9 +463,94 @@ def build_codegen_messages(instruction, scene_summary, history, reference_brief,
         scene_summary=scene_summary or "Scene is empty.",
         history=history or "No previous steps.",
         rag_context=rag_context or "(no reference notes retrieved)",
+        image_note=CODEGEN_IMAGE_NOTE if sees_reference else "",
     )
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     if feedback and previous_code:
+        messages.append({"role": "assistant", "content": f"```python\n{previous_code}\n```"})
+        messages.append({"role": "user", "content": CODEGEN_RETRY.format(feedback=feedback, previous_code=previous_code)})
+    return messages
+
+
+# --------------------------------------------------------------------------- whole-object mode
+# How a frontier model builds a reference: ONE script for the entire object, then look at the render,
+# edit the script, rebuild from scratch. Every part is written in one sitting by one author, so parts
+# relate to each other; and a revision fixes the script instead of piling corrections onto a scene.
+# This is the mode to use with a large model (Claude/GPT or a 27B+ vision-capable local model).
+
+WHOLE_SYSTEM = CODEGEN_SYSTEM.replace(
+    "You produce ONE complete, self-contained Python script that builds part of a 3D scene.",
+    "You produce ONE complete, self-contained Python script that builds the ENTIRE object or scene\n"
+    "described - every part, every detail, every material - the way a senior artist writes a\n"
+    "procedural build file: named constants for the key dimensions at the top, a section per part,\n"
+    "shared materials created once and reused, and mirrored/repeated parts made in loops."
+).replace(
+    "10. This is {scene_mode}. {scene_mode_rule}",
+    "10. The scene is EMPTY when your script starts. Add three-point lighting with add_light(...) and\n"
+    "    a camera named \"Camera_Main\" aimed at the object at the end."
+) + """
+
+WHOLE-OBJECT DISCIPLINE
+17. Write the dimensions as constants first (TOTAL_H, BODY_R, ...) derived from the specification's
+    overall height, and compute every part from them so proportions stay consistent.
+18. Parts must touch and interlock: a leg starts inside the hull it attaches to, a nozzle sits under
+    the body it belongs to, trim rings wrap the body radius at that exact z. Compute the body radius
+    at a given z from the same profile you used to build the body.
+19. Build the silhouette parts first (body, nose, base), then the medium parts (legs, fins, ports),
+    then the decoration (rivet rings, seams, emblems, stars). Aim for the detail density of the
+    reference - a real ornament has hundreds of small parts, not five.
+20. Up to ~1.5M triangles total. Use n=48-64 on the main body, n=12-16 on rivets."""
+
+WHOLE_USER = """# OBJECT TO BUILD (the whole thing, in one script)
+{instruction}
+
+# BUILD SPECIFICATION (measurements in meters - binding)
+{reference_brief}
+
+# REFERENCE NOTES (retrieved from the local Blender/toolbox docs - trust these over memory)
+{rag_context}
+
+{image_note}Write the complete build script now. One ```python block only."""
+
+WHOLE_REVISE = """Here is the render of what your script built (IMAGE {render_index}) next to the reference
+(IMAGE 1), and an art director's critique of it. Revise the script and return the COMPLETE new
+script (one ```python block, the full file - not a diff). The scene is wiped and rebuilt from your
+new script, so keep everything that was right and change what the critique names.
+
+# CRITIQUE (score {score}/100)
+{critique}
+
+# YOUR PREVIOUS SCRIPT
+```python
+{previous_code}
+```
+
+Rules unchanged: only bpy/bmesh/mathutils/math/random/gap_helpers; helpers' signatures are exact and
+keyword-only after '*'; closed manifold meshes; descriptive names; log_built() per object; the
+specification's overall height is binding. Fix the silhouette first, then missing parts, then detail."""
+
+
+def build_whole_messages(instruction, reference_brief, rag_context, blender_version, collection_name,
+                         sees_reference=False, feedback=None, previous_code=None,
+                         critique=None, score=None, render_index=2):
+    """Messages for whole-object mode.
+
+    feedback/previous_code -> the script crashed or failed validation: CODEGEN_RETRY.
+    critique/previous_code -> the script ran; the critic compared render and reference: WHOLE_REVISE.
+    """
+    system = WHOLE_SYSTEM.format(blender_version=blender_version, helpers_summary=helpers_summary(),
+                                 collection_name=collection_name)
+    user = WHOLE_USER.format(instruction=instruction.strip(),
+                             reference_brief=(reference_brief or "").strip() or "(none provided)",
+                             rag_context=rag_context or "(no reference notes retrieved)",
+                             image_note=CODEGEN_IMAGE_NOTE if sees_reference else "")
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    if previous_code and critique is not None:
+        messages.append({"role": "assistant", "content": f"```python\n{previous_code}\n```"})
+        messages.append({"role": "user", "content": WHOLE_REVISE.format(
+            critique=critique, score=score if score is not None else "?", previous_code=previous_code,
+            render_index=render_index)})
+    elif previous_code and feedback:
         messages.append({"role": "assistant", "content": f"```python\n{previous_code}\n```"})
         messages.append({"role": "user", "content": CODEGEN_RETRY.format(feedback=feedback, previous_code=previous_code)})
     return messages

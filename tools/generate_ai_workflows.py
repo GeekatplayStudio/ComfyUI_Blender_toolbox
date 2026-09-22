@@ -188,6 +188,50 @@ def wf_complete(out_dir):
     g.dump(os.path.join(out_dir, "Geekatplay_AI_Scene_Builder_Complete.json"))
 
 
+def wf_whole_object(out_dir):
+    g = Graph()
+    g.add("Note", (-40, -620), (760, 500), text=(
+        "AI SCENE BUILDER - WHOLE OBJECT, ONE SCRIPT, SEE & REVISE (Geekatplay Studio - Vladimir Chopine)\n\n"
+        "How a frontier model reproduces a reference: ONE complete build script for the entire object,\n"
+        "then look at the render next to the picture, revise the script, rebuild from scratch. Parts fit\n"
+        "together because one author wrote them in one file; every round replaces the scene instead of\n"
+        "piling corrections onto it. The best-scoring round is kept.\n\n"
+        "1. Load 1-2 reference images; the Reference Analyzer measures them (three vision passes).\n"
+        "2. The Whole-Object Builder writes the full script, builds, renders, critiques (0-100), revises.\n"
+        "   rounds=3 and target_score=85 by default. Each round is a complete rebuild.\n"
+        "3. If the CODE model can see (Claude, GPT, qwen3-vl, qwen3.8), the reference image is attached\n"
+        "   to every code request - the coder reads shapes from the picture, not from prose.\n"
+        "   The report says whether that happened.\n\n"
+        "BEST WITH A LARGE MODEL. Set AI Model Config to provider=anthropic (Claude) or a 27B+ vision\n"
+        "model for this mode. A small blind coder cannot hold a 300-line consistent script - use the\n"
+        "step-by-step 'Complete Scene' workflow with it instead.\n\n"
+        + MODELS + "\n\n" + SEEING_IT + "\n\n" + SECURITY))
+    ref1 = g.add("LoadImage", (-40, -80), (315, 314), title="Reference image 1")
+    ref2 = g.add("LoadImage", (-40, 280), (315, 314), title="Reference image 2 (optional)")
+    sess = g.add("GapAISceneSession", (320, -80), (330, 150), values={"session_name": "whole_object"})
+    llm = g.add("GapAILLMConfig", (320, 120), (330, 300))
+    ana = g.add("GapAIReferenceAnalyzer", (700, -80), (420, 260),
+                values={"prompt": REPRODUCE_PROMPT},
+                connect={"llm": (llm, 0), "images": (ref1, 0), "images_2": (ref2, 0), "session": (sess, 0)})
+    build = g.add("GapAIWholeObjectBuilder", (1180, -80), (460, 720),
+                  values={"prompt": REPRODUCE_PROMPT},
+                  connect={"session": (sess, 0), "llm": (llm, 0), "images": (ref1, 0), "images_2": (ref2, 0),
+                           "reference_brief": (ana, 0)})
+    g.add("PreviewImage", (1700, -80), (520, 360), title="Best round - four views", connect={"images": (build, 0)})
+    g.add("GapStringViewer", (1700, 320), (520, 320), title="Build report (scores per round)", connect={"text": (build, 2)})
+    g.add("GapStringViewer", (1700, 680), (520, 320), title="Final script (the whole object)", connect={"text": (build, 3)})
+    g.add("GapStringViewer", (700, 240), (420, 260), title="Reference brief (CHECK THIS FIRST)",
+          connect={"text": (ana, 0)})
+    g.add("GapStringViewer", (700, 540), (420, 200), title="Model info / quality tips",
+          connect={"text": (llm, 1)})
+    send = g.add("GapAISendSceneToBlender", (1180, 700), (460, 300), connect={"session": (sess, 0)})
+    g.add("GapStringViewer", (1700, 1040), (520, 200), title="Sent to Blender", connect={"text": (send, 1)})
+    dbg = g.add("GapAIDebugLog", (2260, -80), (520, 260), connect={"session": (sess, 0)})
+    g.add("GapStringViewer", (2260, 220), (520, 560), title="DEBUG LOG (every prompt, script, critique)",
+          connect={"text": (dbg, 0)})
+    g.dump(os.path.join(out_dir, "Geekatplay_AI_Whole_Object_See_And_Revise.json"))
+
+
 def wf_single_step_with_refs(out_dir):
     g = Graph()
     g.add("Note", (-40, -380), (720, 260), text=(
@@ -313,6 +357,7 @@ if __name__ == "__main__":
     out = os.path.join(ROOT, "workflows")
     os.makedirs(out, exist_ok=True)
     wf_complete(out)
+    wf_whole_object(out)
     wf_single_step_with_refs(out)
     wf_conversational(out)
     wf_review(out)

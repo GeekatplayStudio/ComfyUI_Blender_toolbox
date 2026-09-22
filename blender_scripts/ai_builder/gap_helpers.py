@@ -972,12 +972,20 @@ def fin_blade(builder, base_point, outward, height, length, thickness=0.008, swe
     """A swept, curved fin: tapered blade sweeping outward and down, optionally with an inset face.
 
     base_point : (x, y) where the fin meets the body
-    outward    : angle in radians pointing away from the body centre
+    outward    : angle in radians pointing away from the body centre, OR an (x, y[, z]) direction
+                 vector / a point on the body - either is converted to the angle
     height     : how far up the body the fin reaches
     length     : how far out from the body it extends at the bottom
     sweep      : 0 = straight triangle, 1 = strongly curved/claw-like
     mat_face   : when given, an inset panel (enamel field) is added on both faces inside the frame
     """
+    if isinstance(outward, (tuple, list, Vector)):
+        # Models naturally pass a direction like (cos(a), sin(a), 0) or the base point itself;
+        # both mean "away from the axis", so accept them instead of crashing four attempts in a row.
+        ox, oy = float(outward[0]), float(outward[1])
+        if abs(ox) < 1e-9 and abs(oy) < 1e-9:
+            ox, oy = float(base_point[0]), float(base_point[1])
+        outward = math.atan2(oy, ox)
     ca, sa = cos(outward), sin(outward)
     bx, by = base_point[0], base_point[1]
 

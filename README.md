@@ -101,6 +101,7 @@ python tools/check_workflows.py --server http://127.0.0.1:8188
 
 ### 🤖 AI Scene Builder (2.2)
 *   **`Geekatplay_AI_Scene_Builder_Complete.json`**: Reference images → brief → step plan → complete multi-step build with validation, retries and report.
+*   **`Geekatplay_AI_Whole_Object_See_And_Revise.json`**: References → brief → **one script for the whole object** → render → critique → revise the script → rebuild; best-scoring round kept. The frontier-model way; use it with Claude/GPT or a 27B+ vision-capable local model.
 *   **`Geekatplay_AI_Single_Step_From_References.json`**: Reference images → one validated build step.
 *   **`Geekatplay_AI_Step_Builder_Conversational.json`**: Type an instruction, queue, look, type the next one — multi-pass building on the same scene.
 *   **`Geekatplay_AI_Script_Review_Then_Run.json`**: Dry run → read the generated script → paste into the runner → execute. The safest flow.
@@ -448,12 +449,15 @@ Quality scales with the model: a 32B local coder gets you this in ~7 minutes per
 | **AI Reference Analyzer (Multi-Image)** | Up to three image inputs + your text → one structured build brief (layout, elements with sizes, materials, lighting, camera). |
 | **AI Scene Planner** | Prompt (+ brief, + current scene) → ordered step plan; or your own `manual_plan`. |
 | **AI Scene Builder (Complete Scene)** | Runs every plan step: generate → safety scan → execute → validate → retry → preview. |
+| **AI Whole-Object Builder (One Script, See & Revise)** | One complete script for the entire object; build → render → critic scores vs. reference → model revises the script → rebuild from scratch. Best round kept, script exported. |
 | **AI Step Builder (Conversational)** | One instruction per run, building on the existing scene. |
 | **AI Script Runner (Review & Execute)** | Executes a script you reviewed/edited (from a `dry_run`). |
 | **AI Visual Refiner** | Renders the scene, compares it side by side with your reference image, lists what is wrong (silhouette, missing parts, shapes, placement, materials, detail) and executes the fixes. Repeats until the resemblance score hits your target. |
 | **Blender Bridge Check** | Full round trip to a running Blender: its version, the addon version, the open file, the scene contents, and whether live AI execution is allowed. Outputs `connected` / `live_exec_allowed`. |
 | **Send Scene to Blender** | Loads a finished `.blend` into the Blender you already have open — append (default, keeps your work), link, or open. Materials, collections, lights and cameras come across intact. |
 | **AI Scene Validator** | Checks non-manifold edges, loose geometry, zero-area faces, flipped normals, duplicate vertices, missing textures, default names, camera/lights; optional auto-fix; `passed` output. |
+
+**The coder sees the picture**: when the code model has vision (Claude, GPT, `qwen3-vl`, `qwen3.8`), the reference images are attached to every code request in every builder node, so shapes come from the image rather than from prose. The log states whether that happened.
 
 **Models**: local Ollama `qwen2.5-coder:14b` (default) / `qwen2.5-coder:32b` (best local) / `qwen3-coder:30b` for code, `qwen2.5vl:7b` or `qwen3-vl:4b` for references, `nomic-embed-text` for retrieval; or `claude-sonnet-5` / `claude-opus-5` via Anthropic, or any OpenAI-compatible endpoint.
 

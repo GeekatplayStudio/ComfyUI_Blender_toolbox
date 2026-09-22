@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.8
+
+We compared our pipeline with a ChatGPT-built Blender character (102 parts, rigged, 8K PBR) and its scripts. It used the same primitives `gap_helpers` has — lathe profiles, rods, boxes, plates, tori, booleans, mirroring — so the difference is not the toolset. It is (a) one model that *sees* the reference writes the numbers straight into code, (b) one script for the whole object, revised after looking at each render, and (c) a frontier model. Two of the three are now in the toolbox:
+
+- **The coder sees the reference.** Every builder node attaches the reference images to the code request when the code model reports the `vision` capability (Claude, GPT, `qwen3-vl`, `qwen3.8`). Previously only the analyzer and the critic saw the picture; the coder worked from prose, which is where the shape got lost. A blind coder gets no images and the log says so.
+- **AI Whole-Object Builder (One Script, See & Revise)** — new node and workflow `Geekatplay_AI_Whole_Object_See_And_Revise.json`. One complete script builds the entire object into an empty scene; the render is critiqued against the reference; the model revises the *script*; the scene is wiped and rebuilt. `rounds` / `target_score`; the best-scoring round is kept and its script is an output. Corrections no longer pile up on a scene, and parts interlock because one author wrote them together.
+- **Ollama connection drops are retried** (3 attempts, 5/15/40 s, after checking the server is back). A single `RemoteDisconnected` while Ollama swapped a 27B vision model for the 32B coder used to kill a whole build.
+- **Scale guard fixed.** It failed the landing legs of a 0.3 m rocket for being "0.1× too short" — early steps build parts, not the whole object. "Too tall" is still judged against the specification; "too small" is now judged only against the z range the step's own instruction gives.
+- **`fin_blade` accepts a direction vector or a point** for `outward`, not only an angle. The 32B coder passed `(cos a, sin a, 0)` four attempts in a row; a helper that accepts the natural call beats a prompt that forbids it.
+- Docs: what the ChatGPT build actually did and why the model, not the architecture, is the bottleneck (`docs/ai_builder/AI_SCENE_BUILDER.md`, "Two ways to build a whole object").
+
 ## 2.2.7
 
 Traced the "four cylinders that don't resemble a rocket" result to its actual causes, using the session's own debug log:

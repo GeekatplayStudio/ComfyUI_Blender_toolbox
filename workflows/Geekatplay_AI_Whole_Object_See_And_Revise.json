@@ -1,0 +1,894 @@
+{
+  "last_node_id": 16,
+  "last_link_id": 18,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Note",
+      "pos": [
+        -40,
+        -620
+      ],
+      "size": [
+        760,
+        500
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": "AI SCENE BUILDER - WHOLE OBJECT, ONE SCRIPT, SEE & REVISE (Geekatplay Studio - Vladimir Chopine)\n\nHow a frontier model reproduces a reference: ONE complete build script for the entire object,\nthen look at the render next to the picture, revise the script, rebuild from scratch. Parts fit\ntogether because one author wrote them in one file; every round replaces the scene instead of\npiling corrections onto it. The best-scoring round is kept.\n\n1. Load 1-2 reference images; the Reference Analyzer measures them (three vision passes).\n2. The Whole-Object Builder writes the full script, builds, renders, critiques (0-100), revises.\n   rounds=3 and target_score=85 by default. Each round is a complete rebuild.\n3. If the CODE model can see (Claude, GPT, qwen3-vl, qwen3.8), the reference image is attached\n   to every code request - the coder reads shapes from the picture, not from prose.\n   The report says whether that happened.\n\nBEST WITH A LARGE MODEL. Set AI Model Config to provider=anthropic (Claude) or a 27B+ vision\nmodel for this mode. A small blind coder cannot hold a 300-line consistent script - use the\nstep-by-step 'Complete Scene' workflow with it instead.\n\nMODEL CHOICE DRIVES QUALITY MORE THAN ANY OTHER SETTING\n  The vision model decides how much of the reference is understood. A small one (4-8B)\n  reports every part as the same size and misses the fine detail, which produces\n  featureless blobs. Use the largest vision model you have; the AI Model Config node\n  prints a TIP naming the best one installed.\n  The code model decides how well that description becomes geometry: 14B works, 32B is\n  noticeably better, claude-sonnet-5 via the anthropic provider is better still.\n\nWHERE YOU SEE THE RESULT\n  execution_mode=headless (default): Blender runs in the background. You get the preview\n    render and a .blend file - NOTHING appears in a Blender window you have open.\n  execution_mode=live: the model builds inside the Blender you are looking at, and the\n    viewport re-frames on each new part. Requires, in Blender:\n      1. addon v2.2.0+ installed (blender_scripts/blender_toolbox_addon.py)\n      2. N-panel > ComfyUI tab > Start Listener\n      3. AI Scene Builder (Live) > Allow AI code execution = ON\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner')."
+      },
+      "widgets_values": [
+        "AI SCENE BUILDER - WHOLE OBJECT, ONE SCRIPT, SEE & REVISE (Geekatplay Studio - Vladimir Chopine)\n\nHow a frontier model reproduces a reference: ONE complete build script for the entire object,\nthen look at the render next to the picture, revise the script, rebuild from scratch. Parts fit\ntogether because one author wrote them in one file; every round replaces the scene instead of\npiling corrections onto it. The best-scoring round is kept.\n\n1. Load 1-2 reference images; the Reference Analyzer measures them (three vision passes).\n2. The Whole-Object Builder writes the full script, builds, renders, critiques (0-100), revises.\n   rounds=3 and target_score=85 by default. Each round is a complete rebuild.\n3. If the CODE model can see (Claude, GPT, qwen3-vl, qwen3.8), the reference image is attached\n   to every code request - the coder reads shapes from the picture, not from prose.\n   The report says whether that happened.\n\nBEST WITH A LARGE MODEL. Set AI Model Config to provider=anthropic (Claude) or a 27B+ vision\nmodel for this mode. A small blind coder cannot hold a 300-line consistent script - use the\nstep-by-step 'Complete Scene' workflow with it instead.\n\nMODEL CHOICE DRIVES QUALITY MORE THAN ANY OTHER SETTING\n  The vision model decides how much of the reference is understood. A small one (4-8B)\n  reports every part as the same size and misses the fine detail, which produces\n  featureless blobs. Use the largest vision model you have; the AI Model Config node\n  prints a TIP naming the best one installed.\n  The code model decides how well that description becomes geometry: 14B works, 32B is\n  noticeably better, claude-sonnet-5 via the anthropic provider is better still.\n\nWHERE YOU SEE THE RESULT\n  execution_mode=headless (default): Blender runs in the background. You get the preview\n    render and a .blend file - NOTHING appears in a Blender window you have open.\n  execution_mode=live: the model builds inside the Blender you are looking at, and the\n    viewport re-frames on each new part. Requires, in Blender:\n      1. addon v2.2.0+ installed (blender_scripts/blender_toolbox_addon.py)\n      2. N-panel > ComfyUI tab > Start Listener\n      3. AI Scene Builder (Live) > Allow AI code execution = ON\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner')."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        -40,
+        -80
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2,
+            7
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ],
+      "title": "Reference image 1"
+    },
+    {
+      "id": 3,
+      "type": "LoadImage",
+      "pos": [
+        -40,
+        280
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            3,
+            8
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ],
+      "title": "Reference image 2 (optional)"
+    },
+    {
+      "id": 4,
+      "type": "GapAISceneSession",
+      "pos": [
+        320,
+        -80
+      ],
+      "size": [
+        330,
+        150
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [
+            4,
+            5,
+            15,
+            17
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "session_info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAISceneSession"
+      },
+      "widgets_values": [
+        "whole_object",
+        false,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 5,
+      "type": "GapAILLMConfig",
+      "pos": [
+        320,
+        120
+      ],
+      "size": [
+        330,
+        300
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "links": [
+            1,
+            6
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "llm_info",
+          "type": "STRING",
+          "links": [
+            14
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAILLMConfig"
+      },
+      "widgets_values": [
+        "ollama",
+        "auto",
+        "auto",
+        "http://127.0.0.1:11434",
+        0.2,
+        16384,
+        8192,
+        "",
+        "auto",
+        "10m",
+        900
+      ]
+    },
+    {
+      "id": 6,
+      "type": "GapAIReferenceAnalyzer",
+      "pos": [
+        700,
+        -80
+      ],
+      "size": [
+        420,
+        260
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 1
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        },
+        {
+          "name": "images_2",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "images_3",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "reference_brief",
+          "type": "STRING",
+          "links": [
+            9,
+            13
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "analyses_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIReferenceAnalyzer"
+      },
+      "widgets_values": [
+        "Reproduce the object in the reference images as a detailed 3D model: match its shapes, proportions, materials and all of its decoration (trim, rivets, windows, motifs, paint bands).",
+        ""
+      ]
+    },
+    {
+      "id": 7,
+      "type": "GapAIWholeObjectBuilder",
+      "pos": [
+        1180,
+        -80
+      ],
+      "size": [
+        460,
+        720
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 5
+        },
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 6
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 7
+        },
+        {
+          "name": "images_2",
+          "type": "IMAGE",
+          "link": 8
+        },
+        {
+          "name": "reference_brief",
+          "type": "STRING",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": [
+            10
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "blend_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            11
+          ],
+          "slot_index": 2
+        },
+        {
+          "name": "script",
+          "type": "STRING",
+          "links": [
+            12
+          ],
+          "slot_index": 3
+        },
+        {
+          "name": "critique_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 4
+        },
+        {
+          "name": "final_score",
+          "type": "INT",
+          "links": [],
+          "slot_index": 5
+        },
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [],
+          "slot_index": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIWholeObjectBuilder"
+      },
+      "widgets_values": [
+        "Reproduce the object in the reference images as a detailed 3D model: match its shapes, proportions, materials and all of its decoration (trim, rivets, windows, motifs, paint bands).",
+        3,
+        85,
+        true,
+        "headless",
+        false,
+        2,
+        true,
+        true,
+        true,
+        true,
+        true,
+        "quad",
+        "preview",
+        "CYCLES",
+        768,
+        512,
+        16,
+        900,
+        "",
+        "127.0.0.1",
+        8119,
+        false,
+        ""
+      ]
+    },
+    {
+      "id": 8,
+      "type": "PreviewImage",
+      "pos": [
+        1700,
+        -80
+      ],
+      "size": [
+        520,
+        360
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 10
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "title": "Best round - four views"
+    },
+    {
+      "id": 9,
+      "type": "GapStringViewer",
+      "pos": [
+        1700,
+        320
+      ],
+      "size": [
+        520,
+        320
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Build report (scores per round)"
+    },
+    {
+      "id": 10,
+      "type": "GapStringViewer",
+      "pos": [
+        1700,
+        680
+      ],
+      "size": [
+        520,
+        320
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Final script (the whole object)"
+    },
+    {
+      "id": 11,
+      "type": "GapStringViewer",
+      "pos": [
+        700,
+        240
+      ],
+      "size": [
+        420,
+        260
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Reference brief (CHECK THIS FIRST)"
+    },
+    {
+      "id": 12,
+      "type": "GapStringViewer",
+      "pos": [
+        700,
+        540
+      ],
+      "size": [
+        420,
+        200
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Model info / quality tips"
+    },
+    {
+      "id": 13,
+      "type": "GapAISendSceneToBlender",
+      "pos": [
+        1180,
+        700
+      ],
+      "size": [
+        460,
+        300
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "sent",
+          "type": "BOOLEAN",
+          "links": [],
+          "slot_index": 0
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            16
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "blend_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAISendSceneToBlender"
+      },
+      "widgets_values": [
+        "append",
+        "127.0.0.1",
+        8119,
+        true,
+        false,
+        180,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 14,
+      "type": "GapStringViewer",
+      "pos": [
+        1700,
+        1040
+      ],
+      "size": [
+        520,
+        200
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Sent to Blender"
+    },
+    {
+      "id": 15,
+      "type": "GapAIDebugLog",
+      "pos": [
+        2260,
+        -80
+      ],
+      "size": [
+        520,
+        260
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "log",
+          "type": "STRING",
+          "links": [
+            18
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "log_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIDebugLog"
+      },
+      "widgets_values": [
+        "everything",
+        60000,
+        false
+      ]
+    },
+    {
+      "id": 16,
+      "type": "GapStringViewer",
+      "pos": [
+        2260,
+        220
+      ],
+      "size": [
+        520,
+        560
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "DEBUG LOG (every prompt, script, critique)"
+    }
+  ],
+  "links": [
+    [
+      1,
+      5,
+      0,
+      6,
+      0,
+      "GAP_AI_LLM"
+    ],
+    [
+      2,
+      2,
+      0,
+      6,
+      1,
+      "IMAGE"
+    ],
+    [
+      3,
+      3,
+      0,
+      6,
+      2,
+      "IMAGE"
+    ],
+    [
+      4,
+      4,
+      0,
+      6,
+      4,
+      "GAP_AI_SESSION"
+    ],
+    [
+      5,
+      4,
+      0,
+      7,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      6,
+      5,
+      0,
+      7,
+      1,
+      "GAP_AI_LLM"
+    ],
+    [
+      7,
+      2,
+      0,
+      7,
+      2,
+      "IMAGE"
+    ],
+    [
+      8,
+      3,
+      0,
+      7,
+      3,
+      "IMAGE"
+    ],
+    [
+      9,
+      6,
+      0,
+      7,
+      4,
+      "STRING"
+    ],
+    [
+      10,
+      7,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      11,
+      7,
+      2,
+      9,
+      0,
+      "STRING"
+    ],
+    [
+      12,
+      7,
+      3,
+      10,
+      0,
+      "STRING"
+    ],
+    [
+      13,
+      6,
+      0,
+      11,
+      0,
+      "STRING"
+    ],
+    [
+      14,
+      5,
+      1,
+      12,
+      0,
+      "STRING"
+    ],
+    [
+      15,
+      4,
+      0,
+      13,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      16,
+      13,
+      1,
+      14,
+      0,
+      "STRING"
+    ],
+    [
+      17,
+      4,
+      0,
+      15,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      18,
+      15,
+      0,
+      16,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        60,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

@@ -477,6 +477,82 @@ class GapAISceneBuilder:
         return {"ui": {"text": [report[-2000:]]}, "result": (preview, blend, report, scripts, vjson, sess.to_payload())}
 
 
+class GapAIWholeObjectBuilder:
+    """One script for the whole object, rendered, critiqued against the reference, revised, rebuilt.
+
+    This is how a frontier model reproduces a reference: one author writes the complete build file,
+    looks at the render next to the picture, edits the file and rebuilds from scratch. Parts relate to
+    each other because they were written together; a revision fixes the script instead of piling
+    corrections onto a scene. Best with Claude/GPT or a large vision-capable local model; a small
+    blind coder still runs but should use the step-by-step Complete Scene builder instead.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        req = {
+            "session": (SESSION_TYPE,),
+            "llm": (LLM_TYPE,),
+            "prompt": ("STRING", {"multiline": True,
+                       "default": "Reproduce the object in the reference images as a detailed 3D model: match its "
+                                  "shapes, proportions, materials and all of its decoration.",
+                       "tooltip": "What to build. With reference images connected, the brief from the Reference "
+                                  "Analyzer carries the measurements; this text says what matters most."}),
+            "rounds": ("INT", {"default": 3, "min": 1, "max": 8,
+                       "tooltip": "write script -> build -> render -> critique -> revise script -> rebuild. Each round "
+                                  "is a full rebuild; the best-scoring round is kept."}),
+            "target_score": ("INT", {"default": 85, "min": 0, "max": 100,
+                             "tooltip": "Stop once the critic scores the resemblance this high."}),
+            "start_fresh": ("BOOLEAN", {"default": True,
+                            "tooltip": "Archive whatever the session holds first. Whole-object rounds always rebuild "
+                                       "into an empty scene; this only decides whether the OLD session content is "
+                                       "archived (ON) or overwritten (OFF)."}),
+        }
+        req.update(_exec_inputs())
+        opt = {
+            "images": ("IMAGE",),
+            "images_2": ("IMAGE",),
+            "reference_brief": ("STRING", {"forceInput": True}),
+        }
+        opt.update(_exec_optional_inputs())
+        return {"required": req, "optional": opt}
+
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING", "STRING", "INT", SESSION_TYPE)
+    RETURN_NAMES = ("preview", "blend_path", "report", "script", "critique_json", "final_score", "session")
+    FUNCTION = "build"
+    CATEGORY = CATEGORY
+    OUTPUT_NODE = True
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("nan")
+
+    def build(self, session, llm, prompt, rounds, target_score, images=None, images_2=None,
+              reference_brief="", **kwargs):
+        sess = SceneSession.from_payload(session)
+        start_fresh = bool(kwargs.pop("start_fresh", True))
+        prefix = ""
+        if start_fresh and (sess.turn_count or sess.blend_exists()):
+            previous = sess.state.get("object_identity") or "previous build"
+            sess = SceneSession(sess.name, sess.root).open(reset=True)
+            prefix = f"start_fresh: archived the previous session content ('{previous}') to archive_*/.\n\n"
+        refs = _tensor_to_b64_list(images) + _tensor_to_b64_list(images_2)
+        if refs:
+            _save_refs(sess, refs)
+        agent = SceneBuilderAgent(sess, llm, _options_from(kwargs))
+        r = agent.build_whole(prompt.strip() or "Build the object described in the specification.",
+                              reference_brief, rounds=rounds, target_score=target_score,
+                              reference_images_b64=refs or None)
+        if not refs and not agent.reference_images_b64():
+            r["report"] += ("\n\nNOTE: no reference image was available, so there was nothing to critique against - "
+                            "one round was built and kept. Connect the reference images to score and revise.")
+        preview, blend, report, scripts, _ = _collect_outputs(sess, [r], prefix + r["report"])
+        critique_json = json.dumps([{"round": h["round"], "score": h["score"], "critique": h["critique"]}
+                                    for h in r.get("history", [])], indent=1)
+        return {"ui": {"text": [report[-2000:]]},
+                "result": (preview, blend, report, r.get("code", ""), critique_json, int(r.get("score") or 0),
+                           sess.to_payload())}
+
+
 def _identity_warning(sess, reference_brief):
     """Warn when a conversational step's reference describes a different object than the scene holds.
 
@@ -905,6 +981,7 @@ NODE_CLASS_MAPPINGS = {
     "GapAIReferenceAnalyzer": GapAIReferenceAnalyzer,
     "GapAIScenePlanner": GapAIScenePlanner,
     "GapAISceneBuilder": GapAISceneBuilder,
+    "GapAIWholeObjectBuilder": GapAIWholeObjectBuilder,
     "GapAIStepBuilder": GapAIStepBuilder,
     "GapAIScriptRunner": GapAIScriptRunner,
     "GapAIVisualRefiner": GapAIVisualRefiner,
@@ -920,6 +997,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GapAIReferenceAnalyzer": "AI Reference Analyzer (Multi-Image)",
     "GapAIScenePlanner": "AI Scene Planner",
     "GapAISceneBuilder": "AI Scene Builder (Complete Scene)",
+    "GapAIWholeObjectBuilder": "AI Whole-Object Builder (One Script, See & Revise)",
     "GapAIStepBuilder": "AI Step Builder (Conversational)",
     "GapAIScriptRunner": "AI Script Runner (Review & Execute)",
     "GapAIVisualRefiner": "AI Visual Refiner (Compare to Reference & Fix)",

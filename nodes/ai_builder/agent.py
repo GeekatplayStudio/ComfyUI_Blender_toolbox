@@ -50,6 +50,7 @@ class AgentOptions(dict):
         "live_timeout": config.DEFAULT_LIVE_TIMEOUT,
         "live_save": False,
         "rag_k": 6,
+        "codegen_sees_reference": True,   # attach the reference images to codegen when the coder can see
         "extra_reference_text": "",
         "log": None,                    # callable(str) for progress
     }
@@ -70,6 +71,9 @@ class SceneBuilderAgent:
             live_host=self.opt["live_host"], live_port=self.opt["live_port"], live_timeout=self.opt["live_timeout"],
         )
         self.blender_version = self._detect_blender_version()
+        self.reference_images = None      # base64 PNGs handed in by a node; else the session's refs/ folder
+        self._render_b64 = None
+        self._vision_logged = False
 
     # ------------------------------------------------------------------ utils
     def log(self, msg):
@@ -113,6 +117,50 @@ class SceneBuilderAgent:
         }
 
     # ------------------------------------------------------------------ references
+    def reference_images_b64(self, max_images=3):
+        """The reference pictures for this session: the ones a node passed in, else the newest set the
+        Reference Analyzer saved to refs/ (files share a timestamp per analysis run)."""
+        if self.reference_images:
+            return list(self.reference_images[:max_images])
+        try:
+            files = sorted(f for f in os.listdir(self.session.refs_dir) if f.lower().endswith(".png"))
+        except OSError:
+            return []
+        if not files:
+            return []
+        latest_stamp = files[-1].rsplit("_", 1)[0]          # ref_20260922_122129
+        chosen = [f for f in files if f.rsplit("_", 1)[0] == latest_stamp][:max_images]
+        import base64
+        out = []
+        for f in chosen:
+            with open(os.path.join(self.session.refs_dir, f), "rb") as fh:
+                out.append(base64.b64encode(fh.read()).decode("utf-8"))
+        return out
+
+    def codegen_images(self):
+        """Reference images for the code model - only when it can actually see them.
+
+        This is the single biggest difference between a frontier "see and code" build and a local
+        pipeline: numbers that pass through prose lose the shape. When the coder has vision (Claude,
+        GPT, qwen3-vl...) it gets the picture; a blind coder gets nothing rather than silently ignored
+        bytes. Returns (images_b64, sees_reference)."""
+        if not self.opt.get("codegen_sees_reference", True):
+            return [], False
+        refs = self.reference_images_b64()
+        if not refs:
+            return [], False
+        if not self.client.model_has_vision():
+            if not self._vision_logged:
+                self.log(f"code model '{self.client.cfg['model']}' has no vision capability - it works from the "
+                         "written specification only. A vision-capable coder (Claude, GPT, qwen3-vl, qwen3.8) "
+                         "would see the reference directly.")
+                self._vision_logged = True
+            return [], False
+        if not self._vision_logged:
+            self.log(f"code model '{self.client.cfg['model']}' can see: attaching {len(refs)} reference image(s) to every codegen call")
+            self._vision_logged = True
+        return refs, True
+
     def analyze_references(self, images_b64, user_notes="", prompt=""):
         """Deep multi-pass analysis. Returns (brief_text, analyses_list).
 
@@ -301,18 +349,20 @@ class SceneBuilderAgent:
         feedback, previous_code, code, script_path, result = None, None, "", "", None
         attempts = 0
         scan = {"blocked": [], "warnings": []}
+        images, sees_reference = self.codegen_images()
         while attempts <= int(self.opt["max_retries"]):
             attempts += 1
             self.log(f"Step {idx} '{title}' - generating script (attempt {attempts}) with {self.client.cfg['model']}")
             msgs = prompts.build_codegen_messages(
                 instruction, self.session.scene_summary(), self.session.history_summary(), reference_brief,
-                rag_context, self.blender_version, collection_name, scene_is_new, feedback, previous_code)
+                rag_context, self.blender_version, collection_name, scene_is_new, feedback, previous_code,
+                sees_reference=sees_reference)
             self.session.debug(f"STEP {idx} '{title}' ATTEMPT {attempts} - PROMPT SENT", divider=True)
             for m in msgs:
                 self.session.debug(f"  [{m['role']}]", m["content"])
             self.session.debug(f"STEP {idx} ATTEMPT {attempts} - RETRIEVED REFERENCE CHUNKS",
                                "\n".join(f"{c['source']} :: {c['title']} (score {c['score']})" for c in chunks))
-            text = self.client.chat(msgs)
+            text = self.client.chat(msgs, images=images or None)
             self.session.debug(f"STEP {idx} ATTEMPT {attempts} - RAW MODEL REPLY", text)
             code = extract_code(text)
             if not code.strip():
@@ -365,7 +415,7 @@ class SceneBuilderAgent:
                 self.session.debug(f"STEP {idx} ATTEMPT {attempts} - TRACEBACK", result["traceback"])
             if result.get("stdout"):
                 self.session.debug(f"STEP {idx} ATTEMPT {attempts} - BLENDER STDOUT", result["stdout"][-6000:])
-            scale_problem = self._scale_problem(result, reference_brief)
+            scale_problem = self._scale_problem(result, reference_brief, instruction)
             if result.get("ok") and scale_problem:
                 # The script ran and validated, but built the wrong size. A 0.59 m hull for a 0.30 m
                 # object is exactly how a rocket turns into a tube; treat it as a failure to retry.
@@ -412,35 +462,42 @@ class SceneBuilderAgent:
         m = re.search(r"^OBJECT:\s*([^,\n]+)", reference_brief or "", re.IGNORECASE | re.MULTILINE)
         return m.group(1).strip().lower() if m else ""
 
-    def _scale_problem(self, result, reference_brief):
-        """Return a message when the built scene is far taller or shorter than the specification.
+    def _scale_problem(self, result, reference_brief, instruction=""):
+        """Catch a step that built at the wrong size.
 
-        Only the overall height is checked - it is the one number every specification carries, and
-        the one that goes wrong when a model stacks z positions as heights or drops a decimal.
+        Too TALL is judged against the specification's overall height - nothing in the object may
+        exceed it. Too SHORT is judged only against the z values the step's own instruction gives
+        ("from z=0.084 m to z=0.249 m"): the landing legs of a 0.3 m rocket are 0.135 m tall and
+        that is correct, so the whole-object height cannot be the yardstick for a single part.
         """
         target = self.spec_height(reference_brief)
-        scene = result.get("scene") or {}
-        bbox = scene.get("bbox") or {}
-        if not target or not bbox.get("min") or not bbox.get("max"):
+        bbox = (result.get("scene") or {}).get("bbox") or {}
+        if not bbox or not bbox.get("max") or not bbox.get("min"):
             return ""
-        built = float(bbox["max"][2]) - float(bbox["min"][2])
-        if built <= 0:
-            return ""
-        ratio = built / target
-        if 0.5 <= ratio <= 1.6:
-            return ""
-        direction = "TALLER" if ratio > 1 else "SHORTER"
-        return (f"SCALE ERROR: the scene is now {built:.3f} m tall but the object is specified as "
-                f"{target:.3f} m ({ratio:.1f}x {direction}). Some part was built at the wrong size - "
-                f"check every z value and height against the instruction. If you used stepped_profile, "
-                f"remember it takes (HEIGHT-of-ring, radius) pairs and stacks them; pass (z, radius) "
-                f"outlines straight to B.lathe instead.")
+        top, bottom = float(bbox["max"][2]), float(bbox["min"][2])
+        built = top - bottom
+        if target and built > target * 1.6:
+            return (f"SCALE ERROR: the scene is now {built:.3f} m tall but the object is specified as "
+                    f"{target:.3f} m ({built / target:.1f}x TALLER). Some part was built at the wrong size - "
+                    "check every z value and height against the instruction. If you used stepped_profile, "
+                    "remember it takes (HEIGHT-of-ring, radius) pairs and stacks them; pass (z, radius) "
+                    "outlines straight to B.lathe instead.")
+        zs = [float(z) for z in re.findall(r"z\s*=\s*(\d+(?:\.\d+)?)\s*m", instruction or "")]
+        if zs and len(zs) >= 2:
+            expected_top = max(zs)
+            if expected_top > 0.01 and top < expected_top * 0.5:
+                return (f"SCALE ERROR: this step says its parts reach z={expected_top:.3f} m, but the tallest "
+                        f"point in the scene is z={top:.3f} m. The part came out far too small - re-read the "
+                        "heights and z positions in the instruction and use them literally (meters).")
+        return ""
 
     def _with_header(self, code, idx, title, attempt):
         header = (f"# Generated by ComfyUI-Blender-Toolbox AI Scene Builder (Geekatplay Studio - Vladimir Chopine)\n"
                   f"# session: {self.session.name} | step {idx}: {title} | attempt {attempt}\n"
                   f"# model: {self.client.cfg['provider']}/{self.client.cfg['model']} | {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
                   f"# Review this file before trusting it. It runs with full Blender Python access.\n")
+        if code.startswith("# Generated by ComfyUI-Blender-Toolbox AI Scene Builder"):
+            return code
         if "from gap_helpers import" not in code and "import gap_helpers" not in code:
             code = "from gap_helpers import *\n" + code
         if "import bpy" not in code:
@@ -574,6 +631,206 @@ class SceneBuilderAgent:
                  "render": h["render"], "steps": [s["title"] for s in h["steps"]]} for h in history]
             self.session.save()
         return history, render_path
+
+    # ------------------------------------------------------------------ whole-object mode
+    def _wipe_scene(self):
+        """Whole-object rounds rebuild from nothing: remove the session .blend so the runner starts
+        with an empty scene. Scripts, results and renders of earlier rounds stay on disk."""
+        try:
+            if self.session.blend_exists():
+                os.remove(self.session.blend_path)
+        except OSError as e:
+            self.log(f"could not remove the old scene file: {e}")
+
+    def _execute_code(self, code, script_path, idx, title, attempt, label):
+        """Header, save, safety scan, run in Blender, log. Returns (code, result)."""
+        code = self._with_header(code, idx, title, attempt)
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        self.session.debug(f"{label} - GENERATED SCRIPT ({script_path})", code)
+        scan = scan_code(code) if self.opt["safety_scan"] else {"blocked": [], "warnings": []}
+        # A whole-object script starts from an empty scene, so clearing it is harmless - drop that warning.
+        scan["warnings"] = [w for w in scan["warnings"] if "clears the whole scene" not in w]
+        if scan["blocked"]:
+            self.log("Safety scan blocked the script:\n" + format_scan(scan))
+            return code, {"ok": False, "error": "blocked by safety scan:\n" + "\n".join(scan["blocked"]),
+                          "safety": scan, "built": [], "validation": None, "scene": None, "render_path": None,
+                          "timings": {}, "stdout": ""}
+        if self.opt["dry_run"]:
+            self.log(f"Dry run - script saved to {script_path} (not executed)")
+            return code, {"ok": True, "dry_run": True, "error": None, "safety": scan, "stdout": "", "built": [],
+                          "validation": None, "scene": None, "render_path": None, "timings": {}}
+        self._wipe_scene()
+        self.log(f"Executing {os.path.basename(script_path)} in Blender ({self.opt['execution_mode']}) on an empty scene")
+        result = self.runner.run(
+            script_path, mode=self.opt["execution_mode"], validate=self.opt["validate"],
+            auto_fix_normals=self.opt["auto_fix_normals"], auto_fix_doubles=self.opt["auto_fix_doubles"],
+            render=self._render_cfg(script_path),
+            save=(self.opt["live_save"] if self.opt["execution_mode"] == "live" else True),
+        )
+        result["safety"] = scan
+        self.session.debug(f"{label} - BLENDER RESULT", {
+            "ok": result.get("ok"), "error": result.get("error"), "built": result.get("built"),
+            "timings": result.get("timings"), "render_path": result.get("render_path"),
+            "validation_totals": (result.get("validation") or {}).get("totals"),
+            "validation_issues": [i for i in (result.get("validation") or {}).get("issues", [])
+                                  if i.get("severity") == "error"][:20],
+            "api_hint": result.get("api_hint"),
+        })
+        if result.get("traceback"):
+            self.session.debug(f"{label} - TRACEBACK", result["traceback"])
+        if result.get("stdout"):
+            self.session.debug(f"{label} - BLENDER STDOUT", result["stdout"][-6000:])
+        return code, result
+
+    def build_whole(self, instruction, reference_brief="", rounds=3, target_score=85, reference_images_b64=None):
+        """One script for the entire object; render; critique against the reference; revise the SCRIPT;
+        rebuild from scratch. Repeat. Keeps the best-scoring round.
+
+        This is how a frontier model reproduces a reference (one author, one file, many looks), and it
+        is the mode to use with Claude/GPT or a large vision-capable local model. Small blind coders do
+        better in step mode; this mode will still run, but expect lower scores.
+
+        Returns a dict like run_step plus "history" (one entry per round) and "best_round".
+        """
+        if reference_images_b64:
+            self.reference_images = list(reference_images_b64)
+        reference_brief = reference_brief or self.session.state.get("reference_brief", "")
+        refs = self.reference_images_b64()
+        collection_name = "Whole_Build"
+        chunks = self.index.retrieve(f"{instruction} complete object blender python bpy", k=int(self.opt["rag_k"]),
+                                     client=self.client)
+        rag_context = ReferenceIndex.format_context(chunks)
+        images, sees_reference = self.codegen_images()
+        idx = self.session.turn_count + 1
+        history, best = [], None
+        previous_code, critique_text, score = None, None, None
+        total_attempts = 0
+        for round_index in range(1, int(rounds) + 1):
+            title = f"Whole object - round {round_index}"
+            self.log(f"=== {title}/{rounds} ===")
+            feedback, code, result, script_path = None, "", None, ""
+            attempts = 0
+            while attempts <= int(self.opt["max_retries"]):
+                attempts += 1
+                total_attempts += 1
+                label = f"WHOLE ROUND {round_index} ATTEMPT {attempts}"
+                self.log(f"{title} - {'revising' if critique_text and attempts == 1 else 'generating'} the full script "
+                         f"(attempt {attempts}) with {self.client.cfg['model']}")
+                if attempts == 1 and critique_text is not None:
+                    msgs = prompts.build_whole_messages(instruction, reference_brief, rag_context, self.blender_version,
+                                                        collection_name, sees_reference, previous_code=previous_code,
+                                                        critique=critique_text, score=score,
+                                                        render_index=(len(refs[:1]) + 1) if sees_reference else 1)
+                    call_images = (refs[:1] + [self._render_b64]) if sees_reference else None
+                else:
+                    msgs = prompts.build_whole_messages(instruction, reference_brief, rag_context, self.blender_version,
+                                                        collection_name, sees_reference, feedback=feedback,
+                                                        previous_code=previous_code)
+                    call_images = images or None
+                self.session.debug(f"{label} - PROMPT SENT", divider=True)
+                for m in msgs:
+                    self.session.debug(f"  [{m['role']}]", m["content"])
+                text = self.client.chat(msgs, images=call_images)
+                self.session.debug(f"{label} - RAW MODEL REPLY", text)
+                code = extract_code(text)
+                if not code.strip():
+                    feedback = "Your reply contained no ```python code block. Return the complete script in one code block."
+                    previous_code = text[:4000]
+                    continue
+                script_path = self.session.next_script_path(attempts, label=f"whole_r{round_index}")
+                code, result = self._execute_code(code, script_path, idx, title, attempts, label)
+                if result.get("ok") and not result.get("dry_run"):
+                    scale_problem = self._scale_problem(result, reference_brief)
+                    if scale_problem:
+                        result["ok"], result["error"] = False, scale_problem
+                if result.get("ok"):
+                    break
+                feedback = feedback_for_retry(result)
+                previous_code = code
+                critique_text = None            # an error retry is a repair, not a revision
+                self.session.debug(f"{label} - FEEDBACK FOR RETRY", feedback)
+                self.log(f"{title} failed: {str(result.get('error'))[:300]}")
+            entry = {"round": round_index, "ok": bool(result and result.get("ok")), "attempts": attempts,
+                     "script": script_path, "code": code, "result": result or {}, "score": None, "critique": None,
+                     "render_paths": (result or {}).get("render_paths") or [], "render": (result or {}).get("render_path")}
+            history.append(entry)
+            if not entry["ok"] or self.opt["dry_run"]:
+                if not entry["ok"]:
+                    self.log(f"Round {round_index} produced no working script after {attempts} attempts; stopping.")
+                break
+            render_path = result.get("render_path")
+            if refs and render_path and os.path.exists(render_path):
+                critique = self.critique(refs, render_path, reference_brief)
+                entry["critique"] = critique
+                entry["score"] = int(critique.get("score") or 0)
+                import base64
+                with open(render_path, "rb") as fh:
+                    self._render_b64 = base64.b64encode(fh.read()).decode("utf-8")
+            else:
+                entry["score"] = 0
+                self.log("No reference image or render available - cannot critique; keeping this round.")
+            if best is None or entry["score"] >= (best["score"] or 0):
+                best = entry
+            if not refs:
+                break
+            if entry["score"] >= int(target_score):
+                self.log(f"Score {entry['score']} reached the target ({target_score}); stopping.")
+                break
+            if round_index == int(rounds):
+                break
+            diffs = [d for d in (entry["critique"] or {}).get("differences", [])]
+            if not diffs:
+                self.log("Critic listed no differences; stopping.")
+                break
+            critique_text = json.dumps({"verdict": entry["critique"].get("verdict"), "differences": diffs,
+                                        "keep": entry["critique"].get("keep", [])}, indent=1)[:9000]
+            previous_code, score = code, entry["score"]
+        if best is None:
+            best = history[-1] if history else {"ok": False, "attempts": total_attempts, "script": "", "code": "",
+                                                "result": {}, "score": 0, "render_paths": [], "round": 0}
+        if best is not history[-1] and best.get("ok") and not self.opt["dry_run"]:
+            # The last round scored lower than an earlier one; put the best scene back on disk.
+            self.log(f"Round {best['round']} scored best ({best['score']}); rebuilding it as the final scene")
+            restore_path = self.session.next_script_path(1, label="whole_best")
+            _, restored = self._execute_code(best["code"].split("\n", 4)[-1] if best["code"].startswith("# Generated") else best["code"],
+                                             restore_path, idx, f"Whole object - best round {best['round']}", 1, "WHOLE BEST RESTORE")
+            if restored.get("ok"):
+                best = dict(best, result=restored, script=restore_path,
+                            render_paths=restored.get("render_paths") or [], render=restored.get("render_path"))
+        scores = [h["score"] for h in history if h["score"] is not None]
+        turn = self.session.add_turn({
+            "title": f"Whole object ({len(history)} round{'s' if len(history) != 1 else ''})", "category": "whole",
+            "instruction": instruction, "collection": collection_name, "ok": bool(best.get("ok")),
+            "dry_run": bool(self.opt["dry_run"]), "attempts": total_attempts, "script": best.get("script", ""),
+            "result": self.session.result_path_for(best["script"]) if best.get("script") else "",
+            "render": best.get("render"), "summary": self._turn_summary("Whole object", instruction, best.get("result")),
+            "scene": (best.get("result") or {}).get("scene") or None,
+            "validation": (best.get("result") or {}).get("validation") or None,
+            "error": (best.get("result") or {}).get("error"), "model": self.client.cfg["model"],
+            "scores": scores, "best_round": best.get("round"),
+        })
+        self.session.state["whole_history"] = [
+            {"round": h["round"], "ok": h["ok"], "attempts": h["attempts"], "score": h["score"], "script": h["script"],
+             "render": h["render"], "verdict": (h["critique"] or {}).get("verdict")} for h in history]
+        self.session.save()
+        lines = [format_step_report(turn["index"], f"Whole object - best round {best.get('round')}", best.get("result") or {},
+                                    total_attempts, best.get("script", ""))]
+        for h in history:
+            c = h["critique"] or {}
+            lines.append(f"round {h['round']}: {'OK' if h['ok'] else 'FAILED'} after {h['attempts']} attempt(s)"
+                         + (f" - score {h['score']}/100 - {c.get('verdict', '')}" if h["score"] is not None else ""))
+            for d in c.get("differences", [])[:6]:
+                lines.append(f"    [{d.get('importance', '?')}] {d.get('issue', '')}")
+        if len(scores) > 1:
+            lines.append("score progression: " + " -> ".join(str(x) for x in scores))
+        if not sees_reference and refs:
+            lines.append("NOTE: the code model could not see the reference (no vision capability); it worked from the "
+                         "written specification. For 'see and code' use a vision-capable coder.")
+        return {"ok": bool(best.get("ok")), "result": best.get("result") or {}, "code": best.get("code", ""),
+                "script_path": best.get("script", ""), "attempts": total_attempts, "report": "\n".join(lines),
+                "turn": turn, "render_path": best.get("render"), "render_paths": best.get("render_paths") or [],
+                "history": history, "best_round": best.get("round"), "score": best.get("score") or 0}
 
     # ------------------------------------------------------------------ plan execution
     def run_plan(self, steps, reference_brief="", stop_on_failure=True):

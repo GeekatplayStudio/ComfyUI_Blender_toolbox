@@ -12,6 +12,7 @@ Providers:
 import json
 import os
 import re
+import time
 
 import requests
 
@@ -104,6 +105,13 @@ class LLMClient:
         self.last_raw = None
 
     # ------------------------------------------------------------------ public
+    # Transient failures worth retrying. A local Ollama routinely drops the connection while it
+    # unloads a 27B vision model and loads a 32B coder on the same GPU; that is not a reason to
+    # throw away a fifteen-minute build.
+    RETRYABLE = (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError,
+                 requests.exceptions.ReadTimeout)
+    RETRY_DELAYS = (5, 15, 40)
+
     def chat(self, messages, images=None, json_mode=False, model=None, temperature=None, max_tokens=None):
         """
         messages: [{"role": "system"|"user"|"assistant", "content": str}, ...]
@@ -114,15 +122,36 @@ class LLMClient:
         model = model or self.cfg["model"]
         temperature = self.cfg["temperature"] if temperature is None else temperature
         max_tokens = max_tokens or self.cfg["max_tokens"]
-        if provider == "ollama":
-            text = self._chat_ollama(messages, images, json_mode, model, temperature, max_tokens)
-        elif provider == "anthropic":
-            text = self._chat_anthropic(messages, images, json_mode, model, temperature, max_tokens)
-        elif provider == "openai_compatible":
-            text = self._chat_openai(messages, images, json_mode, model, temperature, max_tokens)
-        else:
+        send = {"ollama": self._chat_ollama, "anthropic": self._chat_anthropic,
+                "openai_compatible": self._chat_openai}.get(provider)
+        if send is None:
             raise ValueError(f"Unknown provider '{provider}'")
-        return strip_thinking(text)
+        last_error = None
+        for attempt, delay in enumerate((0,) + self.RETRY_DELAYS):
+            if delay:
+                print(f"[AI Scene Builder] {provider} connection dropped ({type(last_error).__name__}); "
+                      f"waiting {delay}s for the server to settle, retry {attempt}/{len(self.RETRY_DELAYS)}",
+                      flush=True)
+                time.sleep(delay)
+                if provider == "ollama" and not self._ollama_up():
+                    continue
+            try:
+                return strip_thinking(send(messages, images, json_mode, model, temperature, max_tokens))
+            except requests.exceptions.HTTPError:
+                raise                       # a real 4xx/5xx answer; retrying will not change it
+            except self.RETRYABLE as e:
+                last_error = e
+        raise RuntimeError(
+            f"{provider} kept dropping the connection ({type(last_error).__name__}: {last_error}). "
+            "For Ollama this usually means the model does not fit in VRAM alongside the previous one - "
+            "check 'ollama ps', free memory, or pick a smaller model in AI Model Config.") from last_error
+
+    def _ollama_up(self):
+        try:
+            requests.get(f"{self.cfg['url'].rstrip('/')}/api/tags", headers=self._headers(), timeout=(3, 10)).raise_for_status()
+            return True
+        except Exception:
+            return False
 
     def embed(self, texts):
         """Embeddings via Ollama only (other providers return None -> BM25 fallback)."""
@@ -190,6 +219,22 @@ class LLMClient:
         if best_embed:
             reasons["embed"] = f"{best_embed}"
         return {"code": best_code, "vision": best_vision, "embed": best_embed, "reasons": reasons}
+
+    def model_has_vision(self, model=None):
+        """Can this model look at an image? Anthropic/OpenAI chat models can; for Ollama we ask the
+        server (capabilities list) and cache the answer. Unknown -> False, so a blind coder is never
+        sent pictures it would silently ignore."""
+        model = model or self.cfg["model"]
+        if self.cfg["provider"] in ("anthropic", "openai_compatible"):
+            return True
+        cache = getattr(self, "_vision_cache", None)
+        if cache is None:
+            cache = self._vision_cache = {}
+        if model not in cache:
+            details = self.ollama_model_details()
+            info = details.get(model) or details.get(model + ":latest") or {}
+            cache[model] = "vision" in set(info.get("capabilities") or [])
+        return cache[model]
 
     def ollama_model_details(self):
         """{name: {"params_b": float|None, "families": [...], "capabilities": [...]}}.

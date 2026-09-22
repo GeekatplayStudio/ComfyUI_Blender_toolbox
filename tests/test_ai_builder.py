@@ -3,6 +3,7 @@
 """Offline unit tests for the AI Scene Builder engine plus one real headless-Blender integration test
 (skipped when Blender is not installed). No model calls are made."""
 
+import base64
 import json
 import os
 import re
@@ -55,6 +56,105 @@ class TestLLMHelpers(unittest.TestCase):
         self.assertEqual(cfg["provider"], "ollama")
         self.assertEqual(cfg["model"], "qwen2.5-coder:7b")
         self.assertIn("qwen2.5-coder:7b", cfg.describe())
+
+
+class TestLLMResilience(unittest.TestCase):
+    def client(self):
+        from nodes.ai_builder.llm import LLMClient, LLMConfig
+        return LLMClient(LLMConfig(model="qwen2.5-coder:32b", vision_model="qwen3.8:latest"))
+
+    def test_model_has_vision_reads_ollama_capabilities(self):
+        c = self.client()
+        c.ollama_model_details = lambda: {"qwen2.5-coder:32b": {"capabilities": ["completion", "tools"]},
+                                          "qwen3.8:latest": {"capabilities": ["completion", "vision"]}}
+        self.assertFalse(c.model_has_vision())
+        self.assertTrue(c.model_has_vision("qwen3.8"))
+        self.assertFalse(c.model_has_vision("not-installed"))
+        from nodes.ai_builder.llm import LLMClient, LLMConfig
+        cloud = LLMClient(LLMConfig(provider="anthropic", model="claude-opus-5", url="https://api.anthropic.com"))
+        self.assertTrue(cloud.model_has_vision())
+
+    def test_chat_retries_a_dropped_connection(self):
+        """Ollama drops the socket while swapping a 27B vision model for a 32B coder; one drop must
+        not throw away a fifteen-minute build."""
+        import requests
+        from nodes.ai_builder import llm as llm_mod
+        c = self.client()
+        calls = {"n": 0}
+
+        def flaky(*a, **k):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise requests.exceptions.ConnectionError("Remote end closed connection without response")
+            return "```python\nx = 1\n```"
+        c._chat_ollama = flaky
+        c._ollama_up = lambda: True
+        real_sleep = llm_mod.time.sleep
+        llm_mod.time.sleep = lambda s: None
+        try:
+            self.assertIn("x = 1", c.chat([{"role": "user", "content": "hi"}]))
+        finally:
+            llm_mod.time.sleep = real_sleep
+        self.assertEqual(calls["n"], 2)
+
+    def test_chat_gives_up_with_a_useful_message(self):
+        import requests
+        from nodes.ai_builder import llm as llm_mod
+        c = self.client()
+
+        def dead(*a, **k):
+            raise requests.exceptions.ConnectionError("gone")
+        c._chat_ollama = dead
+        c._ollama_up = lambda: True
+        real_sleep = llm_mod.time.sleep
+        llm_mod.time.sleep = lambda s: None
+        try:
+            with self.assertRaises(RuntimeError) as cm:
+                c.chat([{"role": "user", "content": "hi"}])
+        finally:
+            llm_mod.time.sleep = real_sleep
+        self.assertIn("ollama ps", str(cm.exception))
+
+
+class TestCodegenSeesReference(unittest.TestCase):
+    """Item one of 'how Astra does it': the coder gets the picture - but only if it can see."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="ai-see-")
+        self.sess = SceneSession("see", root=os.path.join(self.tmp, "see")).open()
+        png = base64.b64encode(b"\x89PNG fake").decode()
+        for stamp, n in (("20260101_000000", 1), ("20260102_000000", 2)):
+            for i in range(1, n + 1):
+                with open(os.path.join(self.sess.refs_dir, f"ref_{stamp}_{i}.png"), "wb") as f:
+                    f.write(base64.b64decode(png))
+
+    def agent(self, vision):
+        a = SceneBuilderAgent.__new__(SceneBuilderAgent)
+        a.session = self.sess
+        a.opt = {"codegen_sees_reference": True}
+        a.reference_images = None
+        a._vision_logged = False
+        a.log = lambda msg: None
+        a.client = type("C", (), {"cfg": {"model": "m"}, "model_has_vision": lambda self: vision})()
+        return a
+
+    def test_newest_reference_set_is_used(self):
+        refs = self.agent(True).reference_images_b64()
+        self.assertEqual(len(refs), 2, "the newest analysis run saved two images; the older single one is stale")
+
+    def test_blind_coder_gets_no_images(self):
+        images, sees = self.agent(False).codegen_images()
+        self.assertEqual((images, sees), ([], False))
+
+    def test_seeing_coder_gets_the_references(self):
+        images, sees = self.agent(True).codegen_images()
+        self.assertTrue(sees)
+        self.assertEqual(len(images), 2)
+
+    def test_option_can_switch_it_off(self):
+        a = self.agent(True)
+        a.opt["codegen_sees_reference"] = False
+        self.assertEqual(a.codegen_images(), ([], False))
 
 
 class TestAutoModelSelection(unittest.TestCase):
@@ -135,6 +235,22 @@ class TestShapeAndScaleGuards(unittest.TestCase):
         self.assertEqual(self.agent()._scale_problem(no_spec, "OBJECT: thing"), "",
                          "without a specified height there is nothing to compare against")
         self.assertEqual(self.agent()._scale_problem({}, self.BRIEF), "")
+
+    def test_scale_guard_does_not_fail_an_early_small_part(self):
+        """Landing legs 0.135 m tall are correct for a 0.3 m rocket; the guard used to fail every early
+        step for being 'shorter than the object' before the body existed."""
+        legs = {"scene": {"bbox": {"min": [0, 0, 0], "max": [0.1, 0.1, 0.135]}}}
+        self.assertEqual(self.agent()._scale_problem(legs, self.BRIEF, "Build three legs from z=0.000 m to z=0.135 m"), "")
+        nozzle = {"scene": {"bbox": {"min": [0, 0, 0], "max": [0.06, 0.06, 0.04]}}}
+        self.assertEqual(self.agent()._scale_problem(nozzle, self.BRIEF, "nozzle stack from z=0.000 m to z=0.036 m"), "")
+
+    def test_scale_guard_uses_the_steps_own_z_range_for_too_small(self):
+        tiny = {"scene": {"bbox": {"min": [0, 0, 0], "max": [0.02, 0.02, 0.02]}}}
+        msg = self.agent()._scale_problem(tiny, self.BRIEF, "Build the body from z=0.084 m to z=0.249 m")
+        self.assertIn("SCALE ERROR", msg)
+        self.assertIn("z=0.249", msg)
+        # no z values in the instruction -> nothing to judge 'too small' against
+        self.assertEqual(self.agent()._scale_problem(tiny, self.BRIEF, "Build the body"), "")
 
     def test_identity_warning_fires_only_for_a_different_object(self):
         from nodes.ai_builder_nodes import _identity_warning
@@ -309,6 +425,28 @@ class TestPromptsAndPlanning(unittest.TestCase):
         self.assertEqual(len(retry), 4)
         self.assertIn("boom", retry[-1]["content"])
 
+    def test_codegen_image_note_only_when_the_coder_sees(self):
+        blind = build_codegen_messages("x", "", "", "", "", "5.2", "c", True)
+        seeing = build_codegen_messages("x", "", "", "", "", "5.2", "c", True, sees_reference=True)
+        self.assertNotIn("REFERENCE IMAGE(S) ARE ATTACHED", blind[1]["content"])
+        self.assertIn("REFERENCE IMAGE(S) ARE ATTACHED", seeing[1]["content"])
+
+    def test_whole_object_messages(self):
+        from nodes.ai_builder.prompts import build_whole_messages
+        first = build_whole_messages("rocket", "SPEC 0.3 m", "ctx", "5.2", "Whole_Build", sees_reference=True)
+        self.assertEqual(len(first), 2)
+        self.assertIn("ENTIRE object", first[0]["content"])
+        self.assertIn("scene is EMPTY", first[0]["content"])
+        self.assertNotIn("{scene_mode", first[0]["content"], "template placeholders must all be filled")
+        self.assertIn("SPEC 0.3 m", first[1]["content"])
+        revise = build_whole_messages("rocket", "", "", "5.2", "W", previous_code="B = Builder()",
+                                      critique='{"differences": []}', score=42)
+        self.assertEqual(len(revise), 4)
+        self.assertIn("score 42/100", revise[3]["content"])
+        self.assertIn("B = Builder()", revise[3]["content"])
+        repair = build_whole_messages("rocket", "", "", "5.2", "W", previous_code="x", feedback="TypeError")
+        self.assertIn("WHAT WENT WRONG", repair[3]["content"])
+
     def test_planner_messages_and_manual_plan(self):
         msgs = build_planner_messages("village", "", "", 5)
         self.assertIn("Maximum 5 steps", msgs[0]["content"])
@@ -441,6 +579,28 @@ class TestBlenderIntegration(unittest.TestCase):
         cls.blender = get_blender_path()
         if not cls.blender:
             raise unittest.SkipTest("Blender not installed")
+
+    def test_fin_blade_accepts_a_direction_vector(self):
+        """The 32B coder passed outward=(cos a, sin a, 0) four times in a row and crashed four times.
+        The helper now accepts the vector, the angle, or the base point."""
+        tmp = tempfile.mkdtemp(prefix="ai-fin-")
+        s = SceneSession("fin", root=os.path.join(tmp, "fin")).open()
+        script = s.next_script_path(1)
+        with open(script, "w", encoding="utf-8") as f:
+            f.write(
+                "from gap_helpers import *\n"
+                "coll = get_or_create_collection('Step_01_Fins')\n"
+                "B = Builder()\n"
+                "for i in range(3):\n"
+                "    a = i * 2 * pi / 3\n"
+                "    fin_blade(B, (0.05 * cos(a), 0.05 * sin(a)), (cos(a), sin(a), 0), height=0.135, length=0.042)\n"
+                "fin_blade(B, (0.05, 0), 0.0, height=0.1, length=0.03)\n"
+                "log_built(B.build('Legs', coll, make_material('Mat_Brass', (0.8, 0.6, 0.2), metallic=1.0)))\n"
+            )
+        runner = BlenderRunner(s, blender_path=self.blender, timeout=300)
+        result = runner.run_headless(script, validate=True, render=None)
+        self.assertTrue(result["ok"], msg=result.get("error") or result.get("blender_output"))
+        self.assertEqual(result["validation"]["totals"]["nonmanifold_edges"], 0)
 
     def test_helper_script_builds_valid_scene(self):
         tmp = tempfile.mkdtemp(prefix="ai-blender-")
