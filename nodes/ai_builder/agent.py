@@ -99,41 +99,109 @@ class SceneBuilderAgent:
 
     # ------------------------------------------------------------------ references
     def analyze_references(self, images_b64, user_notes="", prompt=""):
-        """images_b64: list of base64 PNG strings. Returns (brief_text, analyses_list)."""
+        """Deep multi-pass analysis. Returns (brief_text, analyses_list).
+
+        Each image gets three focused passes (structure / detail / materials) instead of one
+        "describe everything" question. A single broad prompt makes vision models answer vaguely -
+        every part the same size, three generic components - which is what produced featureless
+        results before. Sizes come back as fractions of one overall height and are converted to
+        meters during the merge.
+        """
         analyses = []
         model = self.client.cfg.get("vision_model") or self.client.cfg["model"]
         total = len(images_b64)
         for i, b64 in enumerate(images_b64, start=1):
-            self.log(f"Analyzing reference image {i}/{total} with {model}")
-            msgs = prompts.build_reference_analysis_messages(i, total, user_notes)
-            text = self.client.chat(msgs, images=[b64], json_mode=True, model=model, temperature=0.1)
-            data = extract_json(text)
-            analyses.append(data if isinstance(data, dict) else {"raw": text[:2000]})
+            entry = {"image": i}
+            for p in range(len(prompts.REF_PASSES)):
+                key, msgs = prompts.build_reference_pass_messages(p, i, total, user_notes)
+                self.log(f"Reference image {i}/{total}: {key} pass ({model})")
+                text = self.client.chat(msgs, images=[b64], json_mode=True, model=model,
+                                        temperature=0.1, max_tokens=4096)
+                data = extract_json(text)
+                entry[key] = data if isinstance(data, (dict, list)) else {"raw": text[:2000]}
+            entry = self._resolve_sizes(entry)
+            analyses.append(entry)
+            self.log(f"  -> {len(entry.get('structure', {}).get('parts', []))} parts, "
+                     f"{len(entry.get('detail', {}).get('details', []))} detail features, "
+                     f"{len(entry.get('materials', {}).get('materials', []))} materials")
         if not analyses:
             return "", []
-        if total == 1 and not prompt.strip():
-            brief = self._brief_from_single(analyses[0])
-        else:
-            self.log("Merging reference analyses into one brief")
-            msgs = prompts.build_reference_merge_messages(prompt, json.dumps(analyses, indent=1)[:12000])
-            brief = self.client.chat(msgs, temperature=0.2)
+        self.log("Merging analyses into one build specification")
+        msgs = prompts.build_reference_merge_messages(prompt, json.dumps(analyses, indent=1)[:20000])
+        brief = self.client.chat(msgs, temperature=0.2, max_tokens=4096)
+        if len(brief.strip()) < 200:  # merge produced nothing usable - fall back to the raw numbers
+            brief = self._brief_from_analysis(analyses[0], prompt)
         self.session.set_reference_brief(brief)
         return brief, analyses
 
     @staticmethod
-    def _brief_from_single(a):
-        if "raw" in a:
-            return a["raw"]
-        lines = [f"SUBJECT: {a.get('subject', '')}", f"TYPE: {a.get('type', '')}", f"STYLE: {a.get('style', '')}",
-                 f"LAYOUT: {a.get('layout', '')}", "ELEMENTS:"]
-        for e in a.get("elements", []) or []:
-            if isinstance(e, dict):
-                lines.append(f"  - {e.get('name', '?')}: {e.get('description', '')} | size {e.get('approx_size_m', '?')} | "
-                             f"at {e.get('position', '?')} | {e.get('materials', '')}")
-        lines += [f"MATERIALS: {', '.join(map(str, a.get('materials', []) or []))}",
-                  f"COLORS: {', '.join(map(str, a.get('colors', []) or []))}",
-                  f"LIGHTING: {a.get('lighting', '')}", f"CAMERA: {a.get('camera', '')}", f"MOOD: {a.get('mood', '')}",
-                  f"MUST-NOT-MISS: {a.get('notes_for_3d', '')}"]
+    def _resolve_sizes(entry):
+        """Convert every *_frac field into meters using the overall height from the structure pass."""
+        s = entry.get("structure") or {}
+        try:
+            h = float(s.get("overall_height_m") or 0)
+        except (TypeError, ValueError):
+            h = 0.0
+        if h <= 0:
+            h = 0.3  # sane default for an unidentified object rather than a nonsense 0.1 everywhere
+            s["overall_height_m"] = h
+            s["overall_height_assumed"] = True
+        try:
+            w = float(s.get("max_width_m") or 0) or h * 0.6
+        except (TypeError, ValueError):
+            w = h * 0.6
+        s["max_width_m"] = w
+
+        def m(value, base):
+            try:
+                return round(float(value) * base, 4)
+            except (TypeError, ValueError):
+                return None
+
+        for part in s.get("parts", []) or []:
+            if not isinstance(part, dict):
+                continue
+            part["height_m"] = m(part.get("height_frac"), h)
+            part["diameter_m"] = m(part.get("diameter_frac"), w)
+            part["z_bottom_m"] = m(part.get("z_bottom_frac"), h)
+            if part["height_m"] is not None and part["z_bottom_m"] is not None:
+                part["z_top_m"] = round(part["z_bottom_m"] + part["height_m"], 4)
+        for det in (entry.get("detail") or {}).get("details", []) or []:
+            if isinstance(det, dict):
+                det["size_m"] = m(det.get("size_frac"), h)
+        entry["structure"] = s
+        return entry
+
+    @staticmethod
+    def _brief_from_analysis(a, prompt=""):
+        """Deterministic text brief straight from the JSON, used when the merge call is unusable."""
+        s = a.get("structure") or {}
+        lines = [f"OBJECT: {s.get('object', 'object')}, overall height {s.get('overall_height_m')} m, "
+                 f"max width {s.get('max_width_m')} m",
+                 f"STYLE: {s.get('style', '')}",
+                 f"CONSTRUCTION: {s.get('construction', '')}", "PARTS (bottom to top):"]
+        parts = [p for p in (s.get("parts") or []) if isinstance(p, dict)]
+        parts.sort(key=lambda p: p.get("z_bottom_m") if isinstance(p.get("z_bottom_m"), (int, float)) else 0)
+        for p in parts:
+            lines.append(f"  - {p.get('name')} | {p.get('primitive')} | count {p.get('count', 1)} | "
+                         f"height {p.get('height_m')} m | diameter {p.get('diameter_m')} m | "
+                         f"z from {p.get('z_bottom_m')} m to {p.get('z_top_m')} m | "
+                         f"{p.get('arrangement', '')} | {p.get('shape_notes', '')} | material {p.get('material', '')}")
+        lines.append("DETAILS:")
+        for d in ((a.get("detail") or {}).get("details") or []):
+            if isinstance(d, dict):
+                lines.append(f"  - {d.get('kind')} | count {d.get('count')} | size {d.get('size_m')} m | "
+                             f"{d.get('where', '')} | {d.get('arrangement', '')} | {d.get('color', '')}")
+        lines.append("MATERIALS:")
+        for mt in ((a.get("materials") or {}).get("materials") or []):
+            if isinstance(mt, dict):
+                rgb = mt.get("rgb") or []
+                lines.append(f"  - {mt.get('name')} | rgb {rgb} | metallic {mt.get('metallic')} | "
+                             f"roughness {mt.get('roughness')} | alpha {mt.get('alpha', 1)} | used for {mt.get('used_for', '')}")
+        mats = a.get("materials") or {}
+        lines += [f"LIGHTING: {mats.get('lighting', '')}", f"CAMERA: {mats.get('camera', '')}"]
+        if prompt.strip():
+            lines.append(f"USER REQUEST: {prompt.strip()}")
         return "\n".join(lines)
 
     # ------------------------------------------------------------------ planning

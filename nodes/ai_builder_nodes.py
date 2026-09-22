@@ -16,6 +16,7 @@ import base64
 import io
 import json
 import os
+import re
 import time
 
 import numpy as np
@@ -80,8 +81,10 @@ def _exec_inputs():
     """Execution settings shared by the builder / step / script-runner nodes."""
     return {
         "execution_mode": (["headless", "live"], {"default": "headless",
-                           "tooltip": "headless: run Blender in the background on the session .blend (safe default). "
-                                      "live: execute inside the running Blender with the toolbox addon (must be enabled there)."}),
+                           "tooltip": "headless: run Blender in the background on the session .blend (safe default; "
+                                      "you see the result as a preview render, NOT in your open Blender). "
+                                      "live: build inside the Blender you have open so you watch it appear - requires "
+                                      "the toolbox addon running with 'Start Listener' AND 'Allow AI code execution' ON."}),
         "dry_run": ("BOOLEAN", {"default": False, "tooltip": "Generate and SAVE the script but do not execute it. Review it, then use AI Script Runner."}),
         "max_retries": ("INT", {"default": config.DEFAULT_MAX_RETRIES, "min": 0, "max": 6,
                         "tooltip": "How many times the model may fix its own script after an error or failed validation."}),
@@ -217,15 +220,57 @@ class GapAILLMConfig:
                         embed_model=embed_model.strip(), keep_alive=keep_alive, timeout=(10, int(timeout_s)))
         info = cfg.describe()
         if provider == "ollama":
-            available = LLMClient(cfg).list_ollama_models()
+            client = LLMClient(cfg)
+            details = client.ollama_model_details()
+            available = list(details) or client.list_ollama_models()
             if available:
-                missing = [m for m in (cfg["model"], cfg["vision_model"]) if m and m not in available]
+                base = {m.split(":")[0] for m in available}
+                missing = [m for m in (cfg["model"], cfg["vision_model"])
+                           if m and m not in available and m.split(":")[0] not in base]
                 info += "\navailable: " + ", ".join(available[:30])
                 if missing:
                     info += "\nMISSING (run 'ollama pull <name>' or use installer/install_ai_builder.py): " + ", ".join(missing)
+                info += "\n" + self._quality_advice(cfg, details)
             else:
                 info += f"\nWARNING: could not list models at {url} - is Ollama running?"
         return (dict(cfg), info)
+
+    @staticmethod
+    def _quality_advice(cfg, details):
+        """Model size drives output quality more than any other setting, so say so plainly.
+
+        A small vision model reports every part as the same size and misses most detail, which turns
+        a richly detailed reference into a couple of featureless shapes. Parameter counts come from
+        Ollama itself because tags like "qwen3.8:latest" hide a 27B model behind a plain name.
+        """
+        def size_of(name):
+            d = details.get(name)
+            if d is None:
+                d = next((v for k, v in details.items() if k.split(":")[0] == str(name).split(":")[0]), None)
+            return (d or {}).get("params_b")
+
+        notes = []
+        v_size, c_size = size_of(cfg.get("vision_model")), size_of(cfg.get("model"))
+        vision_models = sorted(((d["params_b"], n) for n, d in details.items()
+                                if d.get("params_b") and "vision" in (d.get("capabilities") or [])), reverse=True)
+        code_models = sorted(((d["params_b"], n) for n, d in details.items()
+                              if d.get("params_b") and ("coder" in n.lower() or "code" in n.lower()
+                                                        or "tools" in (d.get("capabilities") or []))), reverse=True)
+        if vision_models and (v_size is None or (v_size < 10 and vision_models[0][0] > v_size)):
+            best, name = vision_models[0]
+            if v_size is None or best > v_size:
+                notes.append(f"TIP: vision model '{cfg['vision_model']}'"
+                             + (f" is small ({v_size:g}B)." if v_size else " size unknown.")
+                             + f" Small vision models report every part as the same size and miss fine detail,"
+                               f" which yields featureless geometry. You have '{name}' ({best:g}B) -"
+                               f" it produces a far richer build specification.")
+        if code_models and c_size is not None and c_size < 14 and code_models[0][0] > c_size:
+            best, name = code_models[0]
+            notes.append(f"TIP: code model '{cfg['model']}' is small ({c_size:g}B); '{name}' ({best:g}B) "
+                         f"needs fewer retries and writes more detailed geometry.")
+        if not notes:
+            notes.append("Model sizes look good for detailed work.")
+        return "\n".join(notes)
 
 
 class GapAIReferenceAnalyzer:

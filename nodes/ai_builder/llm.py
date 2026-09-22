@@ -149,6 +149,29 @@ class LLMClient:
         except Exception:
             return []
 
+    def ollama_model_details(self):
+        """{name: {"params_b": float|None, "families": [...], "capabilities": [...]}}.
+
+        Reads the real parameter count reported by Ollama, because a tag like "qwen3.8:latest" hides
+        a 27B model behind a name that looks like nothing.
+        """
+        out = {}
+        try:
+            r = requests.get(f"{self.cfg['url'].rstrip('/')}/api/tags", headers=self._headers(), timeout=(5, 30))
+            r.raise_for_status()
+            for m in r.json().get("models", []):
+                details = m.get("details") or {}
+                size = str(details.get("parameter_size") or "")
+                match = re.search(r"(\d+(?:\.\d+)?)\s*B", size, re.IGNORECASE)
+                out[m["name"]] = {
+                    "params_b": float(match.group(1)) if match else None,
+                    "families": details.get("families") or [],
+                    "capabilities": m.get("capabilities") or [],
+                }
+        except Exception:
+            pass
+        return out
+
     # ------------------------------------------------------------------ providers
     def _headers(self):
         h = {"Content-Type": "application/json"}

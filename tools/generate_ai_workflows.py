@@ -119,38 +119,65 @@ class Graph:
 
 SECURITY = ("SECURITY: the builder executes model-written Python in Blender. No sandbox.\n"
             "Every script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\n"
-            "Set dry_run=true to review scripts first (then use 'AI Script Runner').\n"
-            "Headless mode (default) needs Blender installed. Live mode also needs the toolbox addon\n"
-            "running in Blender with 'Allow AI code execution' switched ON.")
+            "Set dry_run=true to review scripts first (then use 'AI Script Runner').")
+
+SEEING_IT = ("WHERE YOU SEE THE RESULT\n"
+             "  execution_mode=headless (default): Blender runs in the background. You get the preview\n"
+             "    render and a .blend file - NOTHING appears in a Blender window you have open.\n"
+             "  execution_mode=live: the model builds inside the Blender you are looking at, and the\n"
+             "    viewport re-frames on each new part. Requires, in Blender:\n"
+             "      1. addon v2.2.0+ installed (blender_scripts/blender_toolbox_addon.py)\n"
+             "      2. N-panel > ComfyUI tab > Start Listener\n"
+             "      3. AI Scene Builder (Live) > Allow AI code execution = ON")
+
+MODELS = ("MODEL CHOICE DRIVES QUALITY MORE THAN ANY OTHER SETTING\n"
+          "  The vision model decides how much of the reference is understood. A small one (4-8B)\n"
+          "  reports every part as the same size and misses the fine detail, which produces\n"
+          "  featureless blobs. Use the largest vision model you have; the AI Model Config node\n"
+          "  prints a TIP naming the best one installed.\n"
+          "  The code model decides how well that description becomes geometry: 14B works, 32B is\n"
+          "  noticeably better, claude-sonnet-5 via the anthropic provider is better still.")
+
+REPRODUCE_PROMPT = ("Reproduce the object in the reference images as a detailed 3D model: match its shapes, "
+                    "proportions, materials and all of its decoration (trim, rivets, windows, motifs, paint bands).")
 
 
 def wf_complete(out_dir):
     g = Graph()
-    g.add("Note", (-40, -420), (720, 300), text=(
+    g.add("Note", (-40, -560), (760, 440), text=(
         "AI SCENE BUILDER - COMPLETE SCENE (Geekatplay Studio - Vladimir Chopine)\n\n"
-        "1. Load 1-3 reference images (optional). The Reference Analyzer turns them + your prompt into a build brief.\n"
+        "1. Load 1-3 reference images. The Reference Analyzer runs THREE focused vision passes over each\n"
+        "   (structure with real-world size / fine detail / materials) and merges them into one build\n"
+        "   specification with every dimension in meters.\n"
         "2. Session: pick a name. Everything (scene.blend, scripts, results, renders) goes to\n"
-        "   ComfyUI/output/ai_scene_builder/<name>/. Run again later with the same name to keep building.\n"
-        "3. Model Config: Ollama by default (qwen2.5-coder:14b + qwen2.5vl:7b). Anthropic/OpenAI also work.\n"
-        "4. Planner splits the request into ordered steps -> Builder executes each: generate -> safety scan ->\n"
-        "   run in Blender -> validate polygons/normals/textures/names -> retry on failure -> preview render.\n"
-        "5. Outputs: preview image, blend path, full report, all scripts, validation JSON.\n\n" + SECURITY))
+        "   ComfyUI/output/ai_scene_builder/<name>/. Run again with the same name to keep building.\n"
+        "3. Planner splits it into ordered steps - each step an ASSEMBLY with its trim and fittings,\n"
+        "   never a lone primitive. Builder executes each: generate -> safety scan -> run in Blender ->\n"
+        "   validate polygons/normals/textures/names -> retry on failure -> preview render.\n"
+        "4. Read 'Reference brief' and 'Plan' first: if the brief has wrong sizes or too few parts, the\n"
+        "   model is too small - see the model note below. Fixing the brief fixes the model.\n"
+        "5. Outputs: preview image, blend path, full report, all scripts, validation JSON.\n\n"
+        + MODELS + "\n\n" + SEEING_IT + "\n\n" + SECURITY))
     ref1 = g.add("LoadImage", (-40, -80), (315, 314), title="Reference image 1")
     ref2 = g.add("LoadImage", (-40, 280), (315, 314), title="Reference image 2 (optional)")
-    sess = g.add("GapAISceneSession", (320, -80), (330, 150), values={"session_name": "castle_scene"})
+    sess = g.add("GapAISceneSession", (320, -80), (330, 150), values={"session_name": "my_object"})
     llm = g.add("GapAILLMConfig", (320, 120), (330, 300))
     ana = g.add("GapAIReferenceAnalyzer", (700, -80), (420, 260),
-                values={"prompt": "A small hilltop stone castle with a round keep, curtain wall with two towers, a wooden gate, pine forest around, warm late-afternoon light."},
+                values={"prompt": REPRODUCE_PROMPT},
                 connect={"llm": (llm, 0), "images": (ref1, 0), "images_2": (ref2, 0), "session": (sess, 0)})
     plan = g.add("GapAIScenePlanner", (700, 240), (420, 260),
-                 values={"prompt": "A small hilltop stone castle with a round keep, curtain wall with two towers, a wooden gate, pine forest around, warm late-afternoon light.", "max_steps": 6},
+                 values={"prompt": REPRODUCE_PROMPT, "max_steps": 6},
                  connect={"session": (sess, 0), "llm": (llm, 0), "reference_brief": (ana, 0)})
     build = g.add("GapAISceneBuilder", (1180, -80), (460, 620),
+                  values={"stop_on_failure": False},
                   connect={"session": (sess, 0), "llm": (llm, 0), "plan_json": (plan, 0), "reference_brief": (ana, 0)})
     g.add("PreviewImage", (1700, -80), (520, 360), title="Preview render", connect={"images": (build, 0)})
     g.add("GapStringViewer", (1700, 320), (520, 300), title="Build report", connect={"text": (build, 2)})
     g.add("GapStringViewer", (1700, 660), (520, 300), title="Plan", connect={"text": (plan, 1)})
-    g.add("GapStringViewer", (1180, 580), (460, 200), title="Reference brief", connect={"text": (ana, 0)})
+    g.add("GapStringViewer", (1180, 580), (460, 200), title="Reference brief (CHECK THIS FIRST)",
+          connect={"text": (ana, 0)})
+    g.add("GapStringViewer", (700, 540), (420, 200), title="Model info / quality tips",
+          connect={"text": (llm, 1)})
     g.dump(os.path.join(out_dir, "Geekatplay_AI_Scene_Builder_Complete.json"))
 
 
@@ -166,13 +193,14 @@ def wf_single_step_with_refs(out_dir):
     sess = g.add("GapAISceneSession", (320, -80), (330, 150), values={"session_name": "single_step_scene"})
     llm = g.add("GapAILLMConfig", (320, 120), (330, 300))
     ana = g.add("GapAIReferenceAnalyzer", (700, -80), (420, 260),
-                values={"prompt": "Build the main building from the reference as a closed, detailed model on a flat ground slab."},
+                values={"prompt": REPRODUCE_PROMPT},
                 connect={"llm": (llm, 0), "images": (ref1, 0), "images_2": (ref2, 0), "session": (sess, 0)})
     step = g.add("GapAIStepBuilder", (1180, -80), (460, 600),
-                 values={"instruction": "Build the main building from the reference brief: correct proportions in meters, "
-                                        "windows as recessed frames, roof, chimney/details, materials matching the brief, "
-                                        "on a 30x30 m ground slab. Add a warm key sun and a camera framing it.",
-                         "step_title": "Reference_Building"},
+                 values={"instruction": "Build the object described in the build specification, complete in one step: every "
+                                        "part at the exact sizes and z positions it gives, every decoration it lists (trim "
+                                        "rings, rivet rings, windows, motifs, paint bands) using the detail helpers, and the "
+                                        "materials from its palette. Add a key light and a camera framing the object.",
+                         "step_title": "Reference_Object"},
                  connect={"session": (sess, 0), "llm": (llm, 0), "reference_brief": (ana, 0)})
     g.add("PreviewImage", (1700, -80), (520, 360), title="Preview render", connect={"images": (step, 0)})
     g.add("GapStringViewer", (1700, 320), (520, 300), title="Step report", connect={"text": (step, 2)})

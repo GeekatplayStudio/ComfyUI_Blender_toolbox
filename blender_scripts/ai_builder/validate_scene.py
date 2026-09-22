@@ -54,17 +54,34 @@ def validate_mesh_object(ob, issues, auto_fix_normals=False, auto_fix_doubles=Fa
 
     fixed = []
     if auto_fix_doubles:
-        res = bmesh.ops.find_doubles(bm, verts=bm.verts, dist=doubles_dist)
+        def _nonmanifold(mesh):
+            return sum(1 for e in mesh.edges if not e.is_manifold and not e.is_boundary)
+
+        # Welding by distance fuses vertices where two separate closed shells touch (a rivet sitting
+        # on a hull, a trim ring on a cone). That turns valid intersecting geometry into non-manifold
+        # edges, so the weld is only kept when it does not make the topology worse.
+        before_nm = _nonmanifold(bm)
+        trial = bm.copy()
+        res = bmesh.ops.find_doubles(trial, verts=trial.verts, dist=doubles_dist)
         n = len(res.get("targetmap", {}))
         if n:
-            bmesh.ops.weld_verts(bm, targetmap=res["targetmap"])
-            fixed.append(f"{ob.name}: merged {n} duplicate vertices")
-        dg = bmesh.ops.dissolve_degenerate(bm, dist=1e-7, edges=bm.edges)
-        loose_v = [v for v in bm.verts if not v.link_edges]
+            bmesh.ops.weld_verts(trial, targetmap=res["targetmap"])
+            if _nonmanifold(trial) <= before_nm:
+                bm.free()
+                bm = trial
+                bm.verts.ensure_lookup_table()
+                bm.faces.ensure_lookup_table()
+                fixed.append(f"{ob.name}: merged {n} duplicate vertices")
+            else:
+                trial.free()  # welding would fuse touching shells - leave the mesh as modelled
+        else:
+            trial.free()
+        bmesh.ops.dissolve_degenerate(bm, dist=1e-7, edges=bm.edges)
         loose_e = [e for e in bm.edges if not e.link_faces]
         if loose_e:
             bmesh.ops.delete(bm, geom=loose_e, context="EDGES")
             fixed.append(f"{ob.name}: deleted {len(loose_e)} loose edges")
+        loose_v = [v for v in bm.verts if not v.link_edges]
         if loose_v:
             bmesh.ops.delete(bm, geom=loose_v, context="VERTS")
             fixed.append(f"{ob.name}: deleted {len(loose_v)} loose vertices")

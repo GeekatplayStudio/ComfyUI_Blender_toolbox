@@ -126,6 +126,48 @@ def render_preview(job_render, helpers):
     return job_render["path"] if os.path.exists(job_render["path"]) else None
 
 
+def focus_viewport_on_new(built):
+    """Live mode: select what was just built, frame it in every 3D view and force a redraw.
+
+    Without this the objects exist but the user keeps looking at their old viewport framing and
+    thinks nothing happened.
+    """
+    names = [b.get("name") for b in built if isinstance(b, dict) and b.get("name")]
+    objects = [bpy.data.objects.get(n) for n in names]
+    objects = [o for o in objects if o is not None]
+    view_layer = bpy.context.view_layer
+    for ob in bpy.context.scene.objects:
+        try:
+            ob.select_set(False)
+        except Exception:
+            pass
+    for ob in objects:
+        try:
+            ob.select_set(True)
+        except Exception:
+            pass
+    if objects:
+        view_layer.objects.active = objects[-1]
+    view_layer.update()
+    for window in getattr(bpy.context.window_manager, "windows", []):
+        for area in window.screen.areas:
+            if area.type != "VIEW_3D":
+                continue
+            region = next((r for r in area.regions if r.type == "WINDOW"), None)
+            if region is None:
+                continue
+            try:
+                with bpy.context.temp_override(window=window, area=area, region=region):
+                    if objects:
+                        bpy.ops.view3d.view_selected(use_all_regions=False)
+                    else:
+                        bpy.ops.view3d.view_all(use_all_regions=False)
+            except Exception:
+                pass
+            area.tag_redraw()
+    print(f"[gap] viewport framed on {len(objects)} new object(s)", flush=True)
+
+
 def execute_job(job, save=True, scene_source=None):
     """Execute the script, validate, probe, save, render. Never raises; returns the result dict."""
     t0 = time.time()
@@ -206,6 +248,12 @@ def execute_job(job, save=True, scene_source=None):
             except Exception as e:
                 result["render_error"] = f"{type(e).__name__}: {e}"
             result["timings"]["render_s"] = round(time.time() - t_ren, 2)
+
+        if job.get("mode") == "live" and job.get("focus_viewport", True):
+            try:
+                focus_viewport_on_new(result.get("built") or [])
+            except Exception as e:
+                print(f"[gap] could not focus the viewport: {e}")
     except Exception as e:
         result["ok"] = False
         result["error"] = result["error"] or f"executor: {type(e).__name__}: {e}"

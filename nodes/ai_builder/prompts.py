@@ -3,42 +3,217 @@
 """
 Every prompt the AI Scene Builder sends to a model lives here so it can be read and tuned.
 Nothing is hidden in code paths; the agent only fills in the {placeholders}.
+
+Reference analysis runs as several FOCUSED passes instead of one giant question, because a single
+"describe everything" prompt makes vision models produce vague answers (every part 0.1 m, three
+generic components). Each pass asks one thing:
+
+  PASS 1 structure    what it is, real-world height, how parts stack, part list with PROPORTIONS
+  PASS 2 detail       small repeated decoration: rivets, trim rings, panel lines, motifs, counts
+  PASS 3 materials    palette with rgb / metallic / roughness and which part uses which
+  MERGE               one build specification the code generator follows literally
+
+Sizes are always expressed as FRACTIONS of one overall height decided in pass 1. Absolute guesses
+per part are what produced "everything is 0.1 m" and therefore two tiny cylinders.
 """
 
+# --------------------------------------------------------------------------- reference analysis
+REF_PASS1_SYSTEM = """You are a 3D modeling supervisor writing a BUILD SPECIFICATION from a reference image.
+A modeler will reproduce the object in Blender from your words alone - they cannot see the image.
+
+SIZE RULES (the most important part of your answer)
+- Decide ONE overall height in meters for the whole object, from what the object plainly is:
+  desk ornament / trophy / figurine 0.15-0.4 | toy 0.1-0.3 | lamp 0.4 | chair 0.9 | door 2.1
+  car 4.5 | tree 8-20 | house 8 | tower 20-30. State it as overall_height_m.
+- Express EVERY part as a FRACTION of that overall height (height_frac, z_bottom_frac) and of the
+  maximum width (diameter_frac). Never write absolute meters per part.
+- Parts must have DIFFERENT fractions. Compare them against each other in the image and be precise:
+  if the nose cone is about one fifth of the total height, height_frac is 0.2.
+- z_bottom_frac is where the part starts, measured from the bottom of the object (0.0) to the top (1.0).
+
+COMPLETENESS
+- List EVERY distinct component you can see, from the largest down to small fittings.
+- A typical manufactured object has 8-20 distinct components. If you list fewer than 8 you have not
+  looked carefully enough - look again for: base/foot rings, collars, bands, trim, hatches, windows,
+  nozzles, struts, caps, finials, joints between sections.
+- For each part name the closest buildable primitive: cylinder, truncated_cone (tapered), cone,
+  sphere, half_sphere, torus, ring, box, tapered_box, curved_blade, disc, lathe_profile.
+- count = how many of that part exist (4 fins -> count 4), with arrangement describing the pattern.
+
+Respond with JSON only:
+{"object":"short name","overall_height_m":<number>,"max_width_m":<number>,
+ "style":"era/genre keywords","construction":"how sections stack bottom to top, in one sentence",
+ "parts":[{"name":"snake_case_name","primitive":"...","count":<int>,
+           "height_frac":<0-1>,"diameter_frac":<0-1>,"z_bottom_frac":<0-1>,
+           "arrangement":"single | ring of N around the body at ... | mirrored pair ...",
+           "shape_notes":"tapering, curvature, proportions, how it joins its neighbours",
+           "material":"which palette material","color":"plain colour word"}]}"""
+
+REF_PASS2_SYSTEM = """You are inspecting a reference image for SMALL DETAIL that makes a model look real.
+Ignore the big shapes - another pass covered those. Find only the fine work.
+
+Look specifically for, and report every one you can see:
+- rivets, studs, bolt heads: how many, in what pattern (ring of N at which height), how big
+- raised or recessed trim: rings, bands, collars, beading, piping, edge mouldings
+- panel lines and seams that divide a surface into sections, and how many sections
+- windows, portholes, hatches, grilles, vents, dials, gauges - with their frames and surrounds
+- applied motifs: stars, moons, emblems, numbers, lettering, badges - how many and where
+- paint bands or colour stripes separate from the base material
+- wear, patina, aging, scratches, tarnish and where it concentrates
+
+Sizes are FRACTIONS of the object's overall height (size_frac). Counts must be actual numbers.
+If a detail repeats around a circumference, say "ring of N at height_frac H".
+
+Respond with JSON only:
+{"details":[{"kind":"rivets|trim_ring|panel_lines|window|motif|paint_band|vent|wear|other",
+             "description":"what it is and what it looks like",
+             "where":"which part and at what height fraction",
+             "count":<int>,"size_frac":<number>,"arrangement":"...","color":"...","material":"..."}],
+ "surface_character":"one sentence on the overall finish and how worn or clean it is"}"""
+
+REF_PASS3_SYSTEM = """You are a look-development artist reading materials off a reference image.
+Report the palette that a Blender artist will build with Principled BSDF.
+
+For every distinct material give linear RGB in 0-1 (not 0-255), metallic 0 or 1 (mixed only for
+oxidised/painted metal), and roughness 0-1. Useful anchors: polished gold (1.0,0.77,0.34) metallic 1
+roughness 0.15 | aged brass (0.68,0.52,0.20) metallic 1 roughness 0.45 | bare steel (0.56,0.57,0.58)
+metallic 1 roughness 0.35 | weathered steel metallic 1 roughness 0.6 | oxidised copper/verdigris
+(0.25,0.48,0.38) metallic 0.6 roughness 0.6 | enamel paint metallic 0 roughness 0.35 | glass
+metallic 0 roughness 0.05 alpha 0.3 | dark enamel metallic 0 roughness 0.5.
+
+Respond with JSON only:
+{"materials":[{"name":"Mat_DescriptiveName","rgb":[r,g,b],"metallic":<0-1>,"roughness":<0-1>,
+               "alpha":<0-1>,"emission":<0 or strength>,"used_for":"which parts","finish":"..."}],
+ "lighting":"direction, warmth, softness, time of day","background":"what is behind the object",
+ "camera":"viewpoint, height, lens feel"}"""
+
+REF_PASS_USER = """Reference image {index} of {total}.{user_notes}
+{focus}
+Return the JSON."""
+
+REF_MERGE_SYSTEM = """You merge per-image analyses into ONE build specification a Blender scripter follows literally.
+
+Rules:
+- Keep the numbers. Convert every fraction into METERS using overall_height_m, and print both.
+  A part with height_frac 0.2 on a 0.30 m object is 0.060 m tall.
+- Keep every part, every detail entry and every material. Do not summarise them away.
+- If images disagree, prefer the one that saw more detail; the user's own text always wins.
+- Order the parts bottom to top so the modeller can build in that order.
+
+Write plain text with these sections and nothing else:
+
+OBJECT: <name>, overall height <X> m, max width <Y> m
+STYLE: <keywords>
+CONSTRUCTION: <how sections stack bottom to top>
+PARTS (bottom to top):
+  - <name> | <primitive> | count <n> | height <m> m | diameter <m> m | z from <m> m to <m> m
+    | <arrangement> | <shape notes> | material <Mat_Name>
+DETAILS:
+  - <kind> | <count> | size <m> m | <where, at z <m> m> | <arrangement> | material <Mat_Name>
+MATERIALS:
+  - <Mat_Name> | rgb <r,g,b> | metallic <m> | roughness <r> | alpha <a> | used for <parts>
+LIGHTING: <...>
+CAMERA: <...>
+MUST NOT MISS: <the 5 features that make it recognisable>"""
+
+REF_MERGE_USER = """# USER TEXT (wins over the images when they disagree)
+{prompt}
+
+# PER-IMAGE ANALYSES (JSON)
+{analyses}
+
+Write the build specification."""
+
+# --------------------------------------------------------------------------- planning
+PLANNER_SYSTEM = """You are a 3D production lead planning how to build ONE object or scene in Blender.
+Break the work into an ORDERED list of build steps that a scripting artist executes one at a time.
+
+WHAT A STEP IS
+A step builds a complete, recognisable ASSEMBLY - never a single primitive. Each step should create
+several related objects or one object made of many primitives, with its trim and fittings already on it.
+
+GOOD step: "Build the hull: truncated cone 0.18 m tall, 0.12 m base diameter tapering to 0.10 m,
+            divided into 6 vertical panels by recessed seams, with a ring of 24 rivets at z=0.02 m
+            and a raised trim collar at the top."
+BAD step:  "Create a cylinder for the body."   <- one primitive, no detail, forbidden.
+
+RULES
+- Work bottom to top / large to small: main masses first, then fittings, then fine decoration,
+  then materials refinement, then lighting, then camera.
+- Every step instruction must carry its own NUMBERS: sizes in meters, counts, z heights, radii,
+  angles - taken from the build specification. The scripter cannot see the reference image.
+- Name the exact materials each step uses, from the specification's material list.
+- Fine decoration (rivet rings, motifs, panel lines, trim) gets its own dedicated step or steps -
+  never leave it as "add details later".
+- Include a final lighting step and a camera step when the scene needs them.
+- Maximum {max_steps} steps, and each one must be substantial. Do not pad with trivial steps.
+
+Respond with JSON only:
+{{"steps":[{{"title":"short name","category":"structure|fittings|detail|materials|lighting|camera|environment|edit",
+            "instruction":"the full instruction including every number the scripter needs"}}]}}"""
+
+PLANNER_USER = """# USER REQUEST
+{prompt}
+
+# BUILD SPECIFICATION (follow its numbers exactly)
+{reference_brief}
+
+# CURRENT SCENE
+{scene_summary}
+
+Return the JSON plan."""
+
+# --------------------------------------------------------------------------- code generation
 CODEGEN_SYSTEM = """You are a senior Blender technical artist writing Python for Blender {blender_version}.
-You produce ONE complete, self-contained Python script that builds or edits a 3D scene.
+You produce ONE complete, self-contained Python script that builds part of a 3D scene.
 
 HARD RULES
 1. Output exactly one ```python code block and nothing else (no prose before or after).
-2. The script runs in BACKGROUND mode (no window, no 3D viewport). Prefer the data API
-   (bpy.data.*, bmesh, mathutils). Avoid bpy.ops that need a viewport, selection or modal state.
-   NEVER call bpy.ops.wm.* (no open/save/quit/read_homefile) - the runner saves the file.
+2. The script runs in BACKGROUND mode (no window, no viewport, no selection, no active object).
+   Use the data API (bpy.data.*, bmesh, mathutils) and gap_helpers. NEVER call bpy.ops.wm.*.
 3. Allowed imports only: bpy, bmesh, mathutils, math, random, itertools, gap_helpers.
-   NO file, network or process access (no os.system, subprocess, socket, shutil, urllib, requests, eval, exec).
-4. `from gap_helpers import *` gives you tested, version-safe helpers. USE THEM for geometry,
-   materials, lights, cameras, scatter and terrain instead of re-implementing them:
+   No file, network or process access (no os, subprocess, socket, open, eval, exec).
+4. `from gap_helpers import *` gives you tested, version-safe helpers. USE THEM instead of
+   hand-writing shader node trees or primitive maths:
 {helpers_summary}
-5. Geometry quality: closed, manifold meshes with consistent outward normals; no zero-area faces;
-   no loose vertices; realistic scale in meters; objects sit on Z=0 ground unless told otherwise.
-6. Every object, mesh, material, light and camera gets a DESCRIPTIVE name
-   (e.g. "Tower_North_Stone", "Mat_OxidizedCopper", "Sun_Key"). Never leave "Cube.001" style names.
-7. Put everything you create in a collection named for the step: get_or_create_collection("{collection_name}").
-8. Materials: every visible mesh needs a material (make_material). Use image textures only if paths are given.
-9. Print progress with log_built(obj) after each object so the log shows: BUILT <name> <vertices>.
+5. Geometry must be closed and manifold with outward normals, no zero-area faces, no loose vertices.
+   Builder primitives already guarantee this - prefer them over from_pydata.
+6. Descriptive names for everything: "Hull_Lower_Steel", "Mat_AgedBrass", "Rivet_Ring_Base",
+   "Sun_Key", "Camera_Main". Never "Cube.001".
+7. Put this step's objects in get_or_create_collection("{collection_name}").
+8. Every visible mesh gets a material via make_material(...). Reuse a material that already exists
+   by name: mat = bpy.data.materials.get("Mat_X") or make_material("Mat_X", ...).
+9. Call log_built(obj) after each object you create.
 10. This is {scene_mode}. {scene_mode_rule}
-11. Keep the scene coherent with what already exists (positions, scale, style). Do not delete or
-    modify existing objects unless the instruction explicitly asks for it.
-12. Keep polygon counts sensible: detail where it is seen, simple where it is not. No subdivision
-    modifiers above level 2. Total new geometry for this step should stay under ~300k triangles.
-"""
+11. Never delete or clear existing objects unless the instruction explicitly says to remove them.
+
+DETAIL IS THE POINT
+12. Build what the instruction describes COMPLETELY, including every count and dimension it gives.
+    If it says 24 rivets in a ring at z=0.02, write the loop that places 24 rivets at z=0.02.
+13. A real object is made of many small parts. Use the detail helpers - rivet_ring, trim_ring,
+    panel_seams, porthole, star_shape, crescent_shape, bolt - rather than leaving a surface bare.
+14. Accumulate many primitives into one Builder and build() them as a single object when they form
+    one part; use separate objects when they are separately named parts.
+15. Respect the exact numbers from the instruction and the build specification. Do not invent a
+    different scale: if the specification says the object is 0.30 m tall, it is 0.30 m tall.
+16. Keep it under ~300k triangles for this step. Detail where it is seen; low segment counts (n=12-16)
+    on tiny parts like rivets, higher (n=32-48) on the main silhouette.
+
+SHADER NODE SOCKET NAMES (get these wrong and the script crashes)
+    ShaderNodeNormalMap inputs: "Strength", "Color"   (there is NO "Normal" input)
+    ShaderNodeBump inputs: "Strength", "Distance", "Height", "Normal"
+    ShaderNodeTexNoise inputs: "Vector", "Scale", "Detail", "Roughness", "Distortion"
+    Principled BSDF: "Base Color", "Metallic", "Roughness", "IOR", "Alpha", "Normal",
+                     "Emission Color", "Emission Strength"  (4.x/5.x names)
+    Prefer make_material(noise=dict(...)) over building these node chains by hand."""
 
 CODEGEN_USER = """# STEP TO IMPLEMENT
 {instruction}
 
-# REFERENCE BRIEF (what the user showed / described; follow its style, layout, materials, lighting)
+# BUILD SPECIFICATION (the reference; follow its numbers, materials and details exactly)
 {reference_brief}
 
-# CURRENT SCENE (from the last probe of the .blend file)
+# CURRENT SCENE (probe of the .blend as it stands right now)
 {scene_summary}
 
 # PREVIOUS STEPS IN THIS SESSION
@@ -60,88 +235,39 @@ CODEGEN_RETRY = """The previous script for this step FAILED. Fix it and return t
 {previous_code}
 ```
 
-Rules to remember: only bpy/bmesh/mathutils/math/random/gap_helpers imports, no bpy.ops.wm.*,
-closed manifold meshes with outward normals, descriptive names, log_built() after each object."""
-
-PLANNER_SYSTEM = """You are a 3D production lead planning how to build a Blender scene step by step.
-Break the request into an ORDERED list of build steps that a scripting artist executes one at a time.
-Each step is self-contained, verifiable, and produces visible geometry or a visible change.
-
-Guidelines:
-- Foundation first (ground/terrain/base), then primary structures, then secondary objects,
-  then details/props, then materials refinements, then lighting, then camera(s).
-- Merge tiny tasks; split anything that would need more than ~150 lines of Python.
-- Each instruction must be concrete: what objects, approximate size in meters, position relative
-  to what exists, material look, count for scattered items.
-- Respect the reference brief (style, layout, materials, lighting) when one is given.
-- Maximum {max_steps} steps. Fewer is better when the request is simple.
-Respond with JSON only:
-{{"steps": [{{"title": "short name", "category": "terrain|structure|props|materials|lighting|camera|environment|edit",
-             "instruction": "precise instruction for the scripting artist"}}]}}"""
-
-PLANNER_USER = """# USER REQUEST
-{prompt}
-
-# REFERENCE BRIEF
-{reference_brief}
-
-# CURRENT SCENE
-{scene_summary}
-
-Return the JSON plan."""
-
-REFERENCE_ANALYSIS_SYSTEM = """You are an art director translating a reference image into a build brief for a 3D artist.
-Be concrete and spatial. Respond with JSON only using exactly these keys:
-{"subject": "one sentence: what this is",
- "type": "building|environment|object|character|vehicle|interior|abstract|other",
- "style": "era, genre, architectural/visual style keywords",
- "layout": "where the main elements are: left/center/right, foreground/background, relative sizes",
- "elements": [{"name": "...", "description": "...", "approx_size_m": "...", "position": "...", "materials": "..."}],
- "materials": ["list of dominant materials with color words"],
- "colors": ["dominant colors as words and approximate hex"],
- "lighting": "light direction, time of day, mood, sky",
- "camera": "viewpoint, lens feel (wide/tele), height, angle",
- "mood": "keywords",
- "notes_for_3d": "things a modeler must not miss"}"""
-
-REFERENCE_ANALYSIS_USER = """Analyze reference image {index} of {total}.{user_notes}
-Return the JSON."""
-
-REFERENCE_MERGE_SYSTEM = """You merge several reference-image analyses (and the user's own words) into ONE build brief
-for a Blender scripting artist. Resolve conflicts sensibly (the user's text wins, then the majority of images).
-Write it as compact plain text with these sections:
-SUBJECT / STYLE / LAYOUT / ELEMENTS (bullet list with sizes in meters and positions) / MATERIALS /
-COLORS / LIGHTING / CAMERA / MOOD / MUST-NOT-MISS.
-Keep it under 450 words. No preamble."""
-
-REFERENCE_MERGE_USER = """# USER TEXT
-{prompt}
-
-# IMAGE ANALYSES (JSON, one per image)
-{analyses}
-
-Write the merged brief."""
+Reminders: only bpy/bmesh/mathutils/math/random/gap_helpers; no bpy.ops.wm.*; closed manifold meshes
+with outward normals; descriptive names; log_built() per object; ShaderNodeNormalMap has inputs
+"Strength" and "Color" but NOT "Normal"; prefer make_material(noise=...) over hand-built node trees.
+Keep every bit of detail the instruction asked for - do not simplify the model to make it work."""
 
 
 def helpers_summary():
     """Short signature list injected into the system prompt (kept in sync with gap_helpers.py)."""
     return """   get_or_create_collection(name) -> Collection
-   B = Builder(); B.box(center,(sx,sy,sz)); B.cylinder(a,b,r,n=16); B.cone(a,b,r1,r2); B.sphere(center,r);
-       B.torus(center,R,r); B.tube(points,r); B.lathe(center,[(z,r),...]); B.prism(polygon_xz,depth,origin);
-       B.plane(center,(sx,sy)); obj = B.build("Name", collection, material_or_list)
+   B = Builder(); B.box(center,(sx,sy,sz),mat=,angle_z=); B.plane(center,(sx,sy)); B.cylinder(a,b,r,n=16,r2=);
+       B.cone(a,b,r1,r2); B.sphere(center,r,n=24); B.torus(center,R,r,axis=); B.tube([pts],r);
+       B.lathe(center,[(z,radius),...],n=32); B.prism(polygon_xz,depth,origin,angle_z=);
+       obj = B.build("Name", collection, material_or_list)
+   DETAIL HELPERS (use these for realism):
+       rivet_ring(B, center, radius, count, rivet_r, mat=, protrusion=, axis="Z")  ring of rivets/studs
+       bolt(B, center, r, height, mat=, n=6)                                       single hex bolt head
+       trim_ring(B, center, radius, tube_r, mat=, axis="Z")                        raised collar/beading
+       panel_seams(B, center, radius, z0, z1, count, width=, depth=, mat=)         vertical panel divisions
+       porthole(B, center, outer_r, inner_r, depth, mat_frame=, mat_glass=, normal="Y", rivets=0)
+       star_shape(B, center, outer_r, inner_r, points=5, depth=, mat=, normal="Y", angle=0)
+       crescent_shape(B, center, r, cut_offset, depth=, mat=, normal="Y", angle=0)
+       ring_positions(radius, count, z=0, phase=0) -> [(x,y,z), ...]   for placing your own parts
    make_material(name, base_color=(r,g,b), metallic=0, roughness=0.5, emission_color=None,
-                 emission_strength=0, alpha=1, noise=None|dict(scale,detail,color_a,color_b,bump), textures=None|dict)
+                 emission_strength=0, alpha=1, ior=1.45, noise=dict(scale,detail,color_a,color_b,bump),
+                 textures=dict(base_color,roughness,normal,metallic,scale))
    assign_material(obj, mat); set_smooth(obj, angle_deg=35)
-   add_light(kind="POINT|SUN|SPOT|AREA", location, energy, color=(1,1,1), name, target=None)
-   add_sun(elevation_deg, azimuth_deg, strength=3, color=(1,.95,.9), name="Sun_Key")
-   add_camera(location, target, lens_mm=35, name="Camera_Main"); frame_camera_to_scene(camera, margin=1.15)
-   set_world(color=(r,g,b), strength=1.0, hdri_path=None)
-   terrain(name, size=(x,y), resolution=96, height=3, noise_scale=0.05, seed=1, collection=coll, material=mat)  # ALWAYS pass material=
-   scatter(template_obj, count, area=(xmin,xmax,ymin,ymax), seed=1, scale_range=(0.8,1.2),
-           min_distance=1, surface=None, collection=None) -> [objects]
-   array_copies(obj, count, offset=(dx,dy,dz), collection=None) -> [objects]
-   duplicate(obj, name, location=None, collection=None) -> object
-   delete_objects(names) ; clear_scene()   (ONLY when the instruction asks to remove/replace things)
+   add_light(kind,location,energy,color,name,target=,size=,spot_angle_deg=); add_sun(elev,azim,strength,color,name)
+   add_camera(location,target,lens_mm=35,name,ortho=,ortho_scale=); frame_camera_to_scene(cam,margin=1.15)
+   set_world(color,strength,hdri_path=None)
+   terrain(name,size,resolution,height,noise_scale,seed,collection=,material=,falloff=)
+   scatter(template,count,area,seed,scale_range,min_distance,surface=,collection=)
+   array_copies(obj,count,offset,collection=); duplicate(obj,name,location=,collection=)
+   delete_objects(names); clear_scene()   (ONLY when told to remove things)
    log_built(obj)"""
 
 
@@ -150,9 +276,9 @@ def build_codegen_messages(instruction, scene_summary, history, reference_brief,
                            feedback=None, previous_code=None):
     scene_mode = "a NEW, EMPTY scene" if scene_is_new else "an EXISTING scene that must be extended"
     scene_mode_rule = (
-        "Create the ground/foundation the instruction needs; add at least one light and one camera only if the step asks for them."
+        "Build the step's geometry; add lights or a camera only if the step asks for them."
         if scene_is_new else
-        "Add to what exists. Reuse existing materials/collections where it makes sense. Never clear the scene."
+        "Add to what exists and match its scale and placement. Never clear the scene."
     )
     system = CODEGEN_SYSTEM.format(
         blender_version=blender_version,
@@ -186,16 +312,29 @@ def build_planner_messages(prompt, reference_brief, scene_summary, max_steps):
     ]
 
 
-def build_reference_analysis_messages(index, total, user_notes=""):
+REF_PASSES = (
+    ("structure", REF_PASS1_SYSTEM,
+     "Identify the object, decide its real-world height, and list every component with proportions."),
+    ("detail", REF_PASS2_SYSTEM,
+     "Find the fine detail only: rivets, trim, seams, windows, motifs, paint bands, wear."),
+    ("materials", REF_PASS3_SYSTEM,
+     "Read the materials and palette, plus lighting and camera."),
+)
+
+
+def build_reference_pass_messages(pass_index, index, total, user_notes=""):
+    """pass_index selects REF_PASSES; returns (key, messages)."""
+    key, system, focus = REF_PASSES[pass_index]
     notes = f"\nUser notes about the references: {user_notes.strip()}" if user_notes and user_notes.strip() else ""
-    return [
-        {"role": "system", "content": REFERENCE_ANALYSIS_SYSTEM},
-        {"role": "user", "content": REFERENCE_ANALYSIS_USER.format(index=index, total=total, user_notes=notes)},
+    return key, [
+        {"role": "system", "content": system},
+        {"role": "user", "content": REF_PASS_USER.format(index=index, total=total, user_notes=notes, focus=focus)},
     ]
 
 
 def build_reference_merge_messages(prompt, analyses_json_text):
     return [
-        {"role": "system", "content": REFERENCE_MERGE_SYSTEM},
-        {"role": "user", "content": REFERENCE_MERGE_USER.format(prompt=(prompt or "").strip() or "(none)", analyses=analyses_json_text)},
+        {"role": "system", "content": REF_MERGE_SYSTEM},
+        {"role": "user", "content": REF_MERGE_USER.format(
+            prompt=(prompt or "").strip() or "(none)", analyses=analyses_json_text)},
     ]

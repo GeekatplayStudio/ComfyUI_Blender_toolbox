@@ -65,6 +65,7 @@ class BlenderRunner:
             "probe": bool(probe),
             "save": bool(save),
             "render": render,
+            "focus_viewport": True,  # live mode: frame the viewport on what was just built
         }
         job_path = os.path.splitext(result_path)[0] + ".job.json"
         os.makedirs(os.path.dirname(job_path), exist_ok=True)
@@ -111,8 +112,12 @@ class BlenderRunner:
                 s.connect((self.live_host, self.live_port))
                 s.sendall(message.encode("utf-8"))
         except Exception as e:
-            return _failed(f"Could not reach the Blender addon listener at {self.live_host}:{self.live_port} ({e}). "
-                           "Start Blender, enable the ComfyUI Blender Toolbox addon and click 'Start Listener'.")
+            return _failed(
+                f"LIVE MODE: could not reach the Blender addon listener at {self.live_host}:{self.live_port} ({e}).\n"
+                "In Blender: 3D viewport > press N > 'ComfyUI' tab > Start Listener, and switch ON\n"
+                "'AI Scene Builder (Live) > Allow AI code execution'. The addon must be version 2.2.0 or newer\n"
+                "(reinstall blender_scripts/blender_toolbox_addon.py if you installed it before this update).\n"
+                "Or set execution_mode=headless to build in a background Blender instead.")
         t0 = time.time()
         while time.time() - t0 < self.live_timeout:
             if os.path.exists(job["result_path"]):
@@ -125,8 +130,11 @@ class BlenderRunner:
                     time.sleep(0.3)
                     continue
             time.sleep(0.5)
-        return _failed(f"Timed out after {self.live_timeout}s waiting for the Blender addon to finish the step. "
-                       "Check the Blender console; if 'Allow AI code execution' is off the addon refuses and logs why.")
+        return _failed(
+            f"LIVE MODE: timed out after {self.live_timeout}s waiting for the Blender addon to finish the step.\n"
+            "Most common cause: 'Allow AI code execution' is OFF, so the addon refused the job - check the\n"
+            "Blender system console, and the ai_exec_log.txt in the session folder. Otherwise the step may\n"
+            "simply be heavy: raise live_timeout.")
 
     def run(self, code_path, mode="headless", **job_kwargs):
         if mode == "live":

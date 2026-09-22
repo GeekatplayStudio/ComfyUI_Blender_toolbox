@@ -24,6 +24,9 @@ __all__ = [
     "frame_camera_to_scene", "set_world", "terrain", "scatter", "array_copies", "duplicate",
     "delete_objects", "clear_scene", "log_built", "scene_bounds", "Vector", "math", "random",
     "bpy", "bmesh", "mathutils", "noise",
+    # detail helpers
+    "ring_positions", "rivet_ring", "bolt", "trim_ring", "panel_seams", "porthole",
+    "star_shape", "crescent_shape",
 ]
 
 import mathutils  # noqa: E402  (re-exported so `mathutils.Vector` works after `from gap_helpers import *`)
@@ -236,7 +239,10 @@ class Builder:
         faces += [(i, (i + 1) % N, (i + 1) % N + N, i + N) for i in range(N)]
         return self.add(verts, faces, mat)
 
-    def build(self, name, collection=None, material=None, angle_deg=35.0, merge_dist=1e-5):
+    def build(self, name, collection=None, material=None, angle_deg=35.0, merge_dist=0.0):
+        # merge_dist defaults to 0: every primitive added here is already a closed shell, and welding
+        # by distance fuses vertices where two shells touch (a rivet meeting a hull, a trim ring on a
+        # cone), which creates non-manifold edges. Pass a small value only for hand-built geometry.
         if not self.f:
             raise ValueError(f"Builder.build('{name}'): no geometry was added before build()")
         if isinstance(collection, str):
@@ -501,21 +507,38 @@ def scene_bounds(exclude_types=("CAMERA", "LIGHT", "EMPTY")):
 
 
 def frame_camera_to_scene(camera, margin=1.15, direction=(1.0, -1.3, 0.75)):
-    """Move `camera` along `direction` so the whole scene fits in view (perspective or ortho)."""
+    """Move `camera` along `direction` so the whole scene fills the frame (perspective or ortho).
+
+    Works at any scale: a 0.3 m ornament frames as tightly as a 30 m tower. The distance accounts
+    for BOTH the horizontal and vertical field of view and the render aspect ratio, so the subject
+    fits in the narrow dimension instead of overflowing it.
+    """
     bpy.context.view_layer.update()
     lo, hi = scene_bounds()
     center = (lo + hi) / 2.0
-    radius = max((hi - lo).length / 2.0, 0.5)
+    radius = max((hi - lo).length / 2.0, 1e-4)
     d = Vector(direction).normalized()
+    scene = bpy.context.scene
+    res_x = max(scene.render.resolution_x, 1)
+    res_y = max(scene.render.resolution_y, 1)
+    aspect = (res_x * scene.render.pixel_aspect_x) / (res_y * scene.render.pixel_aspect_y)
     if camera.data.type == "ORTHO":
-        camera.data.ortho_scale = radius * 2.0 * margin
-        camera.location = center + d * (radius * 4.0)
+        # ortho_scale covers the larger image dimension
+        camera.data.ortho_scale = radius * 2.0 * margin / (1.0 if aspect >= 1 else 1.0)
+        camera.location = center + d * max(radius * 4.0, 1e-3)
     else:
-        fov = camera.data.angle
-        dist = radius / math.sin(fov / 2.0) * margin
+        # camera.data.angle applies to the larger image dimension (sensor_fit AUTO)
+        half = camera.data.angle / 2.0
+        if aspect >= 1.0:
+            half_x, half_y = half, math.atan(math.tan(half) / aspect)
+        else:
+            half_y, half_x = half, math.atan(math.tan(half) * aspect)
+        limiting = max(min(half_x, half_y), math.radians(1.0))
+        dist = radius / math.sin(limiting) * margin
         camera.location = center + d * dist
     _look_at(camera, center)
-    camera.data.clip_end = max(camera.data.clip_end, radius * 20.0)
+    camera.data.clip_start = min(camera.data.clip_start, max(radius * 0.01, 1e-4))
+    camera.data.clip_end = max(camera.data.clip_end, radius * 50.0)
     return camera
 
 
@@ -658,6 +681,154 @@ def array_copies(obj, count, offset=(2.0, 0.0, 0.0), collection=None):
         loc = obj.location + Vector(offset) * i
         out.append(duplicate(obj, f"{obj.name}_{i + 1:03d}", loc, collection))
     return out
+
+
+# ----------------------------------------------------------------------------- detail helpers
+# These exist so generated scripts can add believable fine detail (rivets, trim, panel seams,
+# portholes, motifs) with one call instead of hand-rolling geometry or shader node trees.
+
+_AXES = {"X": Vector((1, 0, 0)), "Y": Vector((0, 1, 0)), "Z": Vector((0, 0, 1))}
+
+
+def _basis(axis):
+    """Return (axis_vector, u, v) for a named axis, u/v spanning the perpendicular plane."""
+    a = _AXES[str(axis).upper()] if isinstance(axis, str) else Vector(axis).normalized()
+    ref = Vector((0, 0, 1)) if abs(a.z) < 0.9 else Vector((1, 0, 0))
+    u = a.cross(ref).normalized()
+    v = a.cross(u).normalized()
+    return a, u, v
+
+
+def ring_positions(radius, count, z=0.0, phase=0.0, center=(0.0, 0.0), axis="Z"):
+    """World positions evenly spaced on a circle. Use to place your own parts in a ring."""
+    a, u, v = _basis(axis)
+    origin = Vector((center[0], center[1], z)) if len(center) == 2 else Vector(center)
+    out = []
+    for i in range(int(count)):
+        ang = phase + 2 * pi * i / max(int(count), 1)
+        out.append(origin + radius * (u * cos(ang) + v * sin(ang)))
+    return out
+
+
+def rivet_ring(builder, center, radius, count, rivet_r=0.004, mat=0, protrusion=0.6, axis="Z",
+               phase=0.0, n=8):
+    """A ring of dome-headed rivets/studs around `center` at `radius`.
+
+    protrusion: how far the head stands out, as a multiple of rivet_r (0.6 = a low dome).
+    axis: the axis the ring circles around ("Z" for a ring around an upright body).
+    """
+    a, u, v = _basis(axis)
+    c = Vector(center)
+    for i in range(int(count)):
+        ang = phase + 2 * pi * i / max(int(count), 1)
+        d = (u * cos(ang) + v * sin(ang))
+        p = c + d * radius
+        builder.sphere(p + d * rivet_r * (protrusion - 1.0), rivet_r, mat=mat, n=max(6, n))
+    return builder
+
+
+def bolt(builder, center, r=0.005, height=0.004, mat=0, n=6, axis="Z"):
+    """A single hex bolt head standing proud of a surface."""
+    a, _, _ = _basis(axis)
+    c = Vector(center)
+    builder.cylinder(c, c + a * height, r, mat=mat, n=max(3, n), smooth=False)
+    return builder
+
+
+def trim_ring(builder, center, radius, tube_r=0.004, mat=0, axis="Z", n=48, k=10):
+    """A raised collar / beading / trim band encircling a body."""
+    builder.torus(center, radius, tube_r, mat=mat, n=n, k=k, axis=_basis(axis)[0])
+    return builder
+
+
+def panel_seams(builder, center, radius, z0, z1, count=6, width=0.003, depth=0.004, mat=0, phase=0.0):
+    """Vertical seams dividing a cylindrical surface into panels.
+
+    Modelled as thin raised strips on the surface (closed boxes), which reads as a panel line in
+    render and keeps the mesh manifold - no boolean cutting.
+    """
+    c = Vector(center)
+    height = abs(z1 - z0)
+    zc = min(z0, z1) + height / 2.0
+    for i in range(int(count)):
+        ang = phase + 2 * pi * i / max(int(count), 1)
+        x = c.x + radius * cos(ang)
+        y = c.y + radius * sin(ang)
+        builder.box((x, y, zc), (depth, width, height), mat=mat, angle_z=ang)
+    return builder
+
+
+def porthole(builder, center, outer_r=0.05, inner_r=0.035, depth=0.02, mat_frame=0, mat_glass=1,
+             normal="Y", rivets=0, rivet_r=0.004, phase=0.0):
+    """A round window: raised frame ring + recessed glass disc, facing along `normal`.
+
+    normal: the direction the window looks out ("Y" = facing -Y/+Y, "X", or a vector).
+    rivets: number of rivets around the frame (0 for none).
+    """
+    a, u, v = _basis(normal)
+    c = Vector(center)
+    # frame: a short thick ring standing proud of the hull
+    builder.torus(c, (outer_r + inner_r) / 2.0, (outer_r - inner_r) / 2.0, mat=mat_frame,
+                  n=48, k=12, axis=a)
+    # glass: a thin disc set back inside the frame
+    builder.cylinder(c - a * depth * 0.5, c - a * depth * 0.15, inner_r, mat=mat_glass, n=48)
+    if rivets:
+        rivet_ring(builder, c, outer_r + (outer_r - inner_r) * 0.15, int(rivets), rivet_r,
+                   mat=mat_frame, axis=a, phase=phase)
+    return builder
+
+
+def _extrude_polygon(builder, points_2d, center, depth, mat, normal, angle):
+    """Extrude a 2D outline (in the plane perpendicular to `normal`) into a closed solid."""
+    a, u, v = _basis(normal)
+    c = Vector(center)
+    ca, sa = cos(angle), sin(angle)
+    verts = []
+    N = len(points_2d)
+    for sign in (-0.5, 0.5):
+        for (px, py) in points_2d:
+            rx = px * ca - py * sa
+            ry = px * sa + py * ca
+            verts.append(c + u * rx + v * ry + a * depth * sign)
+    faces = [tuple(range(N))[::-1], tuple(N + i for i in range(N))]
+    faces += [(i, (i + 1) % N, (i + 1) % N + N, i + N) for i in range(N)]
+    builder.add(verts, faces, mat)
+    return builder
+
+
+def star_shape(builder, center, outer_r=0.02, inner_r=None, points=5, depth=0.004, mat=0,
+               normal="Y", angle=0.0):
+    """A raised N-pointed star badge, extruded along `normal`."""
+    inner_r = outer_r * 0.42 if inner_r is None else inner_r
+    pts = []
+    for i in range(int(points) * 2):
+        r = outer_r if i % 2 == 0 else inner_r
+        ang = pi / 2 + i * pi / int(points)
+        pts.append((r * cos(ang), r * sin(ang)))
+    return _extrude_polygon(builder, pts, center, depth, mat, normal, angle)
+
+
+def crescent_shape(builder, center, r=0.02, cut_offset=None, depth=0.004, mat=0, normal="Y",
+                   angle=0.0, segments=28):
+    """A raised crescent moon badge: a disc with a smaller disc bitten out of one side."""
+    cut_offset = r * 0.45 if cut_offset is None else cut_offset
+    cut_r = r * 0.82
+    outer, inner = [], []
+    for i in range(segments + 1):
+        t = pi * (-0.5 + i / segments)  # outer arc, right half
+        outer.append((r * cos(t), r * sin(t)))
+    for i in range(segments + 1):
+        t = pi * (0.5 - i / segments)   # inner arc back, offset circle
+        inner.append((cut_offset + cut_r * cos(t), cut_r * sin(t)))
+    pts = outer + inner
+    # drop duplicate endpoints that would create zero-area faces
+    cleaned = [pts[0]]
+    for p in pts[1:]:
+        if (p[0] - cleaned[-1][0]) ** 2 + (p[1] - cleaned[-1][1]) ** 2 > 1e-12:
+            cleaned.append(p)
+    if (cleaned[0][0] - cleaned[-1][0]) ** 2 + (cleaned[0][1] - cleaned[-1][1]) ** 2 < 1e-12:
+        cleaned.pop()
+    return _extrude_polygon(builder, cleaned, center, depth, mat, normal, angle)
 
 
 # ----------------------------------------------------------------------------- removal (explicit only)

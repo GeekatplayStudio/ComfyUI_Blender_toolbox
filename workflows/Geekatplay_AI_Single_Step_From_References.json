@@ -19,10 +19,10 @@
       "inputs": [],
       "outputs": [],
       "properties": {
-        "text": "AI SCENE BUILDER - SINGLE STEP FROM REFERENCE IMAGES\n\nOne instruction, one Blender script, validated and rendered. Reference images are analyzed first\n(up to 3 image inputs; batches count as multiple references) so the model matches style, layout,\nmaterials and lighting. Re-run with a new instruction to keep adding to the same session scene.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+        "text": "AI SCENE BUILDER - SINGLE STEP FROM REFERENCE IMAGES\n\nOne instruction, one Blender script, validated and rendered. Reference images are analyzed first\n(up to 3 image inputs; batches count as multiple references) so the model matches style, layout,\nmaterials and lighting. Re-run with a new instruction to keep adding to the same session scene.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner')."
       },
       "widgets_values": [
-        "AI SCENE BUILDER - SINGLE STEP FROM REFERENCE IMAGES\n\nOne instruction, one Blender script, validated and rendered. Reference images are analyzed first\n(up to 3 image inputs; batches count as multiple references) so the model matches style, layout,\nmaterials and lighting. Re-run with a new instruction to keep adding to the same session scene.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+        "AI SCENE BUILDER - SINGLE STEP FROM REFERENCE IMAGES\n\nOne instruction, one Blender script, validated and rendered. Reference images are analyzed first\n(up to 3 image inputs; batches count as multiple references) so the model matches style, layout,\nmaterials and lighting. Re-run with a new instruction to keep adding to the same session scene.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner')."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -260,7 +260,7 @@
         "Node name for S&R": "GapAIReferenceAnalyzer"
       },
       "widgets_values": [
-        "Build the main building from the reference as a closed, detailed model on a flat ground slab.",
+        "Reproduce the object in the reference images as a detailed 3D model: match its shapes, proportions, materials and all of its decoration (trim, rivets, windows, motifs, paint bands).",
         ""
       ]
     },
@@ -341,8 +341,8 @@
         "Node name for S&R": "GapAIStepBuilder"
       },
       "widgets_values": [
-        "Build the main building from the reference brief: correct proportions in meters, windows as recessed frames, roof, chimney/details, materials matching the brief, on a 30x30 m ground slab. Add a warm key sun and a camera framing it.",
-        "Reference_Building",
+        "Build the object described in the build specification, complete in one step: every part at the exact sizes and z positions it gives, every decoration it lists (trim rings, rivet rings, windows, motifs, paint bands) using the detail helpers, and the materials from its palette. Add a key light and a camera framing the object.",
+        "Reference_Object",
         "headless",
         false,
         2,

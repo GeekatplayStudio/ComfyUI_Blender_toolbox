@@ -1,17 +1,17 @@
 {
-  "last_node_id": 12,
-  "last_link_id": 15,
+  "last_node_id": 13,
+  "last_link_id": 16,
   "nodes": [
     {
       "id": 1,
       "type": "Note",
       "pos": [
         -40,
-        -420
+        -560
       ],
       "size": [
-        720,
-        300
+        760,
+        440
       ],
       "flags": {},
       "order": 1,
@@ -19,10 +19,10 @@
       "inputs": [],
       "outputs": [],
       "properties": {
-        "text": "AI SCENE BUILDER - COMPLETE SCENE (Geekatplay Studio - Vladimir Chopine)\n\n1. Load 1-3 reference images (optional). The Reference Analyzer turns them + your prompt into a build brief.\n2. Session: pick a name. Everything (scene.blend, scripts, results, renders) goes to\n   ComfyUI/output/ai_scene_builder/<name>/. Run again later with the same name to keep building.\n3. Model Config: Ollama by default (qwen2.5-coder:14b + qwen2.5vl:7b). Anthropic/OpenAI also work.\n4. Planner splits the request into ordered steps -> Builder executes each: generate -> safety scan ->\n   run in Blender -> validate polygons/normals/textures/names -> retry on failure -> preview render.\n5. Outputs: preview image, blend path, full report, all scripts, validation JSON.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+        "text": "AI SCENE BUILDER - COMPLETE SCENE (Geekatplay Studio - Vladimir Chopine)\n\n1. Load 1-3 reference images. The Reference Analyzer runs THREE focused vision passes over each\n   (structure with real-world size / fine detail / materials) and merges them into one build\n   specification with every dimension in meters.\n2. Session: pick a name. Everything (scene.blend, scripts, results, renders) goes to\n   ComfyUI/output/ai_scene_builder/<name>/. Run again with the same name to keep building.\n3. Planner splits it into ordered steps - each step an ASSEMBLY with its trim and fittings,\n   never a lone primitive. Builder executes each: generate -> safety scan -> run in Blender ->\n   validate polygons/normals/textures/names -> retry on failure -> preview render.\n4. Read 'Reference brief' and 'Plan' first: if the brief has wrong sizes or too few parts, the\n   model is too small - see the model note below. Fixing the brief fixes the model.\n5. Outputs: preview image, blend path, full report, all scripts, validation JSON.\n\nMODEL CHOICE DRIVES QUALITY MORE THAN ANY OTHER SETTING\n  The vision model decides how much of the reference is understood. A small one (4-8B)\n  reports every part as the same size and misses the fine detail, which produces\n  featureless blobs. Use the largest vision model you have; the AI Model Config node\n  prints a TIP naming the best one installed.\n  The code model decides how well that description becomes geometry: 14B works, 32B is\n  noticeably better, claude-sonnet-5 via the anthropic provider is better still.\n\nWHERE YOU SEE THE RESULT\n  execution_mode=headless (default): Blender runs in the background. You get the preview\n    render and a .blend file - NOTHING appears in a Blender window you have open.\n  execution_mode=live: the model builds inside the Blender you are looking at, and the\n    viewport re-frames on each new part. Requires, in Blender:\n      1. addon v2.2.0+ installed (blender_scripts/blender_toolbox_addon.py)\n      2. N-panel > ComfyUI tab > Start Listener\n      3. AI Scene Builder (Live) > Allow AI code execution = ON\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner')."
       },
       "widgets_values": [
-        "AI SCENE BUILDER - COMPLETE SCENE (Geekatplay Studio - Vladimir Chopine)\n\n1. Load 1-3 reference images (optional). The Reference Analyzer turns them + your prompt into a build brief.\n2. Session: pick a name. Everything (scene.blend, scripts, results, renders) goes to\n   ComfyUI/output/ai_scene_builder/<name>/. Run again later with the same name to keep building.\n3. Model Config: Ollama by default (qwen2.5-coder:14b + qwen2.5vl:7b). Anthropic/OpenAI also work.\n4. Planner splits the request into ordered steps -> Builder executes each: generate -> safety scan ->\n   run in Blender -> validate polygons/normals/textures/names -> retry on failure -> preview render.\n5. Outputs: preview image, blend path, full report, all scripts, validation JSON.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+        "AI SCENE BUILDER - COMPLETE SCENE (Geekatplay Studio - Vladimir Chopine)\n\n1. Load 1-3 reference images. The Reference Analyzer runs THREE focused vision passes over each\n   (structure with real-world size / fine detail / materials) and merges them into one build\n   specification with every dimension in meters.\n2. Session: pick a name. Everything (scene.blend, scripts, results, renders) goes to\n   ComfyUI/output/ai_scene_builder/<name>/. Run again with the same name to keep building.\n3. Planner splits it into ordered steps - each step an ASSEMBLY with its trim and fittings,\n   never a lone primitive. Builder executes each: generate -> safety scan -> run in Blender ->\n   validate polygons/normals/textures/names -> retry on failure -> preview render.\n4. Read 'Reference brief' and 'Plan' first: if the brief has wrong sizes or too few parts, the\n   model is too small - see the model note below. Fixing the brief fixes the model.\n5. Outputs: preview image, blend path, full report, all scripts, validation JSON.\n\nMODEL CHOICE DRIVES QUALITY MORE THAN ANY OTHER SETTING\n  The vision model decides how much of the reference is understood. A small one (4-8B)\n  reports every part as the same size and misses the fine detail, which produces\n  featureless blobs. Use the largest vision model you have; the AI Model Config node\n  prints a TIP naming the best one installed.\n  The code model decides how well that description becomes geometry: 14B works, 32B is\n  noticeably better, claude-sonnet-5 via the anthropic provider is better still.\n\nWHERE YOU SEE THE RESULT\n  execution_mode=headless (default): Blender runs in the background. You get the preview\n    render and a .blend file - NOTHING appears in a Blender window you have open.\n  execution_mode=live: the model builds inside the Blender you are looking at, and the\n    viewport re-frames on each new part. Requires, in Blender:\n      1. addon v2.2.0+ installed (blender_scripts/blender_toolbox_addon.py)\n      2. N-panel > ComfyUI tab > Start Listener\n      3. AI Scene Builder (Live) > Allow AI code execution = ON\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner')."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -144,7 +144,7 @@
         "Node name for S&R": "GapAISceneSession"
       },
       "widgets_values": [
-        "castle_scene",
+        "my_object",
         false,
         "",
         ""
@@ -179,7 +179,9 @@
         {
           "name": "llm_info",
           "type": "STRING",
-          "links": [],
+          "links": [
+            16
+          ],
           "slot_index": 1
         }
       ],
@@ -263,7 +265,7 @@
         "Node name for S&R": "GapAIReferenceAnalyzer"
       },
       "widgets_values": [
-        "A small hilltop stone castle with a round keep, curtain wall with two towers, a wooden gate, pine forest around, warm late-afternoon light.",
+        "Reproduce the object in the reference images as a detailed 3D model: match its shapes, proportions, materials and all of its decoration (trim, rivets, windows, motifs, paint bands).",
         ""
       ]
     },
@@ -320,7 +322,7 @@
         "Node name for S&R": "GapAIScenePlanner"
       },
       "widgets_values": [
-        "A small hilltop stone castle with a round keep, curtain wall with two towers, a wooden gate, pine forest around, warm late-afternoon light.",
+        "Reproduce the object in the reference images as a detailed 3D model: match its shapes, proportions, materials and all of its decoration (trim, rivets, windows, motifs, paint bands).",
         6,
         ""
       ]
@@ -412,7 +414,7 @@
       "widgets_values": [
         "",
         "",
-        true,
+        false,
         "headless",
         false,
         2,
@@ -564,7 +566,42 @@
         "Node name for S&R": "GapStringViewer"
       },
       "widgets_values": [],
-      "title": "Reference brief"
+      "title": "Reference brief (CHECK THIS FIRST)"
+    },
+    {
+      "id": 13,
+      "type": "GapStringViewer",
+      "pos": [
+        700,
+        540
+      ],
+      "size": [
+        420,
+        200
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Model info / quality tips"
     }
   ],
   "links": [
@@ -685,6 +722,14 @@
       6,
       0,
       12,
+      0,
+      "STRING"
+    ],
+    [
+      16,
+      5,
+      1,
+      13,
       0,
       "STRING"
     ]
