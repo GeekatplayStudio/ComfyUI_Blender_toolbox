@@ -460,6 +460,83 @@ class GapAIScriptRunner:
         return {"ui": {"text": [report[-2000:]]}, "result": (preview, blend, report, vjson, sess.to_payload())}
 
 
+class GapAIVisualRefiner:
+    """Render the scene, compare it to the reference images, and fix the differences. Repeat.
+
+    This is what closes the gap to a reference. A single generate-and-hope pass never sees its own
+    output; this loop looks at the render next to the reference, lists what is wrong (silhouette,
+    missing parts, wrong shapes, placement, materials, detail density) and executes the fixes.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        req = {
+            "session": (SESSION_TYPE,),
+            "llm": (LLM_TYPE,),
+            "rounds": ("INT", {"default": 2, "min": 1, "max": 8,
+                       "tooltip": "How many render -> critique -> fix cycles to run."}),
+            "target_score": ("INT", {"default": 85, "min": 0, "max": 100,
+                             "tooltip": "Stop early once the critic scores the resemblance this high."}),
+            "max_fix_steps": ("INT", {"default": 3, "min": 1, "max": 8,
+                              "tooltip": "Maximum correction steps per round."}),
+        }
+        req.update(_exec_inputs())
+        req.pop("dry_run")
+        opt = {
+            "images": ("IMAGE",),
+            "images_2": ("IMAGE",),
+            "reference_brief": ("STRING", {"forceInput": True}),
+        }
+        opt.update(_exec_optional_inputs())
+        return {"required": req, "optional": opt}
+
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING", "INT", SESSION_TYPE)
+    RETURN_NAMES = ("preview", "report", "critique_json", "blend_path", "final_score", "session")
+    FUNCTION = "refine"
+    CATEGORY = CATEGORY
+    OUTPUT_NODE = True
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("nan")
+
+    def refine(self, session, llm, rounds, target_score, max_fix_steps,
+               images=None, images_2=None, reference_brief="", **kwargs):
+        sess = SceneSession.from_payload(session)
+        refs = _tensor_to_b64_list(images) + _tensor_to_b64_list(images_2)
+        if not refs:
+            report = ("AI Visual Refiner needs at least one reference image to compare against.\n"
+                      "Connect the same LoadImage you gave the Reference Analyzer.")
+            return {"ui": {"text": [report]}, "result": (_blank_image(), report, "{}", sess.blend_path, 0, sess.to_payload())}
+        if not sess.blend_exists():
+            report = f"Session '{sess.name}' has no scene yet - build something before refining it."
+            return {"ui": {"text": [report]}, "result": (_blank_image(), report, "{}", sess.blend_path, 0, sess.to_payload())}
+        agent = SceneBuilderAgent(sess, llm, _options_from(kwargs))
+        history, render_path = agent.refine(refs, reference_brief, rounds=rounds,
+                                            target_score=target_score, max_fix_steps=max_fix_steps)
+        lines = [f"AI Visual Refiner - session '{sess.name}'", f"blend: {sess.blend_path}", ""]
+        for h in history:
+            c = h["critique"]
+            lines.append(f"## Round {h['round']}: score {h['score']}/100 - {c.get('verdict', '')}")
+            for d in c.get("differences", [])[:8]:
+                lines.append(f"  [{d.get('importance', '?'):<8}] {d.get('category', '')}: {d.get('issue', '')}")
+                lines.append(f"             fix: {d.get('fix', '')}")
+            if h["steps"]:
+                lines.append("  applied: " + "; ".join(s["title"] for s in h["steps"]))
+            if h.get("report"):
+                lines.append("  " + h["report"].replace("\n", "\n  ")[:1500])
+            lines.append("")
+        scores = [h["score"] for h in history]
+        final = scores[-1] if scores else 0
+        if len(scores) > 1:
+            lines.append(f"score progression: {' -> '.join(str(s) for s in scores)}")
+        preview = _load_image_tensor(render_path) if render_path and os.path.exists(render_path) else _blank_image()
+        report = "\n".join(lines)
+        critique_json = json.dumps([h["critique"] for h in history], indent=1)
+        return {"ui": {"text": [report[-2000:]]},
+                "result": (preview, report, critique_json, sess.blend_path, int(final), sess.to_payload())}
+
+
 class GapAISceneValidator:
     """Validate (and optionally auto-fix) the session scene: polygons, normals, textures, names."""
 
@@ -521,6 +598,7 @@ NODE_CLASS_MAPPINGS = {
     "GapAISceneBuilder": GapAISceneBuilder,
     "GapAIStepBuilder": GapAIStepBuilder,
     "GapAIScriptRunner": GapAIScriptRunner,
+    "GapAIVisualRefiner": GapAIVisualRefiner,
     "GapAISceneValidator": GapAISceneValidator,
 }
 
@@ -532,5 +610,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GapAISceneBuilder": "AI Scene Builder (Complete Scene)",
     "GapAIStepBuilder": "AI Step Builder (Conversational)",
     "GapAIScriptRunner": "AI Script Runner (Review & Execute)",
+    "GapAIVisualRefiner": "AI Visual Refiner (Compare to Reference & Fix)",
     "GapAISceneValidator": "AI Scene Validator (Polygons/Normals/Textures/Names)",
 }

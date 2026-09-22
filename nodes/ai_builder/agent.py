@@ -11,6 +11,7 @@ session folder, and `dry_run` stops right after generation so you can read the c
 import json
 import os
 import re
+import sys
 import time
 
 from . import config, prompts
@@ -71,7 +72,13 @@ class SceneBuilderAgent:
     # ------------------------------------------------------------------ utils
     def log(self, msg):
         line = f"[AI Scene Builder] {msg}"
-        print(line, flush=True)
+        try:
+            print(line, flush=True)
+        except UnicodeEncodeError:
+            # Models emit characters a Windows cp1252 console cannot encode. Losing a log line is
+            # acceptable; crashing the build because of one is not.
+            encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+            print(line.encode(encoding, errors="replace").decode(encoding, errors="replace"), flush=True)
         if callable(self.opt.get("log")):
             try:
                 self.opt["log"](msg)
@@ -356,6 +363,121 @@ class SceneBuilderAgent:
         t = v.get("totals", {})
         status = "OK" if result.get("ok") else f"FAILED ({str(result.get('error'))[:80]})"
         return f"{title} [{status}] built {len(built)} objects ({names}) | {t.get('vertices', 0)} verts, {t.get('errors', 0)} errors"
+
+    # ------------------------------------------------------------------ visual critic / refine
+    def render_current(self, camera_direction=None, width=None, height=None, samples=None):
+        """Render the session scene as it stands, without changing it. Returns the image path."""
+        script_path = self.session.next_script_path(1, label="view")
+        code = "from gap_helpers import *\nimport bpy\nprint('view render of', len(bpy.data.objects), 'objects')\n"
+        if camera_direction:
+            code += (f"cam = bpy.context.scene.camera or add_camera(name='AI_Preview_Camera')\n"
+                     f"frame_camera_to_scene(cam, margin=1.05, direction={tuple(camera_direction)})\n")
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        render = self._render_cfg(script_path) or {
+            "path": self.session.render_path_for(script_path), "engine": self.opt["render_engine"],
+            "width": int(self.opt["render_width"]), "height": int(self.opt["render_height"]),
+            "samples": int(self.opt["render_samples"]), "fit_camera": True,
+        }
+        if width:
+            render["width"] = int(width)
+        if height:
+            render["height"] = int(height)
+        if samples:
+            render["samples"] = int(samples)
+        result = self.runner.run(script_path, mode=self.opt["execution_mode"], validate=False,
+                                 render=render, save=False, probe=True)
+        if result.get("scene"):
+            self.session.state["last_scene"] = result["scene"]
+            self.session.save()
+        return result.get("render_path"), result
+
+    def critique(self, reference_images_b64, render_path, reference_brief=""):
+        """Compare the current render against the reference images. Returns the critique dict."""
+        if not render_path or not os.path.exists(render_path):
+            return {"score": 0, "verdict": "no render available to critique", "differences": [], "keep": []}
+        import base64
+        with open(render_path, "rb") as f:
+            render_b64 = base64.b64encode(f.read()).decode("utf-8")
+        model = self.client.cfg.get("vision_model") or self.client.cfg["model"]
+        self.log(f"Critiquing the render against the reference with {model}")
+        msgs = prompts.build_critic_messages(reference_brief or self.session.state.get("reference_brief", ""),
+                                             self.session.scene_summary())
+        images = list(reference_images_b64[:1]) + [render_b64]
+        text = self.client.chat(msgs, images=images, json_mode=True, model=model,
+                                temperature=0.1, max_tokens=3072)
+        data = extract_json(text)
+        if not isinstance(data, dict):
+            return {"score": 0, "verdict": "critique could not be parsed", "differences": [],
+                    "keep": [], "raw": text[:2000]}
+        data.setdefault("differences", [])
+        data.setdefault("keep", [])
+        order = {"critical": 0, "major": 1, "minor": 2}
+        data["differences"].sort(key=lambda d: order.get(str(d.get("importance", "major")).lower(), 1))
+        self.log(f"  score {data.get('score')}/100 - {data.get('verdict', '')[:120]}")
+        for d in data["differences"][:6]:
+            self.log(f"    [{d.get('importance', '?')}] {str(d.get('issue'))[:110]}")
+        return data
+
+    def correction_steps(self, critique, reference_brief="", max_steps=3):
+        """Turn a critique into ordered build steps that repair the model."""
+        diffs = [d for d in critique.get("differences", [])
+                 if str(d.get("importance", "")).lower() != "minor"]
+        if not diffs:
+            return []
+        self.log(f"Planning corrections for {len(diffs)} difference(s)")
+        msgs = prompts.build_correction_messages(
+            json.dumps({"verdict": critique.get("verdict"), "differences": diffs,
+                        "keep": critique.get("keep", [])}, indent=1)[:8000],
+            self.session.scene_summary(),
+            reference_brief or self.session.state.get("reference_brief", ""),
+            max_steps)
+        text = self.client.chat(msgs, json_mode=True, temperature=0.2, max_tokens=3072)
+        data = extract_json(text)
+        steps = (data.get("steps") if isinstance(data, dict) else data) or []
+        clean = []
+        for i, s in enumerate(steps[:max_steps], start=1):
+            if isinstance(s, dict) and s.get("instruction"):
+                clean.append({"title": str(s.get("title") or f"Fix {i}")[:80],
+                              "category": str(s.get("category") or "edit"),
+                              "instruction": str(s["instruction"])})
+        return clean
+
+    def refine(self, reference_images_b64, reference_brief="", rounds=2, target_score=85,
+               max_fix_steps=3, camera_direction=None):
+        """Render -> critique -> fix -> repeat. The loop that actually converges on the reference.
+
+        Returns (history, last_render_path). history is one entry per round with the score,
+        the critique and the steps that were executed.
+        """
+        history = []
+        render_path = None
+        for round_index in range(1, int(rounds) + 1):
+            self.log(f"=== Refine round {round_index}/{rounds}: rendering current scene ===")
+            render_path, _ = self.render_current(camera_direction=camera_direction)
+            critique = self.critique(reference_images_b64, render_path, reference_brief)
+            score = critique.get("score") or 0
+            entry = {"round": round_index, "score": score, "render": render_path,
+                     "critique": critique, "steps": [], "results": []}
+            history.append(entry)
+            if score >= target_score:
+                self.log(f"Score {score} reached the target ({target_score}); stopping refinement.")
+                break
+            steps = self.correction_steps(critique, reference_brief, max_fix_steps)
+            if not steps:
+                self.log("No actionable corrections returned; stopping refinement.")
+                break
+            entry["steps"] = steps
+            results, report = self.run_plan(steps, reference_brief, stop_on_failure=False)
+            entry["results"] = results
+            entry["report"] = report
+            self.log(f"Round {round_index}: applied {sum(1 for r in results if r['ok'])}/{len(results)} fixes")
+        if history:
+            self.session.state["refine_history"] = [
+                {"round": h["round"], "score": h["score"], "verdict": h["critique"].get("verdict"),
+                 "render": h["render"], "steps": [s["title"] for s in h["steps"]]} for h in history]
+            self.session.save()
+        return history, render_path
 
     # ------------------------------------------------------------------ plan execution
     def run_plan(self, steps, reference_brief="", stop_on_failure=True):

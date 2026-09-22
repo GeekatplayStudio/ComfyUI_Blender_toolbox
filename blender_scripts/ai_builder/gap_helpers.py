@@ -27,7 +27,14 @@ __all__ = [
     # detail helpers
     "ring_positions", "rivet_ring", "bolt", "trim_ring", "panel_seams", "porthole",
     "star_shape", "crescent_shape",
+    # shape / silhouette helpers
+    "ogive_profile", "dome_profile", "barrel_profile", "stepped_profile",
+    "fin_blade", "hollow_port", "cut_holes",
+    # convenience maths, so scripts can write cos/sin/radians directly
+    "cos", "sin", "pi", "sqrt", "radians", "degrees", "atan2",
 ]
+
+from math import atan2, degrees, radians, sqrt  # noqa: E402  (re-exported for generated scripts)
 
 import mathutils  # noqa: E402  (re-exported so `mathutils.Vector` works after `from gap_helpers import *`)
 
@@ -121,8 +128,9 @@ def mesh_from_pydata(name, verts, faces, collection=None, material=None, smooth=
 class Builder:
     """Accumulate closed primitives, then build() one mesh object.
 
-    Every primitive appends closed geometry; material index per face is supported by passing a
-    list of materials to build() and `mat=<index>` to each primitive."""
+    `mat=` accepts whatever is convenient: a slot index (0, 1, 2...), a Material object returned by
+    make_material(), or a material name. Objects and names are resolved to slots automatically at
+    build() time, so you never have to track index numbers yourself."""
 
     def __init__(self):
         self.v, self.f, self.m, self.s = [], [], [], []
@@ -252,9 +260,29 @@ class Builder:
         me.update()
         material = _resolve_material(material)
         mats = list(material) if isinstance(material, (list, tuple)) else ([material] if material else [])
+        # Primitives may have been tagged with a slot index, a Material, or a material name.
+        # Resolve every tag to a slot, appending materials that were not in the build() list.
+        slot_of = {}
+        face_slots = []
+        for tag in self.m:
+            if isinstance(tag, (int, float)) and not isinstance(tag, bool):
+                face_slots.append(min(int(tag), max(len(mats) - 1, 0)) if mats else 0)
+                continue
+            mat_obj = _resolve_material(tag)
+            if mat_obj is None:
+                face_slots.append(0)
+                continue
+            key = mat_obj.name
+            if key not in slot_of:
+                if mat_obj in mats:
+                    slot_of[key] = mats.index(mat_obj)
+                else:
+                    mats.append(mat_obj)
+                    slot_of[key] = len(mats) - 1
+            face_slots.append(slot_of[key])
         for m in mats:
             me.materials.append(m)
-        for p, mi, sm in zip(me.polygons, self.m, self.s):
+        for p, mi, sm in zip(me.polygons, face_slots, self.s):
             p.material_index = min(mi, max(len(mats) - 1, 0))
             p.use_smooth = sm
         smooth_flags = [p.use_smooth for p in me.polygons]
@@ -542,7 +570,15 @@ def frame_camera_to_scene(camera, margin=1.15, direction=(1.0, -1.3, 0.75)):
     return camera
 
 
-def set_world(color=(0.05, 0.07, 0.1), strength=1.0, hdri_path=None, name="World"):
+def set_world(color=(0.05, 0.07, 0.1), strength=1.0, hdri_path=None, name="World", gradient=False,
+              horizon_color=None):
+    """World lighting.
+
+    gradient=True builds a sky gradient (bright above, darker at the horizon). Use it whenever the
+    scene contains metal: a flat world colour makes a metallic surface reflect exactly that colour,
+    so polished metal becomes invisible against the background. A gradient gives it variation to
+    reflect and the form reads.
+    """
     scene = bpy.context.scene
     world = scene.world or bpy.data.worlds.get(name) or bpy.data.worlds.new(name)
     scene.world = world
@@ -563,6 +599,23 @@ def set_world(color=(0.05, 0.07, 0.1), strength=1.0, hdri_path=None, name="World
             return world
         except Exception as e:
             print(f"[gap_helpers] HDRI load failed ({e}); using flat color")
+    if gradient:
+        top = tuple(color)[:3]
+        bottom = tuple(horizon_color)[:3] if horizon_color else tuple(c * 0.28 for c in top)
+        coord = nodes.new("ShaderNodeTexCoord")
+        coord.location = (-900, 0)
+        sep = nodes.new("ShaderNodeSeparateXYZ")
+        sep.location = (-700, 0)
+        links.new(coord.outputs["Generated"], sep.inputs["Vector"])
+        ramp = nodes.new("ShaderNodeValToRGB")
+        ramp.location = (-500, 0)
+        ramp.color_ramp.elements[0].position = 0.35
+        ramp.color_ramp.elements[0].color = _rgba(bottom)
+        ramp.color_ramp.elements[1].position = 0.75
+        ramp.color_ramp.elements[1].color = _rgba(top)
+        links.new(sep.outputs["Z"], ramp.inputs["Fac"])
+        links.new(ramp.outputs["Color"], bg.inputs["Color"])
+        return world
     _set_input(bg, ["Color"], _rgba(color))
     return world
 
@@ -829,6 +882,253 @@ def crescent_shape(builder, center, r=0.02, cut_offset=None, depth=0.004, mat=0,
     if (cleaned[0][0] - cleaned[-1][0]) ** 2 + (cleaned[0][1] - cleaned[-1][1]) ** 2 < 1e-12:
         cleaned.pop()
     return _extrude_polygon(builder, cleaned, center, depth, mat, normal, angle)
+
+
+# ----------------------------------------------------------------------------- silhouette helpers
+# The outline is what makes an object recognisable. A straight cylinder with a cone on top reads as
+# "a cylinder with a cone on top"; a bullet/ogive body reads as a rocket. These build the (z, radius)
+# profiles that Builder.lathe() revolves, so the silhouette is right without hand-tuning points.
+
+def ogive_profile(height, radius, steps=16, z0=0.0, tip_radius=0.0008, shoulder=0.0):
+    """Bullet / ogive outline: straight-ish flank curving to a rounded point at the top.
+
+    `shoulder` (0-1) keeps the lower part cylindrical before the curve begins: 0.4 means the bottom
+    40% is a straight tube. Returns [(z, radius), ...] for Builder.lathe().
+    """
+    pts = []
+    shoulder = min(max(float(shoulder), 0.0), 0.95)
+    straight_h = height * shoulder
+    if straight_h > 0:
+        pts.append((z0, radius))
+        pts.append((z0 + straight_h, radius))
+    curve_h = height - straight_h
+    for i in range(steps + 1):
+        t = i / steps
+        r = radius * math.sqrt(max(0.0, 1.0 - t * t))
+        pts.append((z0 + straight_h + curve_h * t, max(r, tip_radius)))
+    return pts
+
+
+def dome_profile(height, radius, steps=14, z0=0.0, tip_radius=0.0008):
+    """Hemispherical cap: flat at the base, rounding over to the top."""
+    pts = []
+    for i in range(steps + 1):
+        t = i / steps
+        ang = t * (pi / 2.0)
+        pts.append((z0 + height * sin(ang), max(radius * cos(ang), tip_radius)))
+    return pts
+
+
+def barrel_profile(height, radius, waist=0.85, steps=14, z0=0.0):
+    """Bulged body: narrower at both ends, widest at mid-height (a bulbous fuselage or vase).
+
+    `waist` is the end radius as a fraction of the maximum radius.
+    """
+    pts = []
+    for i in range(steps + 1):
+        t = i / steps
+        r = radius * (waist + (1.0 - waist) * sin(pi * t))
+        pts.append((z0 + height * t, max(r, 1e-4)))
+    return pts
+
+
+def stepped_profile(sections, z0=0.0):
+    """Stacked rings/collars from [(height, radius), ...], bottom to top.
+
+    stepped_profile([(0.01, 0.05), (0.008, 0.055), (0.01, 0.048)]) -> a banded pedestal base.
+    """
+    pts, z = [], z0
+    for h, r in sections:
+        pts.append((z, max(float(r), 1e-4)))
+        z += float(h)
+        pts.append((z, max(float(r), 1e-4)))
+    return pts
+
+
+def fin_blade(builder, base_point, outward, height, length, thickness=0.008, sweep=0.55,
+              mat_frame=0, mat_face=None, frame_width=0.006, curve_steps=10, z0=0.0):
+    """A swept, curved fin: tapered blade sweeping outward and down, optionally with an inset face.
+
+    base_point : (x, y) where the fin meets the body
+    outward    : angle in radians pointing away from the body centre
+    height     : how far up the body the fin reaches
+    length     : how far out from the body it extends at the bottom
+    sweep      : 0 = straight triangle, 1 = strongly curved/claw-like
+    mat_face   : when given, an inset panel (enamel field) is added on both faces inside the frame
+    """
+    ca, sa = cos(outward), sin(outward)
+    bx, by = base_point[0], base_point[1]
+
+    def outline(scale_out, scale_up, inset=0.0):
+        pts = []
+        for i in range(curve_steps + 1):
+            t = i / curve_steps
+            out = length * scale_out * (t ** (1.0 + sweep))
+            up = height * scale_up * (1.0 - t)
+            pts.append((out, up))
+        pts.append((inset, inset))
+        return pts
+
+    def add_blade(points, depth, mat):
+        verts, faces = [], []
+        n = len(points)
+        for sign in (-0.5, 0.5):
+            for (out, up) in points:
+                x = bx + ca * out - sa * (sign * depth)
+                y = by + sa * out + ca * (sign * depth)
+                verts.append((x, y, z0 + up))
+        faces.append(tuple(range(n))[::-1])
+        faces.append(tuple(n + i for i in range(n)))
+        faces += [(i, (i + 1) % n, (i + 1) % n + n, i + n) for i in range(n)]
+        builder.add(verts, faces, mat)
+
+    add_blade(outline(1.0, 1.0), thickness, mat_frame)
+    if mat_face is not None:
+        inner = outline(1.0 - frame_width / max(length, 1e-6) * 2.0,
+                        1.0 - frame_width / max(height, 1e-6) * 2.0, inset=frame_width)
+        for side in (-1, 1):
+            verts, faces = [], []
+            n = len(inner)
+            for sign in (0.02, 0.6):
+                for (out, up) in inner:
+                    off = side * thickness * sign
+                    x = bx + ca * (out + frame_width * 0.5) - sa * off
+                    y = by + sa * (out + frame_width * 0.5) + ca * off
+                    verts.append((x, y, z0 + up + frame_width * 0.5))
+            faces.append(tuple(range(n))[::-1])
+            faces.append(tuple(n + i for i in range(n)))
+            faces += [(i, (i + 1) % n, (i + 1) % n + n, i + n) for i in range(n)]
+            builder.add(verts, faces, mat_face)
+    return builder
+
+
+def _shell_count(mesh):
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    seen, shells = set(), 0
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        shells += 1
+        stack = [v]
+        seen.add(v.index)
+        while stack:
+            cur = stack.pop()
+            for e in cur.link_edges:
+                other = e.other_vert(cur)
+                if other.index not in seen:
+                    seen.add(other.index)
+                    stack.append(other)
+    bm.free()
+    return shells
+
+
+def cut_holes(obj, cutters, remove_cutters=True, solver="EXACT", min_kept=0.55):
+    """Boolean-difference `cutters` out of `obj`, baking the result (works in background mode).
+
+    Use for real openings only - a port you can see into, a doorway, a slot. Everything else should
+    be built from closed primitives, because booleans are slow and fragile.
+
+    IMPORTANT ORDER: cut holes into a plain single-shell body FIRST, then add rivets, seams and
+    trim. Blender's boolean solvers need non-self-intersecting input; running one on a body that
+    already has details embedded in it can delete most of the model.
+
+    This function guards against that: if the result keeps less than `min_kept` of the original
+    faces, or loses more than 15% of the bounding-box size, the cut is discarded and the object is
+    left exactly as it was. Returns True when the cut was applied, False when it was rejected.
+    """
+    if isinstance(cutters, bpy.types.Object):
+        cutters = [cutters]
+    original = obj.data
+    before_faces = len(original.polygons)
+    before_dims = Vector(obj.dimensions)
+    shells = _shell_count(original)
+    if shells > 1:
+        print(f"[gap_helpers] cut_holes: '{obj.name}' has {shells} separate shells. Booleans are "
+              f"unreliable on self-intersecting geometry - cut the bare body first, then add detail.",
+              flush=True)
+    for cutter in cutters:
+        mod = obj.modifiers.new(name=f"Cut_{cutter.name}", type="BOOLEAN")
+        mod.operation = "DIFFERENCE"
+        mod.object = cutter
+        try:
+            mod.solver = solver
+        except Exception:
+            pass
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    evaluated = obj.evaluated_get(depsgraph)
+    baked = bpy.data.meshes.new_from_object(evaluated)
+    obj.modifiers.clear()
+
+    kept = (len(baked.polygons) / before_faces) if before_faces else 0.0
+    obj.data = baked
+    bpy.context.view_layer.update()
+    after_dims = Vector(obj.dimensions)
+    shrank = any(after_dims[i] < before_dims[i] * 0.85 for i in range(3)) if before_dims.length else False
+    accepted = kept >= min_kept and not shrank and len(baked.polygons) > 0
+
+    if not accepted:
+        obj.data = original
+        bpy.data.meshes.remove(baked)
+        bpy.context.view_layer.update()
+        print(f"[gap_helpers] cut_holes REJECTED on '{obj.name}': the boolean kept only "
+              f"{kept * 100:.0f}% of the faces{' and shrank the object' if shrank else ''}. "
+              f"The object was restored unchanged. Cut the plain body before adding details, or "
+              f"model the opening instead of cutting it.", flush=True)
+    else:
+        baked.name = original.name
+        if original.users == 0:
+            bpy.data.meshes.remove(original)
+        obj.data.update()
+
+    if remove_cutters:
+        for cutter in cutters:
+            data = cutter.data
+            bpy.data.objects.remove(cutter, do_unlink=True)
+            if data is not None and data.users == 0:
+                try:
+                    bpy.data.meshes.remove(data)
+                except Exception:
+                    pass
+    return accepted
+
+
+def hollow_port(body_obj, center, radius, depth, direction="Y", mat_rim=None, mat_interior=None,
+                rim_width=0.004, collection=None, name=None):
+    """A real opening in `body_obj`: bores a hole and lines it with an interior tube and a rim ring.
+
+    This is what makes an open port read as open - a dark bore you can see into, not a painted disc.
+    Returns the list of objects created alongside the (modified) body.
+    """
+    a, u, v = _basis(direction)
+    c = Vector(center)
+    name = name or f"{body_obj.name}_Port"
+    collection = collection or (body_obj.users_collection[0] if body_obj.users_collection
+                                else bpy.context.scene.collection)
+    if isinstance(collection, str):
+        collection = get_or_create_collection(collection)
+
+    cutter = Builder()
+    cutter.cylinder(c + a * depth, c - a * depth * 2.0, radius, mat=0, n=48)
+    cutter_obj = cutter.build(f"{name}_Cutter", collection, None)
+    cut_holes(body_obj, [cutter_obj])
+
+    extras = []
+    # Interior: a closed tube plugging the bore, so the opening reads as a dark cavity you can see
+    # into rather than a hole straight through the object.
+    liner = Builder()
+    liner.cylinder(c + a * depth * 0.02, c - a * depth, radius * 0.985, mat=0, n=48)
+    liner_obj = liner.build(f"{name}_Interior", collection, mat_interior)
+    log_built(liner_obj)
+    extras.append(liner_obj)
+
+    if mat_rim is not None:
+        rim = Builder()
+        trim_ring(rim, c, radius + rim_width * 0.5, rim_width * 0.5, mat=0, axis=direction)
+        rim_obj = rim.build(f"{name}_Rim", collection, mat_rim)
+        log_built(rim_obj)
+        extras.append(rim_obj)
+    return extras
 
 
 # ----------------------------------------------------------------------------- removal (explicit only)

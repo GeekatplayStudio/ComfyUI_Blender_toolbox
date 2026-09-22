@@ -241,6 +241,104 @@ with outward normals; descriptive names; log_built() per object; ShaderNodeNorma
 Keep every bit of detail the instruction asked for - do not simplify the model to make it work."""
 
 
+# --------------------------------------------------------------------------- visual critic
+# The single most effective way to get closer to a reference: look at what was built, compare it to
+# the reference side by side, and fix the differences. One generate-and-hope pass cannot do this,
+# because the model never sees its own output.
+
+CRITIC_SYSTEM = """You are an art director reviewing a 3D model against the reference it must match.
+
+You are given TWO images:
+  IMAGE 1 = the REFERENCE (the target)
+  IMAGE 2 = the CURRENT RENDER of the 3D model built so far
+
+Compare them and list what is WRONG with the render, ordered by how much it hurts the resemblance.
+Judge only the object, not the background, lighting style or image resolution.
+
+Look hard at, in this order of importance:
+1. SILHOUETTE - overall outline and proportions. Is the body the right shape (straight tube vs
+   bulbous vs bullet/ogive vs tapered)? Right height-to-width ratio? Are sections the right
+   relative size?
+2. MISSING PARTS - anything clearly present in the reference and absent in the render.
+3. WRONG SHAPE - parts that exist but have the wrong form (flat where it should be curved,
+   straight where it should sweep, sharp where it should be rounded).
+4. PLACEMENT - parts in the wrong position, height, spacing or count.
+5. MATERIALS AND COLOR - wrong colour, wrong metal/paint, missing contrast between parts.
+6. DETAIL DENSITY - surfaces that are bare in the render but decorated in the reference.
+
+For each difference write a FIX that a Blender scripter can execute: name the part, say exactly
+what to change, and give numbers (meters, counts, z heights) wherever you can infer them. Say
+"add", "replace", "rescale", "move" - be imperative and specific. Never say "make it look better".
+
+Score resemblance 0-100 (100 = indistinguishable silhouette, parts, materials).
+
+Respond with JSON only:
+{"score":<0-100>,"verdict":"one sentence on the biggest problem",
+ "differences":[{"issue":"what is wrong","importance":"critical|major|minor",
+                 "category":"silhouette|missing|shape|placement|material|detail",
+                 "fix":"imperative instruction with numbers for the scripter"}],
+ "keep":["things that already match and must not be changed"]}"""
+
+CRITIC_USER = """IMAGE 1 is the reference. IMAGE 2 is the current render of the model.
+
+# BUILD SPECIFICATION the model was supposed to follow
+{reference_brief}
+
+# WHAT HAS BEEN BUILT SO FAR
+{scene_summary}
+
+Compare and return the JSON critique."""
+
+CORRECTION_SYSTEM = """You turn an art director's critique into ordered build steps for a Blender scripter.
+
+Rules:
+- Write each instruction as PLAIN ENGLISH PROSE for a human scripter. Do NOT write code, and do NOT
+  invent function names: "create_curve_of_revolution(...)" or "boolean_cut(...)" are WRONG.
+  Write "Delete the object Rocket_Hull, then build a new lathed hull whose profile goes from radius
+  0.030 m at z=0 to 0.062 m at z=0.07 and back to 0.040 m at z=0.145."
+- Work on the EXISTING scene. Objects already built are listed; refer to them by their exact names.
+- To replace a part, say to delete the old object by name first and then build the corrected one -
+  never leave both in the scene.
+- Group related fixes into one step; put the highest-importance fixes first.
+- Every instruction carries its own numbers: sizes in meters, counts, z heights, radii.
+- Ignore fixes marked minor if they would risk breaking something that already matches.
+- At most {max_steps} steps.
+
+Respond with JSON only:
+{{"steps":[{{"title":"short name","category":"silhouette|missing|shape|placement|material|detail",
+            "instruction":"full instruction including the object names and every number"}}]}}"""
+
+CORRECTION_USER = """# CRITIQUE
+{critique}
+
+# OBJECTS CURRENTLY IN THE SCENE
+{scene_summary}
+
+# BUILD SPECIFICATION
+{reference_brief}
+
+Return the JSON correction steps."""
+
+
+def build_critic_messages(reference_brief, scene_summary):
+    return [
+        {"role": "system", "content": CRITIC_SYSTEM},
+        {"role": "user", "content": CRITIC_USER.format(
+            reference_brief=(reference_brief or "").strip() or "(none)",
+            scene_summary=scene_summary or "(nothing built yet)")},
+    ]
+
+
+def build_correction_messages(critique_json_text, scene_summary, reference_brief, max_steps=3):
+    return [
+        {"role": "system", "content": CORRECTION_SYSTEM.format(max_steps=max_steps)},
+        {"role": "user", "content": CORRECTION_USER.format(
+            critique=critique_json_text,
+            scene_summary=scene_summary or "(nothing built yet)",
+            reference_brief=(reference_brief or "").strip() or "(none)")},
+    ]
+
+
 def helpers_summary():
     """Short signature list injected into the system prompt (kept in sync with gap_helpers.py)."""
     return """   get_or_create_collection(name) -> Collection

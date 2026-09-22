@@ -94,9 +94,22 @@ def render_preview(job_render, helpers):
     scene = bpy.context.scene
     bpy.context.view_layer.update()
     if scene.world is None:
-        helpers.set_world(color=(0.55, 0.62, 0.72), strength=1.0, name="AI_Preview_World")
+        # A gradient, not a flat colour: metal reflects its environment, so a uniform world makes
+        # polished surfaces render as the background colour and the object looks like it vanished.
+        helpers.set_world(color=(0.62, 0.66, 0.72), strength=1.0, name="AI_Preview_World",
+                          gradient=True, horizon_color=(0.16, 0.17, 0.20))
     if not any(o.type == "LIGHT" for o in scene.objects):
-        helpers.add_sun(elevation_deg=50, azimuth_deg=140, strength=3.0, name="AI_Preview_Sun")
+        lo, hi = helpers.scene_bounds()
+        size = max((hi - lo).length, 0.1)
+        center = (lo + hi) / 2.0
+        # Three-point rig scaled to the subject: area lights fall off, so energy tracks size.
+        energy = max(size * size * 220.0, 12.0)
+        helpers.add_light("AREA", location=(center.x - size, center.y - size * 1.2, center.z + size),
+                          energy=energy, size=size * 1.2, name="AI_Preview_Key", target=center)
+        helpers.add_light("AREA", location=(center.x + size * 1.2, center.y - size * 0.8, center.z + size * 0.3),
+                          energy=energy * 0.35, size=size * 1.4, name="AI_Preview_Fill", target=center)
+        helpers.add_light("AREA", location=(center.x + size * 0.3, center.y + size * 1.3, center.z + size * 0.9),
+                          energy=energy * 0.5, size=size, name="AI_Preview_Rim", target=center)
     cam = scene.camera
     if cam is None:
         cam = helpers.add_camera(name="AI_Preview_Camera", lens_mm=35)
