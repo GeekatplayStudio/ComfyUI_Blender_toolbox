@@ -1,14 +1,14 @@
-# (c) Geekatplay Studio
+# (c) Geekatplay Studio - Vladimir Chopine
 # ComfyUI-Blender-Toolbox
 
 bl_info = {
     "name": "ComfyUI Blender Toolbox Sync",
-    "author": "ComfyUI-Blender-Toolbox",
-    "version": (2, 1, 0),
+    "author": "Geekatplay Studio (Vladimir Chopine)",
+    "version": (2, 2, 0),
     "blender": (2, 80, 0),
     "location": "View3D > Sidebar > ComfyUI",
-    "description": "Sync assets from ComfyUI to Blender",
-    "warning": "",
+    "description": "Sync assets from ComfyUI to Blender; opt-in AI Scene Builder live execution",
+    "warning": "AI Scene Builder live mode executes model-generated Python when enabled",
     "category": "Import-Export",
 }
 
@@ -20,6 +20,10 @@ import queue
 import math
 import shutil
 import subprocess
+import sys
+import json
+import time
+import importlib
 
 # Global variables for thread management
 _SERVER_THREAD = None
@@ -27,6 +31,11 @@ _STOP_EVENT = threading.Event()
 _ACTION_QUEUE = queue.Queue()
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 8119 # Default port
+
+# AI Scene Builder live-mode state (for the sidebar panel)
+_AI_LAST_SCRIPT = ""
+_AI_LAST_STATUS = "idle"
+_AI_LAST_SESSION_DIR = ""
 
 def update_world_background(image_path):
     """Updates the Blender World Background with the provided image path."""
@@ -462,10 +471,21 @@ def server_loop(stop_event, host, port):
                     conn, addr = s.accept()
                     print(f"[ComfyUI-360] Connection accepted from {addr}")
                     with conn:
-                        data = conn.recv(4096)
+                        # Read until the client closes (messages can exceed one recv buffer)
+                        conn.settimeout(3.0)
+                        chunks = []
+                        while True:
+                            try:
+                                chunk = conn.recv(65536)
+                            except socket.timeout:
+                                break
+                            if not chunk:
+                                break
+                            chunks.append(chunk)
+                        data = b"".join(chunks)
                         if data:
-                            path = data.decode('utf-8').strip()
-                            print(f"[ComfyUI-360] Received path: {path}")
+                            path = data.decode('utf-8', errors='replace').strip()
+                            print(f"[ComfyUI-360] Received: {path[:200]}")
                             _ACTION_QUEUE.put(path)
                         else:
                             print(f"[ComfyUI-360] Received empty data")
@@ -665,13 +685,127 @@ def process_queue():
                          except: pass
             else:
                 print(f"[ComfyUI-360] Model file not found: {model_path}")
-            
+
+        elif msg.startswith("AI_EXEC:"):
+            handle_ai_exec(msg.replace("AI_EXEC:", "", 1).strip())
+
         else:
             # Standard image path (HDRI or Preview)
             print(f"[ComfyUI-360] Handling standard image: {msg}")
             update_world_background(msg)
-            
+
     return 1.0 # Run every 1.0 seconds
+
+
+# ---------------------------------------------------------------------------
+# AI Scene Builder - LIVE execution (opt-in)
+# ---------------------------------------------------------------------------
+def _ai_prefs():
+    try:
+        addon_name = __package__ if __package__ else __name__
+        return bpy.context.preferences.addons[addon_name].preferences
+    except Exception:
+        return None
+
+
+def _ai_write_result(path, result):
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, default=str)
+        os.replace(tmp, path)
+    except Exception as e:
+        print(f"[ComfyUI-360][AI] could not write result {path}: {e}")
+
+
+def _ai_log(session_dir, line):
+    if not session_dir:
+        return
+    try:
+        with open(os.path.join(session_dir, "ai_exec_log.txt"), "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {line}\n")
+    except Exception:
+        pass
+
+
+def handle_ai_exec(job_path):
+    """Execute one AI Scene Builder job (a JSON file written by ComfyUI) in THIS Blender.
+
+    Refuses unless 'Allow AI code execution' is enabled in the addon preferences / sidebar.
+    Everything executed is already on disk (job['code_path']) and every outcome is written to
+    job['result_path'] and appended to <session>/ai_exec_log.txt.
+    """
+    global _AI_LAST_SCRIPT, _AI_LAST_STATUS, _AI_LAST_SESSION_DIR
+    print(f"[ComfyUI-360][AI] job received: {job_path}")
+    try:
+        with open(job_path, "r", encoding="utf-8") as f:
+            job = json.load(f)
+    except Exception as e:
+        print(f"[ComfyUI-360][AI] cannot read job file: {e}")
+        return
+    result_path = job.get("result_path") or (os.path.splitext(job_path)[0] + ".result.json")
+    session_dir = job.get("session_dir", "")
+    _AI_LAST_SESSION_DIR = session_dir
+    _AI_LAST_SCRIPT = job.get("code_path", "")
+    prefs = _ai_prefs()
+    allowed = bool(prefs and getattr(prefs, "comfy360_allow_ai_exec", False))
+    if not allowed:
+        msg = ("REFUSED: 'Allow AI code execution' is OFF in the ComfyUI Blender Toolbox addon. "
+               "Enable it in the sidebar (ComfyUI tab > AI Scene Builder) to run AI scripts in this Blender, "
+               "or use execution_mode=headless in ComfyUI.")
+        print(f"[ComfyUI-360][AI] {msg}")
+        _AI_LAST_STATUS = "refused (execution disabled)"
+        _ai_log(session_dir, f"REFUSED {job.get('code_path')}")
+        _ai_write_result(result_path, {"ok": False, "error": msg, "traceback": "", "stdout": "", "built": [],
+                                       "validation": None, "scene": None, "render_path": None, "timings": {},
+                                       "saved_blend": None, "mode": "live", "blender_version": bpy.app.version_string})
+        return
+    helpers_dir = job.get("helpers_dir", "")
+    if helpers_dir and helpers_dir not in sys.path:
+        sys.path.insert(0, helpers_dir)
+    _AI_LAST_STATUS = "running"
+    _ai_log(session_dir, f"START {job.get('code_path')}")
+    try:
+        import job_executor
+        importlib.reload(job_executor)  # pick up toolbox updates without restarting Blender
+        result = job_executor.execute_job(job, save=bool(job.get("save", False)), scene_source="live")
+    except Exception as e:
+        import traceback
+        result = {"ok": False, "error": f"live executor: {type(e).__name__}: {e}", "traceback": traceback.format_exc(),
+                  "stdout": "", "built": [], "validation": None, "scene": None, "render_path": None, "timings": {},
+                  "saved_blend": None, "mode": "live", "blender_version": bpy.app.version_string}
+    _ai_write_result(result_path, result)
+    _AI_LAST_STATUS = "ok" if result.get("ok") else f"failed: {str(result.get('error'))[:60]}"
+    _ai_log(session_dir, f"{'OK' if result.get('ok') else 'FAIL'} {job.get('code_path')} -> {result_path}")
+    try:
+        bpy.context.scene.comfy360_last_file = f"AI step: {os.path.basename(job.get('code_path', ''))}"
+    except Exception:
+        pass
+    print(f"[ComfyUI-360][AI] done ok={result.get('ok')} result={result_path}")
+
+
+class COMFY360_OT_OpenAIScripts(bpy.types.Operator):
+    """Open the current AI Scene Builder session folder (scripts, results, renders)"""
+    bl_idname = "comfy360.open_ai_scripts"
+    bl_label = "Open AI Session Folder"
+
+    def execute(self, context):
+        folder = _AI_LAST_SESSION_DIR or (os.path.dirname(os.path.dirname(_AI_LAST_SCRIPT)) if _AI_LAST_SCRIPT else "")
+        if not folder or not os.path.isdir(folder):
+            self.report({'WARNING'}, "No AI session has run yet in this Blender.")
+            return {'CANCELLED'}
+        try:
+            if sys.platform == "win32":
+                os.startfile(folder)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", folder])
+            else:
+                subprocess.Popen(["xdg-open", folder])
+        except Exception as e:
+            self.report({'ERROR'}, f"Could not open folder: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 def create_terrain_from_heightmap(height_path, texture_path=None, use_pbr=False, roughness_path=None, normal_path=None, metallic_path=None, alpha_path=None, ior_path=None, roughness_min=0.0, roughness_max=1.0, size_x=10.0, size_y=10.0):
@@ -1908,6 +2042,37 @@ class COMFY360_PT_Panel(bpy.types.Panel):
         except Exception as e:
             layout.label(text=f"Rigging Panel Error: {e}", icon='ERROR')
 
+        layout.separator()
+
+        # --- BOX 7: AI SCENE BUILDER (live execution, opt-in) ---
+        try:
+            box7 = layout.box()
+            box7.label(text="AI Scene Builder (Live)", icon='SCRIPT')
+            prefs = None
+            try:
+                addon_name = __package__ if __package__ else __name__
+                prefs = context.preferences.addons[addon_name].preferences
+            except Exception:
+                pass
+            if prefs is not None:
+                row = box7.row()
+                row.prop(prefs, "comfy360_allow_ai_exec", text="Allow AI code execution")
+                if prefs.comfy360_allow_ai_exec:
+                    warn = box7.column(align=True)
+                    warn.alert = True
+                    warn.label(text="ON: ComfyUI may run model-written Python here.", icon='ERROR')
+                    warn.label(text="No sandbox. Scripts are saved to disk first.")
+                else:
+                    box7.label(text="OFF: live AI jobs are refused (headless mode still works).", icon='CHECKMARK')
+            else:
+                box7.label(text="Preferences unavailable", icon='ERROR')
+            box7.label(text=f"Status: {_AI_LAST_STATUS}")
+            if _AI_LAST_SCRIPT:
+                box7.label(text=f"Last: {os.path.basename(_AI_LAST_SCRIPT)}", icon='FILE_SCRIPT')
+            box7.operator("comfy360.open_ai_scripts", text="Open AI Session Folder", icon='FILE_FOLDER')
+        except Exception as e:
+            layout.label(text=f"AI Panel Error: {e}", icon='ERROR')
+
 class ComfyUI360Prefs(bpy.types.AddonPreferences):
     bl_idname = __package__ if __package__ else __name__
 
@@ -1918,9 +2083,27 @@ class ComfyUI360Prefs(bpy.types.AddonPreferences):
         default=""
     )
 
+    comfy360_allow_ai_exec: bpy.props.BoolProperty(
+        name="Allow AI code execution (AI Scene Builder live mode)",
+        description=(
+            "When enabled, 'AI_EXEC' jobs from ComfyUI execute model-generated Python inside THIS Blender. "
+            "There is no sandbox: the code has full access to your files. Every script is saved to the session "
+            "folder before it runs and every result is logged to ai_exec_log.txt. Keep OFF unless you are using "
+            "the AI Scene Builder in live mode"
+        ),
+        default=False
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "comfy360_export_path")
+        box = layout.box()
+        box.label(text="AI Scene Builder", icon='SCRIPT')
+        box.prop(self, "comfy360_allow_ai_exec")
+        col = box.column(align=True)
+        col.label(text="Executes model-written Python from ComfyUI in this Blender when ON. No sandbox.", icon='ERROR')
+        col.label(text="Scripts/results are saved under ComfyUI/output/ai_scene_builder/<session>/ before running.")
+        col.label(text="Headless mode (default in ComfyUI) never needs this switch.")
 
 classes = (
     COMFY360_OT_StartListener,
@@ -1935,6 +2118,7 @@ classes = (
     COMFY360_OT_CleanAndRig,
     COMFY360_OT_QuickRig,
     COMFY360_OT_ExportForExternal,
+    COMFY360_OT_OpenAIScripts,
     COMFY360_PT_Panel,
     ComfyUI360Prefs,
 )

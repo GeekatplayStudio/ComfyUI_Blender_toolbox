@@ -1,0 +1,473 @@
+{
+  "last_node_id": 8,
+  "last_link_id": 7,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Note",
+      "pos": [
+        -40,
+        -400
+      ],
+      "size": [
+        760,
+        280
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": "AI SCENE BUILDER - REVIEW BEFORE EXECUTING (safest flow)\n\nThe Step Builder runs with dry_run=true: it generates and SAVES the script but does not run it.\nRead it in the 'Generated script' viewer (also saved under the session's scripts/ folder),\npaste/edit it into 'AI Script Runner' and queue again to execute with the same validation,\nauto-fixes and preview render. Nothing runs in Blender that you have not seen.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+      },
+      "widgets_values": [
+        "AI SCENE BUILDER - REVIEW BEFORE EXECUTING (safest flow)\n\nThe Step Builder runs with dry_run=true: it generates and SAVES the script but does not run it.\nRead it in the 'Generated script' viewer (also saved under the session's scripts/ folder),\npaste/edit it into 'AI Script Runner' and queue again to execute with the same validation,\nauto-fixes and preview render. Nothing runs in Blender that you have not seen.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 2,
+      "type": "GapAISceneSession",
+      "pos": [
+        -40,
+        -80
+      ],
+      "size": [
+        330,
+        150
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [
+            1,
+            4
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "session_info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAISceneSession"
+      },
+      "widgets_values": [
+        "reviewed_scene",
+        false,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 3,
+      "type": "GapAILLMConfig",
+      "pos": [
+        -40,
+        120
+      ],
+      "size": [
+        330,
+        300
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "links": [
+            2,
+            5
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "llm_info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAILLMConfig"
+      },
+      "widgets_values": [
+        "ollama",
+        "qwen2.5-coder:14b",
+        "qwen2.5vl:7b",
+        "http://127.0.0.1:11434",
+        0.2,
+        16384,
+        8192,
+        "",
+        "nomic-embed-text",
+        "10m",
+        900
+      ]
+    },
+    {
+      "id": 4,
+      "type": "GapAIStepBuilder",
+      "pos": [
+        340,
+        -80
+      ],
+      "size": [
+        460,
+        600
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 1
+        },
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 2
+        },
+        {
+          "name": "reference_brief",
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": [],
+          "slot_index": 0
+        },
+        {
+          "name": "blend_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 2
+        },
+        {
+          "name": "script",
+          "type": "STRING",
+          "links": [
+            3
+          ],
+          "slot_index": 3
+        },
+        {
+          "name": "validation_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 4
+        },
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [],
+          "slot_index": 5
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIStepBuilder"
+      },
+      "widgets_values": [
+        "Build a wooden dock extending 12 m over a water plane, with mooring posts, a lantern at the end and a rowing boat tied to it.",
+        "Dock",
+        "headless",
+        true,
+        2,
+        true,
+        true,
+        true,
+        true,
+        false,
+        "CYCLES",
+        768,
+        512,
+        16,
+        900,
+        "",
+        "127.0.0.1",
+        8119,
+        false,
+        ""
+      ]
+    },
+    {
+      "id": 5,
+      "type": "GapStringViewer",
+      "pos": [
+        860,
+        -80
+      ],
+      "size": [
+        560,
+        420
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Generated script (review, then paste into the runner)"
+    },
+    {
+      "id": 6,
+      "type": "GapAIScriptRunner",
+      "pos": [
+        860,
+        400
+      ],
+      "size": [
+        560,
+        560
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 4
+        },
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "blend_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            7
+          ],
+          "slot_index": 2
+        },
+        {
+          "name": "validation_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 3
+        },
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [],
+          "slot_index": 4
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIScriptRunner"
+      },
+      "widgets_values": [
+        "from gap_helpers import *\n\ncoll = get_or_create_collection('Manual')\nB = Builder()\nB.box((0, 0, 1), (2, 2, 2))\nlog_built(B.build('Test_Cube', coll, make_material('Mat_Test', (0.8, 0.3, 0.2))))\n",
+        "Reviewed dock script",
+        "headless",
+        true,
+        true,
+        true,
+        true,
+        true,
+        "CYCLES",
+        768,
+        512,
+        16,
+        900,
+        "",
+        "127.0.0.1",
+        8119,
+        false,
+        ""
+      ]
+    },
+    {
+      "id": 7,
+      "type": "PreviewImage",
+      "pos": [
+        1480,
+        400
+      ],
+      "size": [
+        520,
+        360
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 6
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "title": "Preview render"
+    },
+    {
+      "id": 8,
+      "type": "GapStringViewer",
+      "pos": [
+        1480,
+        800
+      ],
+      "size": [
+        520,
+        240
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Run report"
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      4,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      2,
+      3,
+      0,
+      4,
+      1,
+      "GAP_AI_LLM"
+    ],
+    [
+      3,
+      4,
+      3,
+      5,
+      0,
+      "STRING"
+    ],
+    [
+      4,
+      2,
+      0,
+      6,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      5,
+      3,
+      0,
+      6,
+      1,
+      "GAP_AI_LLM"
+    ],
+    [
+      6,
+      6,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      7,
+      6,
+      2,
+      8,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        60,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

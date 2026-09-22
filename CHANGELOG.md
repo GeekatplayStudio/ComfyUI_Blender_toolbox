@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.2.0
+
+- **AI Scene Builder** (new node family, `Geekatplay Studio/AI Scene Builder`):
+  - Prompt + up to three reference images → a model writes Blender Python per step; the toolbox executes it in headless Blender, validates, renders a preview and feeds errors back for self-repair.
+  - Nodes: AI Scene Session, AI Model Config, AI Reference Analyzer (Multi-Image), AI Scene Planner, AI Scene Builder (Complete Scene), AI Step Builder (Conversational), AI Script Runner (Review & Execute), AI Scene Validator.
+  - Multi-pass building: the session `.blend` is the memory; every pass sees the current scene probe and history.
+  - Multi-step plans with per-step collections, validation gates and `stop_on_failure`.
+  - Validation inside Blender: non-manifold edges, loose geometry, zero-area faces, flipped normals, duplicate vertices, n-gons, missing/broken textures, default names, materials/UVs, camera/lights; optional auto-fixes.
+  - Providers: Ollama (local or cloud), Anthropic, OpenAI-compatible — plain `requests`, no SDKs.
+  - Retrieval over `docs/ai_builder/reference/*.md` (BM25 + optional Ollama embeddings) grounds generation in version-correct bpy usage.
+  - `gap_helpers` library for generated scripts: closed-primitive `Builder`, version-safe materials, lights/cameras/world, terrain, scatter.
+  - Safety: scripts saved before execution, static safety scan, `dry_run`, failed steps never overwrite the scene, live mode opt-in switch in the addon.
+  - Five ready workflows generated from the node definitions (`tools/generate_ai_workflows.py`).
+  - Installer `installer/install_ai_builder.py` (Blender check, Ollama models, reference index, smoke test), hooked into `install.py`.
+  - Tests: `tests/test_ai_builder.py` (offline units + real headless Blender integration).
+- **Blender addon 2.2.0**: `AI_EXEC` live execution command (off by default, preference + sidebar switch, `ai_exec_log.txt`), listener now reads whole messages instead of a single 4 KB buffer, "Open AI Session Folder" button.
+- Branding: Geekatplay Studio — Vladimir Chopine.
+
 ## 2.1.0
 
 - **Tripo3D API Update**:

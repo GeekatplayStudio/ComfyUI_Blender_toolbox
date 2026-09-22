@@ -1,0 +1,704 @@
+{
+  "last_node_id": 12,
+  "last_link_id": 15,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Note",
+      "pos": [
+        -40,
+        -420
+      ],
+      "size": [
+        720,
+        300
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": "AI SCENE BUILDER - COMPLETE SCENE (Geekatplay Studio - Vladimir Chopine)\n\n1. Load 1-3 reference images (optional). The Reference Analyzer turns them + your prompt into a build brief.\n2. Session: pick a name. Everything (scene.blend, scripts, results, renders) goes to\n   ComfyUI/output/ai_scene_builder/<name>/. Run again later with the same name to keep building.\n3. Model Config: Ollama by default (qwen2.5-coder:14b + qwen2.5vl:7b). Anthropic/OpenAI also work.\n4. Planner splits the request into ordered steps -> Builder executes each: generate -> safety scan ->\n   run in Blender -> validate polygons/normals/textures/names -> retry on failure -> preview render.\n5. Outputs: preview image, blend path, full report, all scripts, validation JSON.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+      },
+      "widgets_values": [
+        "AI SCENE BUILDER - COMPLETE SCENE (Geekatplay Studio - Vladimir Chopine)\n\n1. Load 1-3 reference images (optional). The Reference Analyzer turns them + your prompt into a build brief.\n2. Session: pick a name. Everything (scene.blend, scripts, results, renders) goes to\n   ComfyUI/output/ai_scene_builder/<name>/. Run again later with the same name to keep building.\n3. Model Config: Ollama by default (qwen2.5-coder:14b + qwen2.5vl:7b). Anthropic/OpenAI also work.\n4. Planner splits the request into ordered steps -> Builder executes each: generate -> safety scan ->\n   run in Blender -> validate polygons/normals/textures/names -> retry on failure -> preview render.\n5. Outputs: preview image, blend path, full report, all scripts, validation JSON.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        -40,
+        -80
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ],
+      "title": "Reference image 1"
+    },
+    {
+      "id": 3,
+      "type": "LoadImage",
+      "pos": [
+        -40,
+        280
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ],
+      "title": "Reference image 2 (optional)"
+    },
+    {
+      "id": 4,
+      "type": "GapAISceneSession",
+      "pos": [
+        320,
+        -80
+      ],
+      "size": [
+        330,
+        150
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [
+            4,
+            5,
+            8
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "session_info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAISceneSession"
+      },
+      "widgets_values": [
+        "castle_scene",
+        false,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 5,
+      "type": "GapAILLMConfig",
+      "pos": [
+        320,
+        120
+      ],
+      "size": [
+        330,
+        300
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "links": [
+            1,
+            6,
+            9
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "llm_info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAILLMConfig"
+      },
+      "widgets_values": [
+        "ollama",
+        "qwen2.5-coder:14b",
+        "qwen2.5vl:7b",
+        "http://127.0.0.1:11434",
+        0.2,
+        16384,
+        8192,
+        "",
+        "nomic-embed-text",
+        "10m",
+        900
+      ]
+    },
+    {
+      "id": 6,
+      "type": "GapAIReferenceAnalyzer",
+      "pos": [
+        700,
+        -80
+      ],
+      "size": [
+        420,
+        260
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 1
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        },
+        {
+          "name": "images_2",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "images_3",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "reference_brief",
+          "type": "STRING",
+          "links": [
+            7,
+            11,
+            15
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "analyses_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIReferenceAnalyzer"
+      },
+      "widgets_values": [
+        "A small hilltop stone castle with a round keep, curtain wall with two towers, a wooden gate, pine forest around, warm late-afternoon light.",
+        ""
+      ]
+    },
+    {
+      "id": 7,
+      "type": "GapAIScenePlanner",
+      "pos": [
+        700,
+        240
+      ],
+      "size": [
+        420,
+        260
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 5
+        },
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 6
+        },
+        {
+          "name": "reference_brief",
+          "type": "STRING",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "plan_json",
+          "type": "STRING",
+          "links": [
+            10
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "plan_text",
+          "type": "STRING",
+          "links": [
+            14
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIScenePlanner"
+      },
+      "widgets_values": [
+        "A small hilltop stone castle with a round keep, curtain wall with two towers, a wooden gate, pine forest around, warm late-afternoon light.",
+        6,
+        ""
+      ]
+    },
+    {
+      "id": 8,
+      "type": "GapAISceneBuilder",
+      "pos": [
+        1180,
+        -80
+      ],
+      "size": [
+        460,
+        620
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 8
+        },
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 9
+        },
+        {
+          "name": "plan_json",
+          "type": "STRING",
+          "link": 10,
+          "widget": {
+            "name": "plan_json"
+          }
+        },
+        {
+          "name": "reference_brief",
+          "type": "STRING",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": [
+            12
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "blend_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            13
+          ],
+          "slot_index": 2
+        },
+        {
+          "name": "scripts",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 3
+        },
+        {
+          "name": "validation_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 4
+        },
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [],
+          "slot_index": 5
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAISceneBuilder"
+      },
+      "widgets_values": [
+        "",
+        "",
+        true,
+        "headless",
+        false,
+        2,
+        true,
+        true,
+        true,
+        true,
+        true,
+        "CYCLES",
+        768,
+        512,
+        16,
+        900,
+        "",
+        "127.0.0.1",
+        8119,
+        false,
+        ""
+      ]
+    },
+    {
+      "id": 9,
+      "type": "PreviewImage",
+      "pos": [
+        1700,
+        -80
+      ],
+      "size": [
+        520,
+        360
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 12
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "title": "Preview render"
+    },
+    {
+      "id": 10,
+      "type": "GapStringViewer",
+      "pos": [
+        1700,
+        320
+      ],
+      "size": [
+        520,
+        300
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Build report"
+    },
+    {
+      "id": 11,
+      "type": "GapStringViewer",
+      "pos": [
+        1700,
+        660
+      ],
+      "size": [
+        520,
+        300
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Plan"
+    },
+    {
+      "id": 12,
+      "type": "GapStringViewer",
+      "pos": [
+        1180,
+        580
+      ],
+      "size": [
+        460,
+        200
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Reference brief"
+    }
+  ],
+  "links": [
+    [
+      1,
+      5,
+      0,
+      6,
+      0,
+      "GAP_AI_LLM"
+    ],
+    [
+      2,
+      2,
+      0,
+      6,
+      1,
+      "IMAGE"
+    ],
+    [
+      3,
+      3,
+      0,
+      6,
+      2,
+      "IMAGE"
+    ],
+    [
+      4,
+      4,
+      0,
+      6,
+      4,
+      "GAP_AI_SESSION"
+    ],
+    [
+      5,
+      4,
+      0,
+      7,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      6,
+      5,
+      0,
+      7,
+      1,
+      "GAP_AI_LLM"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      2,
+      "STRING"
+    ],
+    [
+      8,
+      4,
+      0,
+      8,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      9,
+      5,
+      0,
+      8,
+      1,
+      "GAP_AI_LLM"
+    ],
+    [
+      10,
+      7,
+      0,
+      8,
+      2,
+      "STRING"
+    ],
+    [
+      11,
+      6,
+      0,
+      8,
+      3,
+      "STRING"
+    ],
+    [
+      12,
+      8,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      13,
+      8,
+      2,
+      10,
+      0,
+      "STRING"
+    ],
+    [
+      14,
+      7,
+      1,
+      11,
+      0,
+      "STRING"
+    ],
+    [
+      15,
+      6,
+      0,
+      12,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        60,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

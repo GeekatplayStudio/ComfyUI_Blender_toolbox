@@ -208,6 +208,14 @@ def main():
             print(f"Failed to pull model: {e}")
             print("You may need to run 'ollama pull gemma3' manually.")
 
+    # 7b. AI Scene Builder: Blender check, code/vision/embedding models, reference index
+    print("\n--- Setting up the AI Scene Builder ---")
+    try:
+        subprocess.call([sys.executable, str(script_dir / "install_ai_builder.py")])
+    except Exception as e:
+        print(f"Warning: AI Scene Builder setup did not complete: {e}")
+        print("Run installer/install_ai_builder.py manually later.")
+
     # 8. Symlink or copy the suite
     target_suite_path = custom_nodes_path / "ComfyUI-Blender-Toolbox"
     

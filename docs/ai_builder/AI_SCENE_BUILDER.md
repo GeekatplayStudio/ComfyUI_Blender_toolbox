@@ -1,0 +1,232 @@
+# AI Scene Builder — prompt (+ reference images) → modeled, textured, lit Blender scene
+
+Part of **ComfyUI-Blender-Toolbox** by Geekatplay Studio — Vladimir Chopine.
+
+The AI Scene Builder lets a language model do the actual Blender work: it writes a Python script
+for each build step, the toolbox runs it in Blender, validates the result (polygons, normals,
+textures, names), renders a preview, and hands the model its own errors to fix. Scenes are built in
+passes — "build the forest", then "add a castle", then "add a river with a bridge" — and every pass
+sees what already exists. Complex requests are planned into ordered steps and executed one by one.
+
+> **0 % black box.** Every prompt is in [`nodes/ai_builder/prompts.py`](../../nodes/ai_builder/prompts.py).
+> Every generated script is saved to disk *before* it runs. Every execution writes a JSON result.
+> The reference docs the model reads are plain Markdown in [`reference/`](reference/). Nothing is hidden.
+
+---
+
+## Security — read this first
+
+**The builder executes Python written by a model inside Blender. There is no sandbox.** Blender's
+Python interpreter has the same access to your computer as you do: files, network, processes.
+
+What the toolbox does about it:
+
+| Protection | What it does | Where |
+|---|---|---|
+| Scripts saved first | Every script lands in `<session>/scripts/step_NNN_attemptK.py` before execution, with a header naming session/step/model | `agent.py` |
+| Results logged | `<session>/results/*.json` holds stdout, errors, validation, scene probe for every run | `job_executor.py` |
+| Safety scan | Refuses scripts that import `subprocess/socket/shutil/urllib/requests/sys/...`, call `os.system/os.remove/...`, `open()`, `eval/exec`, `bpy.ops.wm.*` (open/save/quit), preferences/handlers. **It is a keyword scan — not a sandbox — it can be evaded.** | `safety.py` |
+| `dry_run` | Generates + saves the script and stops. Read it, then execute with **AI Script Runner** | all builder nodes |
+| Live mode opt-in | Executing in a *running* Blender requires switching **Allow AI code execution** ON in the addon panel; otherwise jobs are refused and logged | `blender_toolbox_addon.py` |
+| Headless isolation | Default mode runs `blender --background --factory-startup` on the *session's* `.blend`, never on your open file | `blender_runner.py` |
+| Failed steps never overwrite | A failing script is saved to `scene_FAILED_STEP.blend`; the good `scene.blend` is untouched | `job_executor.py` |
+
+Recommendations: use a dedicated ComfyUI output folder; back up `.blend` files you care about; read
+the scripts of any session you did not watch; keep live mode OFF unless you are using it right now;
+run with a local model when the prompt contains anything private.
+
+---
+
+## Requirements
+
+- **Blender 4.x or 5.x** installed (5.2 LTS tested). Auto-detected from `C:\Program Files\Blender Foundation\`,
+  common Linux/macOS paths or `PATH`; override with the `BLENDER_PATH` environment variable or the
+  node's `blender_path` input.
+- **A model**. Default is local **Ollama**:
+  - code/planning: `qwen2.5-coder:14b` (default), `qwen2.5-coder:32b` (best local), `qwen3-coder:30b`
+  - vision (reference images): `qwen2.5vl:7b` (default), `qwen3-vl:4b`, `gemma3`
+  - embeddings (optional, better doc retrieval): `nomic-embed-text`
+  Cloud alternatives via the **AI Model Config** node: `anthropic` (`claude-sonnet-5`, `claude-opus-5`)
+  or any `openai_compatible` endpoint. Keys come from the API Key Manager (names `Anthropic`,
+  `OpenAI`, `Ollama Cloud`) or `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` environment variables.
+- Python deps: only what the toolbox already needs (`requests`, `pillow`, `numpy`, `torch` via ComfyUI).
+
+### Install
+
+```bash
+# from the toolbox folder, with ComfyUI's python (portable: ..\..\..\python_embeded\python.exe)
+python installer/install_ai_builder.py --smoke-test
+```
+or double-click `installer/install_ai_builder.bat`. It checks Blender, starts Ollama, pulls the three
+default models (`--code-model/--vision-model/--embed-model` to change, `--skip-models` to skip),
+indexes the reference docs, and builds+validates+renders a test cube in headless Blender. The main
+`install.bat` / `installer/install.py` call it too.
+
+For live mode also (re)install the Blender addon: `blender_scripts/blender_toolbox_addon.py`
+(Edit → Preferences → Add-ons → Install), then in the 3D viewport sidebar → **ComfyUI** tab →
+**Start Listener** and, only when you want live execution, **AI Scene Builder (Live) → Allow AI code execution**.
+
+---
+
+## Nodes (category `Geekatplay Studio/AI Scene Builder`)
+
+| Node | Purpose |
+|---|---|
+| **AI Scene Session** | Names the scene. Creates/continues `output/ai_scene_builder/<name>/` with `scene.blend`, `scripts/`, `results/`, `renders/`, `refs/`, `session.json`. `reset` archives everything (switch it off after one run). `blend_file` continues from an existing `.blend`. |
+| **AI Model Config** | Provider, model, vision model, URL, temperature, context size, API key. Lists what your Ollama has and flags missing models. |
+| **AI Reference Analyzer (Multi-Image)** | Up to three image inputs (batches count as multiple references) + your text → one structured **reference brief** (subject, style, layout, elements with sizes, materials, colors, lighting, camera, must-not-miss). Copies references to `refs/`. |
+| **AI Scene Planner** | Prompt (+ brief, + current scene) → ordered JSON plan of build steps. Or write your own steps in `manual_plan` (one per line, `Title: instruction`) to skip the model. |
+| **AI Scene Builder (Complete Scene)** | Executes every plan step: generate → safety scan → run in Blender → validate → retry (`max_retries`) → preview. `stop_on_failure`, `dry_run`, auto-fixes, render settings. Outputs preview, blend path, report, all scripts, validation JSON, session. |
+| **AI Step Builder (Conversational)** | One instruction per run, building on the session scene: "now add a bridge". Same options and outputs. |
+| **AI Script Runner (Review & Execute)** | Runs a script you pasted/edited (e.g. from a dry run) with the same scan, validation and render. |
+| **AI Scene Validator** | QA any session scene: polygons, normals, textures, names; optional auto-fix; preview render; `passed` boolean. |
+
+Execution options shared by the builder nodes:
+
+- `execution_mode` — `headless` (default; separate background Blender on the session file) or
+  `live` (inside your running Blender via the addon; requires the opt-in switch).
+- `dry_run` — generate and save only.
+- `max_retries` — how many times the model may fix its own script after an exception or failed validation.
+- `validate`, `auto_fix_normals`, `auto_fix_doubles` — see Validation below.
+- `safety_scan` — keep ON.
+- `render_preview`, `render_engine` (`CYCLES` default, GPU when available; `BLENDER_EEVEE`),
+  `render_width/height/samples`.
+- `blender_timeout` — seconds per step (headless).
+- optional: `blender_path`, `live_host/port/save`, `extra_reference_notes` (your own API notes, added to retrieval).
+
+---
+
+## Workflows (folder `workflows/`)
+
+| File | What it does |
+|---|---|
+| `Geekatplay_AI_Scene_Builder_Complete.json` | References → brief → plan → complete multi-step build with report. |
+| `Geekatplay_AI_Single_Step_From_References.json` | Reference images → one validated build step. |
+| `Geekatplay_AI_Step_Builder_Conversational.json` | Type, queue, look, type the next instruction. Multi-pass building. |
+| `Geekatplay_AI_Script_Review_Then_Run.json` | Dry run → read the script → paste into the runner → execute. Safest. |
+| `Geekatplay_AI_Scene_Validator.json` | QA + auto-fix + preview for any session scene. |
+
+All workflows are generated from the node definitions by `tools/generate_ai_workflows.py`, so the
+sockets and widget values always match the code. Each contains a note with instructions and the
+security summary.
+
+---
+
+## How a step works
+
+```
+instruction ──► RAG: top-k chunks from docs/ai_builder/reference/*.md (BM25 + optional embeddings)
+            ──► prompt = CODEGEN_SYSTEM + CODEGEN_USER(instruction, scene probe, history, brief, chunks)
+            ──► model returns one ```python block
+            ──► saved to scripts/step_NNN_attemptK.py  ──► safety scan (blocked? → model fixes it)
+            ──► dry_run? stop.
+            ──► headless: blender -b --factory-startup --python step_runner.py -- job.json
+                live:     AI_EXEC:<job.json> → addon → job_executor.execute_job()
+                   open scene.blend (or empty) → exec(script) → validate → probe → save → render
+            ──► result JSON (ok, error, traceback, stdout, built[], validation, scene, render_path)
+            ──► failed? feedback (exception + validation errors + stdout tail) → retry
+            ──► session.json turn: instruction, script, result, summary, scene, validation
+```
+
+Generated scripts get `from gap_helpers import *` — a small, tested library
+(`blender_scripts/ai_builder/gap_helpers.py`) with a `Builder` for closed primitives, version-safe
+`make_material`, lights/camera/world helpers, `terrain()` and `scatter()`. It is what makes 7B–32B
+local models produce manifold geometry on the first or second try. Its API is documented for the
+model in [`reference/04_gap_helpers_reference.md`](reference/04_gap_helpers_reference.md).
+
+### Multi-pass memory
+
+The `.blend` file is the memory. Before each step the runner probes the scene (objects with
+location/dimensions/materials/collection, lights, cameras, world, bounds) and the agent puts that,
+plus a summary of previous steps, into the prompt. That is why "add a building to that forest"
+works across separate ComfyUI runs, and why deleting the session folder is the only way to forget.
+
+### Multi-step plans
+
+The planner produces `{"steps":[{"title","category","instruction"}]}` (foundation → structures →
+props → materials → lighting → camera). The builder runs them in order; each step gets its own
+collection `Step_NN_Title`, its own script, validation and render. `stop_on_failure` halts the plan
+when a step cannot be repaired within `max_retries`; the report tells you exactly where and why.
+
+---
+
+## Validation (what "verify broken polygons / normals / textures / names" means here)
+
+Runs inside Blender after every step (`blender_scripts/ai_builder/validate_scene.py`):
+
+| Check | Severity | Auto-fix |
+|---|---|---|
+| Non-manifold edges | error | – (model retries) |
+| Loose vertices / loose edges | error | `auto_fix_doubles` deletes them |
+| Zero-area (degenerate) faces | error | dissolved by `auto_fix_doubles` |
+| Flipped / inconsistent normals (closed meshes) | error | `auto_fix_normals` recalculates outward |
+| Missing or unloadable image textures | error | – |
+| Python exception in the script | error | – (model retries with the traceback) |
+| Boundary edges (open mesh) | warning | – |
+| Duplicate vertices | warning | `auto_fix_doubles` merges |
+| N-gons | warning | – |
+| Default names (`Cube.001`, `Material`, `Light`, `Collection`…) on objects/meshes/materials/lights/cameras/collections | warning | – |
+| No material / image textures without UVs | warning | – |
+| Unused images or materials, unconnected shader outputs | warning | – |
+| No camera / no lights | warning | preview adds `AI_Preview_Camera` / `AI_Preview_Sun` |
+
+Errors fail the step (the model gets the list and retries); warnings are reported. Linked duplicates
+(scatter) share mesh data and are validated once. Totals and per-object numbers are in the
+`validation_json` output and in `results/*.json`.
+
+---
+
+## Session folder layout
+
+```
+ComfyUI/output/ai_scene_builder/<session>/
+  session.json          turns, plan, reference brief, last scene probe, last validation
+  scene.blend           the scene (open it in Blender any time)
+  scene_FAILED_STEP.blend   only when a step failed — for inspection
+  scripts/step_001_attempt1.py ...     every generated script (dry runs too), manual_*.py, validate_*.py
+  results/step_001_attempt1.json / .job.json   what ran and what happened
+  renders/step_001_attempt1.png        preview renders
+  refs/                 reference images given to the analyzer
+  ai_exec_log.txt       live-mode log written by the Blender addon
+  archive_YYYYMMDD_HHMMSS/             previous content when you used reset
+```
+
+---
+
+## Tuning tips
+
+- **Model size matters most.** `qwen2.5-coder:32b` needs far fewer retries than 7B. On a 12 GB GPU
+  use `qwen2.5-coder:14b` with `num_ctx` 16384. Cloud `claude-sonnet-5` is the most reliable.
+- Keep steps concrete: sizes in meters, counts, positions relative to existing objects.
+- Use the Reference Analyzer even for text-only projects: it produces a consistent brief that all
+  steps share, which keeps style and scale coherent.
+- `extra_reference_notes` is the place for your own conventions ("all roofs are copper", "use
+  `Mat_` prefix") — it is indexed with the docs for that run.
+- Retrieval improves with `nomic-embed-text` pulled; without it BM25 keyword search is used.
+- Long plans: raise `blender_timeout`; lower `render_samples` for faster previews.
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `Blender executable not found` | Install Blender or set `BLENDER_PATH`; check `blender_path` on the node. |
+| `Ollama model 'x' not found` | `ollama pull x` or change the model in AI Model Config; run the installer. |
+| Reply contained no code block | Model too small / temperature too high; retry, lower temperature, bigger model. |
+| Step keeps failing validation on non-manifold edges | Instruct "use Builder primitives, no boolean modifiers"; add to `extra_reference_notes`. |
+| Live mode: `REFUSED` in the Blender console | Switch on **Allow AI code execution** in the addon panel (ComfyUI tab). |
+| Live mode: timeout | Listener not running (Start Listener), wrong port (8119), or the step is heavy — raise `live_timeout`/`blender_timeout`. |
+| ComfyUI Manager install and `subprocess` errors | Headless mode launches Blender with `subprocess`; if your ComfyUI restricts custom-node subprocesses, start ComfyUI with `--allow-subprocess` or use live mode. |
+| Preview is grey/blank | Rendering failed (see `render_error` in the result JSON) or `render_preview` was off. |
+
+## Files
+
+```
+nodes/ai_builder_nodes.py            ComfyUI nodes
+nodes/ai_builder/                    engine: config, session, llm, rag, prompts, safety, blender_runner, validation, agent
+blender_scripts/ai_builder/          runs inside Blender: gap_helpers, scene_probe, validate_scene, job_executor, step_runner
+blender_scripts/blender_toolbox_addon.py   live mode (AI_EXEC) + opt-in switch + panel
+docs/ai_builder/reference/*.md       what the model reads (edit freely; re-index is automatic)
+installer/install_ai_builder.py      setup + smoke test
+tools/generate_ai_workflows.py       regenerates the workflow JSON files
+tests/test_ai_builder.py             unit tests + real Blender integration test
+```

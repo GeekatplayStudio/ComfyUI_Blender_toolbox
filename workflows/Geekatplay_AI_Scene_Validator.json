@@ -1,0 +1,241 @@
+{
+  "last_node_id": 5,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Note",
+      "pos": [
+        -40,
+        -320
+      ],
+      "size": [
+        720,
+        200
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": "AI SCENE VALIDATOR - QA for any session scene\n\nChecks every mesh for non-manifold edges, loose geometry, zero-area faces, flipped normals,\nduplicate vertices, n-gons; textures for missing files; names for Cube.001-style defaults;\nscene for camera/lights. Optional auto-fixes rewrite the session .blend. Renders a preview.\nPoint 'blend_file' on the session node at any .blend to validate files not made by the builder."
+      },
+      "widgets_values": [
+        "AI SCENE VALIDATOR - QA for any session scene\n\nChecks every mesh for non-manifold edges, loose geometry, zero-area faces, flipped normals,\nduplicate vertices, n-gons; textures for missing files; names for Cube.001-style defaults;\nscene for camera/lights. Optional auto-fixes rewrite the session .blend. Renders a preview.\nPoint 'blend_file' on the session node at any .blend to validate files not made by the builder."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 2,
+      "type": "GapAISceneSession",
+      "pos": [
+        -40,
+        -80
+      ],
+      "size": [
+        330,
+        150
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "session_info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAISceneSession"
+      },
+      "widgets_values": [
+        "castle_scene",
+        false,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 3,
+      "type": "GapAISceneValidator",
+      "pos": [
+        340,
+        -80
+      ],
+      "size": [
+        420,
+        360
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            3
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "validation_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 2
+        },
+        {
+          "name": "passed",
+          "type": "BOOLEAN",
+          "links": [],
+          "slot_index": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAISceneValidator"
+      },
+      "widgets_values": [
+        "headless",
+        false,
+        false,
+        true,
+        "CYCLES",
+        768,
+        512,
+        16,
+        "",
+        "127.0.0.1",
+        8119
+      ]
+    },
+    {
+      "id": 4,
+      "type": "PreviewImage",
+      "pos": [
+        820,
+        -80
+      ],
+      "size": [
+        520,
+        360
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "title": "Preview render"
+    },
+    {
+      "id": 5,
+      "type": "GapStringViewer",
+      "pos": [
+        820,
+        320
+      ],
+      "size": [
+        520,
+        320
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Validation report"
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      2,
+      3,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      3,
+      3,
+      1,
+      5,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        60,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

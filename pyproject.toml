@@ -1,8 +1,9 @@
 [project]
 name = "comfyui-blender-toolbox"
-description = "A complete toolbox for 3D Gen, HDRI, PBR, and Blender synchronization in ComfyUI."
-version = "2.1.0"
+description = "A complete toolbox for 3D Gen, HDRI, PBR, AI Scene Building and Blender synchronization in ComfyUI."
+version = "2.2.0"
 license = { file = "LICENSE" }
+authors = [{ name = "Vladimir Chopine (Geekatplay Studio)" }]
 requires-python = ">=3.10"
 dependencies = [
     "imageio[ffmpeg,freeimage]>=2.37.4,<3",

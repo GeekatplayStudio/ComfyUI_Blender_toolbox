@@ -1,9 +1,9 @@
-# (c) Geekatplay Studio
+# (c) Geekatplay Studio - Vladimir Chopine
 # ComfyUI-Blender-Toolbox
 """
 ComfyUI-Blender-Toolbox
 ======================
-A complete toolbox for 3D Gen, HDRI, PBR, and Blender synchronization in ComfyUI.
+A complete toolbox for 3D Gen, HDRI, PBR, AI Scene Building and Blender synchronization in ComfyUI.
 """
 
 from .nodes.hdri_nodes import SaveFakeHDRI, ImageTo360Latent, Rotate360Image, GeneratePoleMask
@@ -20,6 +20,7 @@ from .nodes.hitem3d_nodes import Geekatplay_HiTem3D_Gen
 from .nodes.geekatplay_key_manager import Geekatplay_ApiKey_Manager
 from .nodes.flux_terrain_nodes import FluxTerrainPromptGenerator, FluxOptionalImageRef
 from .nodes.geometry_ops import GapFillHoles, GapBlenderVoxelRemesh, GapFaceNormalsFix, GapBlenderDecimate, GapBlenderSubdivide, GapBlenderBoolean, GapBlenderSmartUV
+from .nodes.ai_builder_nodes import NODE_CLASS_MAPPINGS as AI_BUILDER_NODES, NODE_DISPLAY_NAME_MAPPINGS as AI_BUILDER_NAMES
 
 NODE_CLASS_MAPPINGS = {
     "FluxTerrainPromptGenerator": FluxTerrainPromptGenerator,
@@ -133,6 +134,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GapBlenderBoolean": "Boolean Operation (Blender)",
     "GapBlenderSmartUV": "Smart UV Unwrap (Blender)",
 }
+
+NODE_CLASS_MAPPINGS.update(AI_BUILDER_NODES)
+NODE_DISPLAY_NAME_MAPPINGS.update(AI_BUILDER_NAMES)
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
 

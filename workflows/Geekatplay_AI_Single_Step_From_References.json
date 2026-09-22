@@ -1,0 +1,559 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Note",
+      "pos": [
+        -40,
+        -380
+      ],
+      "size": [
+        720,
+        260
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": "AI SCENE BUILDER - SINGLE STEP FROM REFERENCE IMAGES\n\nOne instruction, one Blender script, validated and rendered. Reference images are analyzed first\n(up to 3 image inputs; batches count as multiple references) so the model matches style, layout,\nmaterials and lighting. Re-run with a new instruction to keep adding to the same session scene.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+      },
+      "widgets_values": [
+        "AI SCENE BUILDER - SINGLE STEP FROM REFERENCE IMAGES\n\nOne instruction, one Blender script, validated and rendered. Reference images are analyzed first\n(up to 3 image inputs; batches count as multiple references) so the model matches style, layout,\nmaterials and lighting. Re-run with a new instruction to keep adding to the same session scene.\n\nSECURITY: the builder executes model-written Python in Blender. No sandbox.\nEvery script is saved to ComfyUI/output/ai_scene_builder/<session>/scripts/ BEFORE it runs.\nSet dry_run=true to review scripts first (then use 'AI Script Runner').\nHeadless mode (default) needs Blender installed. Live mode also needs the toolbox addon\nrunning in Blender with 'Allow AI code execution' switched ON."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        -40,
+        -80
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ],
+      "title": "Reference image 1"
+    },
+    {
+      "id": 3,
+      "type": "LoadImage",
+      "pos": [
+        -40,
+        280
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ],
+      "title": "Reference image 2 (optional)"
+    },
+    {
+      "id": 4,
+      "type": "GapAISceneSession",
+      "pos": [
+        320,
+        -80
+      ],
+      "size": [
+        330,
+        150
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [
+            4,
+            5
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "session_info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAISceneSession"
+      },
+      "widgets_values": [
+        "single_step_scene",
+        false,
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 5,
+      "type": "GapAILLMConfig",
+      "pos": [
+        320,
+        120
+      ],
+      "size": [
+        330,
+        300
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "links": [
+            1,
+            6
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "llm_info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAILLMConfig"
+      },
+      "widgets_values": [
+        "ollama",
+        "qwen2.5-coder:14b",
+        "qwen2.5vl:7b",
+        "http://127.0.0.1:11434",
+        0.2,
+        16384,
+        8192,
+        "",
+        "nomic-embed-text",
+        "10m",
+        900
+      ]
+    },
+    {
+      "id": 6,
+      "type": "GapAIReferenceAnalyzer",
+      "pos": [
+        700,
+        -80
+      ],
+      "size": [
+        420,
+        260
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 1
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        },
+        {
+          "name": "images_2",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "images_3",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "reference_brief",
+          "type": "STRING",
+          "links": [
+            7,
+            10
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "analyses_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIReferenceAnalyzer"
+      },
+      "widgets_values": [
+        "Build the main building from the reference as a closed, detailed model on a flat ground slab.",
+        ""
+      ]
+    },
+    {
+      "id": 7,
+      "type": "GapAIStepBuilder",
+      "pos": [
+        1180,
+        -80
+      ],
+      "size": [
+        460,
+        600
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "link": 5
+        },
+        {
+          "name": "llm",
+          "type": "GAP_AI_LLM",
+          "link": 6
+        },
+        {
+          "name": "reference_brief",
+          "type": "STRING",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": [
+            8
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "blend_path",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            9
+          ],
+          "slot_index": 2
+        },
+        {
+          "name": "script",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 3
+        },
+        {
+          "name": "validation_json",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 4
+        },
+        {
+          "name": "session",
+          "type": "GAP_AI_SESSION",
+          "links": [],
+          "slot_index": 5
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapAIStepBuilder"
+      },
+      "widgets_values": [
+        "Build the main building from the reference brief: correct proportions in meters, windows as recessed frames, roof, chimney/details, materials matching the brief, on a 30x30 m ground slab. Add a warm key sun and a camera framing it.",
+        "Reference_Building",
+        "headless",
+        false,
+        2,
+        true,
+        true,
+        true,
+        true,
+        true,
+        "CYCLES",
+        768,
+        512,
+        16,
+        900,
+        "",
+        "127.0.0.1",
+        8119,
+        false,
+        ""
+      ]
+    },
+    {
+      "id": 8,
+      "type": "PreviewImage",
+      "pos": [
+        1700,
+        -80
+      ],
+      "size": [
+        520,
+        360
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "title": "Preview render"
+    },
+    {
+      "id": 9,
+      "type": "GapStringViewer",
+      "pos": [
+        1700,
+        320
+      ],
+      "size": [
+        520,
+        300
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Step report"
+    },
+    {
+      "id": 10,
+      "type": "GapStringViewer",
+      "pos": [
+        1180,
+        560
+      ],
+      "size": [
+        460,
+        220
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GapStringViewer"
+      },
+      "widgets_values": [],
+      "title": "Reference brief"
+    }
+  ],
+  "links": [
+    [
+      1,
+      5,
+      0,
+      6,
+      0,
+      "GAP_AI_LLM"
+    ],
+    [
+      2,
+      2,
+      0,
+      6,
+      1,
+      "IMAGE"
+    ],
+    [
+      3,
+      3,
+      0,
+      6,
+      2,
+      "IMAGE"
+    ],
+    [
+      4,
+      4,
+      0,
+      6,
+      4,
+      "GAP_AI_SESSION"
+    ],
+    [
+      5,
+      4,
+      0,
+      7,
+      0,
+      "GAP_AI_SESSION"
+    ],
+    [
+      6,
+      5,
+      0,
+      7,
+      1,
+      "GAP_AI_LLM"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      2,
+      "STRING"
+    ],
+    [
+      8,
+      7,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      9,
+      7,
+      2,
+      9,
+      0,
+      "STRING"
+    ],
+    [
+      10,
+      6,
+      0,
+      10,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        60,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

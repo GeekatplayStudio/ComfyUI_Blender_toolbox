@@ -15,3 +15,7 @@ tripo_config.json
 
 AUTO_RIGGER_PLAN.md
 docs/EXTERNAL_RIGGING_PLAN.md
+
+# AI Scene Builder runtime files
+docs/ai_builder/reference/.embeddings_cache.json
+.claude/

@@ -13,6 +13,9 @@ A comprehensive suite of ComfyUI nodes designed for **3D Generation**, **Blender
 *   **Round-Trip Sync**: **NEW!** Send meshes/UVs from Blender to ComfyUI, texture them with AI, and send them back to Blender instantly.
 *   **Mesh Prep & Auto-Rig Export**: Local tools to Voxel Remesh, Decimate, and Export clean FBXs ready for external tools like Mixamo or AccuRig.
 *   **Ollama Vision**: Analyze images and suggest lighting/sun positions using local LLMs.
+*   **AI Scene Builder**: **NEW in 2.2!** Describe a scene (and drop in up to three reference images) and a local Ollama model — or Claude / OpenAI — writes and runs the Blender Python that models, textures and lights it. Multi-pass ("now add a bridge"), multi-step plans, automatic validation of polygons / normals / textures / names, self-repair retries, preview renders. Fully transparent: every script is saved before it runs. See [docs/ai_builder/AI_SCENE_BUILDER.md](docs/ai_builder/AI_SCENE_BUILDER.md).
+
+> ⚠️ **AI Scene Builder security**: it executes model-generated Python inside Blender. There is **no sandbox**. Scripts are saved to `output/ai_scene_builder/<session>/scripts/` before execution, a safety scan blocks file/network/process access, `dry_run` lets you read before running, and live execution inside your open Blender is **off** until you enable it in the addon. Read the [security section](docs/ai_builder/AI_SCENE_BUILDER.md#security--read-this-first) before use.
 
 ---
 
@@ -37,6 +40,13 @@ python -m pip install -r requirements.txt
 ```
 
 Version 2.1 requires Python 3.10 or newer. Restart ComfyUI after installing or upgrading.
+
+### 4. AI Scene Builder setup (Blender + local models)
+
+```bash
+python installer/install_ai_builder.py --smoke-test
+```
+(or `installer\install_ai_builder.bat`). Detects Blender 4.x/5.x, starts Ollama, pulls `qwen2.5-coder:14b`, `qwen2.5vl:7b` and `nomic-embed-text` (change with `--code-model` / `--vision-model` / `--embed-model`, skip with `--skip-models`), indexes the reference docs and builds + validates + renders a test cube in headless Blender. `install.bat` runs it as part of the normal install.
 
 ### API authentication
 
@@ -80,6 +90,15 @@ python installer/install_pbr_extractor.py
 
 ## � Included Workflows
 Inside the `workflows/` folder, you will find production-ready JSON workflows:
+
+### 🤖 AI Scene Builder (2.2)
+*   **`Geekatplay_AI_Scene_Builder_Complete.json`**: Reference images → brief → step plan → complete multi-step build with validation, retries and report.
+*   **`Geekatplay_AI_Single_Step_From_References.json`**: Reference images → one validated build step.
+*   **`Geekatplay_AI_Step_Builder_Conversational.json`**: Type an instruction, queue, look, type the next one — multi-pass building on the same scene.
+*   **`Geekatplay_AI_Script_Review_Then_Run.json`**: Dry run → read the generated script → paste into the runner → execute. The safest flow.
+*   **`Geekatplay_AI_Scene_Validator.json`**: QA + auto-fix + preview render for any session scene.
+
+![AI Scene Builder complete workflow](docs/images/ai_scene_builder_complete.png)
 
 ### 🌟 New & Featured
 *   **`Geekatplay_Hunyuan3d_v2.1.json`**: **(New)** State-of-the-art Image-to-3D generation using Hunyuan3D v2.1.
@@ -386,6 +405,47 @@ Generate production-ready models using Hi3D (formerly HiTem3D) with 3D print and
 Supports current multimodal Ollama models such as `gemma3`, configurable keep-alive, local servers without authentication, and Ollama Cloud with bearer authentication.
 
 ---
+
+## 🤖 AI Scene Builder
+
+*Category: `Geekatplay Studio/AI Scene Builder` — full documentation: [docs/ai_builder/AI_SCENE_BUILDER.md](docs/ai_builder/AI_SCENE_BUILDER.md)*
+
+A language model writes one Blender Python script per build step; the toolbox runs it in Blender (headless by default), validates polygons / normals / textures / names, renders a preview and feeds errors back to the model for repair. The session `.blend` is the memory between passes.
+
+![AI Step Builder conversational workflow](docs/images/ai_step_builder_conversational.png)
+
+Example: first pass of a fully local run (`qwen2.5-coder:32b`, headless Blender 5.2) — "stone watchtower on grassy terrain with 20 pines, sun, camera". The model needed two self-repairs (traceback fed back automatically); the result passed validation (28 closed meshes, 0 topology errors) and rendered in under a second:
+
+![Local model example render](docs/images/example_watchtower_step1_qwen32b.png)
+
+Second pass in the same session, a separate ComfyUI run: "add a low wooden palisade fence around the tower at ~8 m radius with a south opening and a dirt path to the edge". The model saw the existing scene probe and added 52 fence posts/rails plus the path without touching the tower (80 meshes, validation passed):
+
+![Local model second pass](docs/images/example_watchtower_step2_fence_qwen32b.png)
+
+Quality scales with the model: a 32B local coder gets you this in ~7 minutes per pass on an RTX 3090 including two self-repairs; `claude-sonnet-5` / `claude-opus-5` via the Anthropic provider produce far richer geometry and materials with fewer retries.
+
+| Node | Purpose |
+| :--- | :--- |
+| **AI Scene Session** | Names the scene; creates/continues `output/ai_scene_builder/<name>/` (scene.blend, scripts, results, renders, refs, session.json). |
+| **AI Model Config** | Provider (`ollama` local/cloud, `anthropic`, `openai_compatible`), code model, vision model, URL, temperature, context, API key (or API Key Manager). |
+| **AI Reference Analyzer (Multi-Image)** | Up to three image inputs + your text → one structured build brief (layout, elements with sizes, materials, lighting, camera). |
+| **AI Scene Planner** | Prompt (+ brief, + current scene) → ordered step plan; or your own `manual_plan`. |
+| **AI Scene Builder (Complete Scene)** | Runs every plan step: generate → safety scan → execute → validate → retry → preview. |
+| **AI Step Builder (Conversational)** | One instruction per run, building on the existing scene. |
+| **AI Script Runner (Review & Execute)** | Executes a script you reviewed/edited (from a `dry_run`). |
+| **AI Scene Validator** | Checks non-manifold edges, loose geometry, zero-area faces, flipped normals, duplicate vertices, missing textures, default names, camera/lights; optional auto-fix; `passed` output. |
+
+**Models**: local Ollama `qwen2.5-coder:14b` (default) / `qwen2.5-coder:32b` (best local) / `qwen3-coder:30b` for code, `qwen2.5vl:7b` or `qwen3-vl:4b` for references, `nomic-embed-text` for retrieval; or `claude-sonnet-5` / `claude-opus-5` via Anthropic, or any OpenAI-compatible endpoint.
+
+**Live mode**: to build inside the Blender you are looking at, start the toolbox addon listener and switch **AI Scene Builder (Live) → Allow AI code execution** ON in the addon's ComfyUI sidebar panel. Headless mode never needs this switch.
+
+**Transparency**: prompts in `nodes/ai_builder/prompts.py`, reference docs the model reads in `docs/ai_builder/reference/`, helper library in `blender_scripts/ai_builder/gap_helpers.py`, every generated script and result on disk. No hidden behaviour.
+
+---
+
+## 👤 Credits
+
+**Geekatplay Studio — Vladimir Chopine.** Toolbox design, Blender integration, AI Scene Builder.
 
 ## 📄 License
 (c) Geekatplay Studio.
