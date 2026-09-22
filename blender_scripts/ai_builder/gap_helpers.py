@@ -937,15 +937,33 @@ def barrel_profile(height, radius, waist=0.85, steps=14, z0=0.0):
 
 
 def stepped_profile(sections, z0=0.0):
-    """Stacked rings/collars from [(height, radius), ...], bottom to top.
+    """Stacked rings/collars from [(HEIGHT_of_ring, radius), ...], bottom to top.
 
-    stepped_profile([(0.01, 0.05), (0.008, 0.055), (0.01, 0.048)]) -> a banded pedestal base.
+    Each pair is how TALL that ring is, not where it sits: heights are stacked, so
+    stepped_profile([(0.01, 0.05), (0.008, 0.055), (0.01, 0.048)]) is a 0.028 m banded pedestal.
+    For an outline given as absolute (z, radius) points, pass that list straight to B.lathe().
+
+    Guard: a "height" bigger than the object plausibly is (>= 1 m per ring on a list whose radii
+    stay under 0.5 m) almost always means the caller passed z positions. Refuse with a clear
+    message instead of silently building a 0.6 m tube where a 0.2 m body was asked for.
     """
+    sections = [(float(h), float(r)) for h, r in sections]
+    if len(sections) >= 3:
+        max_r = max(r for _, r in sections)
+        heights = [h for h, _ in sections]
+        increasing = all(b > a for a, b in zip(heights, heights[1:]))
+        if increasing and max_r < 0.5 and sum(heights) > 2.5 * max(heights):
+            raise ValueError(
+                "stepped_profile(): the 'height' values increase steadily like z positions "
+                f"({heights[:4]}...). stepped_profile takes (HEIGHT-of-each-ring, radius) pairs and "
+                "stacks them. For an outline given as (z, radius) points, pass the list directly to "
+                "B.lathe(center, points); for a bulging body use barrel_profile(); for a bullet shape "
+                "use ogive_profile().")
     pts, z = [], z0
     for h, r in sections:
-        pts.append((z, max(float(r), 1e-4)))
-        z += float(h)
-        pts.append((z, max(float(r), 1e-4)))
+        pts.append((z, max(r, 1e-4)))
+        z += h
+        pts.append((z, max(r, 1e-4)))
     return pts
 
 

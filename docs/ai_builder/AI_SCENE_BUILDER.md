@@ -152,6 +152,20 @@ Generated scripts get `from gap_helpers import *` — a small, tested library
 local models produce manifold geometry on the first or second try. Its API is documented for the
 model in [`reference/04_gap_helpers_reference.md`](reference/04_gap_helpers_reference.md).
 
+### Complete build vs. adding to a scene — and why "parts piled together" happens
+
+The session `.blend` remembers everything, which is exactly right for *"now add a bridge"* and
+exactly wrong for *"build this rocket again"*. Re-running a complete build into a session that
+already holds one produces two objects superimposed — the classic "lots of items piled together"
+render. Two rules keep this straight:
+
+- **AI Scene Builder (Complete Scene)** builds a whole object from a plan, so **`start_fresh` is
+  ON by default**: it archives whatever the session contains (to `archive_*/`, nothing is deleted)
+  and builds into an empty scene. Turn it off only if you deliberately want the plan added on top.
+- **AI Step Builder (Conversational)** adds to what exists — that is its purpose. It **warns** when
+  the reference brief describes a different object than the session was built for (a robot brief
+  into a rocket session), because that is almost always a forgotten `session_name`.
+
 ### Multi-pass memory
 
 The `.blend` file is the memory. Before each step the runner probes the scene (objects with

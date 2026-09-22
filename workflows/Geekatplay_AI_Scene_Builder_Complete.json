@@ -416,6 +416,7 @@
       "widgets_values": [
         "",
         "",
+        true,
         false,
         "headless",
         false,

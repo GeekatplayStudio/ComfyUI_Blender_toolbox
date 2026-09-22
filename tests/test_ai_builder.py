@@ -106,6 +106,66 @@ class TestAutoModelSelection(unittest.TestCase):
         self.assertEqual(cfg["url"], config.DEFAULT_ANTHROPIC_URL)
 
 
+class TestShapeAndScaleGuards(unittest.TestCase):
+    """The failures that turned a rocket into a tube: wrong size, wrong object, wrong primitive."""
+
+    BRIEF = "OBJECT: steampunk rocket ornament, overall height 0.25 m, max width 0.18 m\nSTYLE: brass"
+
+    def agent(self):
+        return SceneBuilderAgent.__new__(SceneBuilderAgent)
+
+    def test_spec_parsing(self):
+        self.assertEqual(SceneBuilderAgent.spec_height(self.BRIEF), 0.25)
+        self.assertEqual(SceneBuilderAgent.spec_object(self.BRIEF), "steampunk rocket ornament")
+        self.assertIsNone(SceneBuilderAgent.spec_height("no numbers here"))
+        self.assertEqual(SceneBuilderAgent.spec_object(""), "")
+
+    def test_scale_guard_catches_the_0_59m_hull(self):
+        """The real case: a 0.198 m hull came out 0.59 m tall because z values were stacked as heights."""
+        too_tall = {"scene": {"bbox": {"min": [0, 0, 0], "max": [0.3, 0.3, 0.59]}}}
+        msg = self.agent()._scale_problem(too_tall, self.BRIEF)
+        self.assertIn("SCALE ERROR", msg)
+        self.assertIn("0.590 m", msg)
+        self.assertIn("stepped_profile", msg, "the hint must name the usual culprit")
+
+    def test_scale_guard_tolerates_reasonable_variation(self):
+        fine = {"scene": {"bbox": {"min": [0, 0, 0], "max": [0.2, 0.2, 0.31]}}}
+        self.assertEqual(self.agent()._scale_problem(fine, self.BRIEF), "")
+        no_spec = {"scene": {"bbox": {"min": [0, 0, 0], "max": [1, 1, 9]}}}
+        self.assertEqual(self.agent()._scale_problem(no_spec, "OBJECT: thing"), "",
+                         "without a specified height there is nothing to compare against")
+        self.assertEqual(self.agent()._scale_problem({}, self.BRIEF), "")
+
+    def test_identity_warning_fires_only_for_a_different_object(self):
+        from nodes.ai_builder_nodes import _identity_warning
+
+        class Sess:
+            state = {"object_identity": "steampunk retro rocket ornament"}
+            turn_count = 6
+
+            def blend_exists(self):
+                return True
+
+        robot = "OBJECT: vintage steel humanoid robot, overall height 0.4 m"
+        self.assertIn("pile the two objects together", _identity_warning(Sess(), robot))
+        same = "OBJECT: steampunk rocket ornament, overall height 0.25 m"
+        self.assertEqual(_identity_warning(Sess(), same), "")
+        empty = Sess()
+        empty.turn_count = 0
+        empty.blend_exists = lambda: False
+        self.assertEqual(_identity_warning(empty, robot), "", "an empty session has nothing to protect")
+
+    def test_prompt_maps_shape_words_to_helpers(self):
+        from nodes.ai_builder.prompts import CODEGEN_SYSTEM
+        for word, helper in (("bulbous", "barrel_profile"), ("ogive", "ogive_profile"),
+                             ("dome", "dome_profile"), ("curved blade", "fin_blade"),
+                             ("hole you can see into", "hollow_port")):
+            self.assertIn(word, CODEGEN_SYSTEM)
+            self.assertIn(helper, CODEGEN_SYSTEM)
+        self.assertIn("NOT (z, radius)", CODEGEN_SYSTEM, "the stepped_profile trap must be spelled out")
+        self.assertIn("NUMBERS ARE BINDING", CODEGEN_SYSTEM)
+
+
 class TestShippedWorkflows(unittest.TestCase):
     """Every workflow in workflows/ must stay loadable: valid links, and widget values that still
     line up with the node definitions. Nodes gain inputs over time and a stale workflow silently
@@ -445,6 +505,21 @@ class TestBlenderIntegration(unittest.TestCase):
         from nodes.ai_builder_nodes import _collect_render_paths, _load_image_batch
         batch = _load_image_batch(_collect_render_paths(result))
         self.assertEqual(batch.shape[0], 4, "all four views should reach the preview as a batch")
+
+    def test_stepped_profile_refuses_z_positions(self):
+        """Exactly what a 32B model wrote: (z, radius) points fed to stepped_profile, which stacks the
+        z values as heights and turns a 0.2 m hull into a 0.6 m tube. It must refuse, loudly."""
+        tmp = tempfile.mkdtemp(prefix="ai-stepped-")
+        s = SceneSession("stepped", root=os.path.join(tmp, "stepped")).open()
+        script = s.next_script_path(1)
+        with open(script, "w", encoding="utf-8") as f:
+            f.write("from gap_helpers import *\n"
+                    "p = stepped_profile([(0.090, 0.1505), (0.120, 0.151), (0.150, 0.1505), (0.198, 0.1505)], z0=0.036)\n")
+        result = BlenderRunner(s, blender_path=self.blender, timeout=300).run_headless(
+            script, validate=False, render=None)
+        self.assertFalse(result["ok"])
+        self.assertIn("z positions", result["error"])
+        self.assertIn("barrel_profile", result["error"], "must point at the right helper")
 
     def test_single_view_preview_keeps_one_path(self):
         tmp = tempfile.mkdtemp(prefix="ai-view1-")

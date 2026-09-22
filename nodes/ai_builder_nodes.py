@@ -434,6 +434,11 @@ class GapAISceneBuilder:
             "llm": (LLM_TYPE,),
             "plan_json": ("STRING", {"multiline": True, "default": "", "tooltip": "Connect the planner's plan_json, or paste steps (one per line). Empty = build 'prompt' as one step."}),
             "prompt": ("STRING", {"multiline": True, "default": "", "tooltip": "Used only when plan_json is empty."}),
+            "start_fresh": ("BOOLEAN", {"default": True,
+                            "tooltip": "ON: archive whatever this session already contains and build the plan into an "
+                                       "empty scene. A complete build re-run on top of an old one gives two objects "
+                                       "superimposed - the 'pile of parts' problem. OFF: add the plan to the existing scene "
+                                       "(use the Step Builder for that instead)."}),
             "stop_on_failure": ("BOOLEAN", {"default": True}),
         }
         req.update(_exec_inputs())
@@ -453,6 +458,14 @@ class GapAISceneBuilder:
 
     def build(self, session, llm, plan_json, prompt, stop_on_failure, reference_brief="", **kwargs):
         sess = SceneSession.from_payload(session)
+        start_fresh = bool(kwargs.pop("start_fresh", True))
+        prefix = ""
+        if start_fresh and (sess.turn_count or sess.blend_exists()):
+            previous = sess.state.get("object_identity") or "previous build"
+            sess = SceneSession(sess.name, sess.root).open(reset=True)
+            prefix = (f"start_fresh: archived the previous scene ('{previous}', {sess.turn_count} steps before "
+                      f"reset) to archive_*/ inside the session folder and built into an empty scene.\n\n")
+            print("[AI Scene Builder] " + prefix.strip())
         agent = SceneBuilderAgent(sess, llm, _options_from(kwargs))
         steps = agent.parse_manual_plan(plan_json)
         if not steps:
@@ -460,8 +473,27 @@ class GapAISceneBuilder:
                 raise ValueError("Give the builder a plan_json (from AI Scene Planner) or a prompt.")
             steps = [{"title": "Build", "category": "edit", "instruction": prompt.strip()}]
         results, report = agent.run_plan(steps, reference_brief, stop_on_failure)
-        preview, blend, report, scripts, vjson = _collect_outputs(sess, results, report)
+        preview, blend, report, scripts, vjson = _collect_outputs(sess, results, prefix + report)
         return {"ui": {"text": [report[-2000:]]}, "result": (preview, blend, report, scripts, vjson, sess.to_payload())}
+
+
+def _identity_warning(sess, reference_brief):
+    """Warn when a conversational step's reference describes a different object than the scene holds.
+
+    Building robot legs into a session that contains a rocket is how two objects end up piled
+    together. The Step Builder deliberately keeps adding (that is its job), so it warns instead of
+    wiping - the user may be composing a scene on purpose.
+    """
+    stored = (sess.state.get("object_identity") or "").strip().lower()
+    incoming = SceneBuilderAgent.spec_object(reference_brief)
+    if not stored or not incoming or stored == incoming or not (sess.turn_count or sess.blend_exists()):
+        return ""
+    common = set(stored.replace("_", " ").split()) & set(incoming.replace("_", " ").split())
+    if common - {"steampunk", "vintage", "retro", "ornament", "model", "object", "the", "a"}:
+        return ""  # same thing described slightly differently
+    return (f"WARNING: this session already contains '{stored}', but the reference brief describes "
+            f"'{incoming}'. Building it here will pile the two objects together. Use a new session_name "
+            f"or tick 'reset' on the Session node if that is not what you want.\n\n")
 
 
 class GapAIStepBuilder:
@@ -492,9 +524,12 @@ class GapAIStepBuilder:
 
     def build_step(self, session, llm, instruction, step_title, reference_brief="", **kwargs):
         sess = SceneSession.from_payload(session)
+        warning = _identity_warning(sess, reference_brief)
+        if warning:
+            print("[AI Scene Builder] " + warning.strip())
         agent = SceneBuilderAgent(sess, llm, _options_from(kwargs))
         r = agent.run_step(instruction, step_title or "Edit", reference_brief)
-        preview, blend, report, scripts, vjson = _collect_outputs(sess, [r], r["report"])
+        preview, blend, report, scripts, vjson = _collect_outputs(sess, [r], warning + r["report"])
         return {"ui": {"text": [report[-2000:]]}, "result": (preview, blend, report, scripts, vjson, sess.to_payload())}
 
 

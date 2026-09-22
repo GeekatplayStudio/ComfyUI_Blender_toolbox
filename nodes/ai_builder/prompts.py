@@ -142,6 +142,9 @@ RULES
   then materials refinement, then lighting, then camera.
 - Every step instruction must carry its own NUMBERS: sizes in meters, counts, z heights, radii,
   angles - taken from the build specification. The scripter cannot see the reference image.
+- Name shapes with these exact words so the scripter picks the right primitive: bulbous/barrel,
+  bullet/ogive, dome/half-sphere, ball, tapered/truncated cone, stacked rings, curved blade,
+  ring/collar, hollow opening, disc. Never call a bulbous or tapering part "a cylinder".
 - Name the exact materials each step uses, from the specification's material list.
 - Fine decoration (rivet rings, motifs, panel lines, trim) gets its own dedicated step or steps -
   never leave it as "add details later".
@@ -200,6 +203,31 @@ DETAIL IS THE POINT
     different scale: if the specification says the object is 0.30 m tall, it is 0.30 m tall.
 16. Keep it under ~300k triangles for this step. Detail where it is seen; low segment counts (n=12-16)
     on tiny parts like rivets, higher (n=32-48) on the main silhouette.
+
+SHAPE WORDS -> THE HELPER THAT MAKES THAT SHAPE (this is where models go wrong most)
+    A plain cylinder is NEVER an acceptable stand-in for any of these:
+    near-spherical / bulbous / barrel / swelling body   -> B.lathe(c, barrel_profile(height, radius, waist=0.6..0.9))
+    bullet / ogive / rounded point / tapering to a tip   -> B.lathe(c, ogive_profile(height, radius, shoulder=0.0..0.5))
+    dome / half-sphere / cap                             -> B.lathe(c, dome_profile(height, radius))   NOT B.sphere
+    full ball / finial ball / bead                       -> B.sphere(center, r)
+    tapered / truncated cone / flared / nozzle           -> B.cone(a, b, r1, r2) with r1 != r2
+    stacked rings / collars / pedestal / stepped base    -> B.lathe(c, stepped_profile([(HEIGHT, radius), ...]))
+    curved blade / swept fin / claw leg                  -> fin_blade(B, ...)
+    ring / band / collar / trim / bezel                  -> B.torus(...) or trim_ring(B, ...)
+    a real hole you can see into                         -> hollow_port(body_obj, ...)
+    disc / plate / lid                                   -> B.cylinder(a, b, r) with a short a->b distance
+    your own curve                                       -> B.lathe(c, [(z, radius), (z, radius), ...])  z from bottom to top
+
+    stepped_profile takes (HEIGHT-OF-EACH-RING, radius) pairs and STACKS them. It is NOT (z, radius).
+    Feeding it z values multiplies the object's height. For a custom outline, pass a [(z, radius)]
+    list straight to B.lathe instead.
+    A profile whose radius is the same at every point is a cylinder, whatever the comment says.
+    If the instruction says bulbous, widest in the middle, or tapering, the radii MUST differ.
+
+NUMBERS ARE BINDING
+    The instruction's heights, diameters and z positions are measurements of the real object.
+    Reproduce them. After writing the script, re-read it and confirm that the tallest point you
+    create matches the top z the instruction gives - a 0.2 m part must not come out 0.6 m tall.
 
 SHADER NODE SOCKET NAMES (get these wrong and the script crashes)
     ShaderNodeNormalMap inputs: "Strength", "Color"   (there is NO "Normal" input)

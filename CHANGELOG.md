@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.7
+
+Traced the "four cylinders that don't resemble a rocket" result to its actual causes, using the session's own debug log:
+
+- **Two builds superimposed.** The complete workflow was re-run into a session that still held the previous attempt, so the new rocket was built on top of the old one's debris — 21 meshes from two runs in one scene. `AI Scene Builder (Complete Scene)` now has **`start_fresh` (default ON)**: it archives whatever the session holds and builds into an empty scene. The Step Builder keeps adding, as it should, but now **warns when the reference describes a different object** than the session contains (a robot brief into a rocket session).
+- **z positions stacked as heights.** The model wrote a hull outline as `(z, radius)` points and passed it to `stepped_profile`, which takes `(height_of_ring, radius)` and stacks them — a 0.198 m hull came out 0.59 m tall. `stepped_profile` now **refuses steadily increasing "heights"** with a message naming the right helper; the prompt spells the trap out.
+- **A cylinder where a bulbous body was asked for.** The profile had the same radius at every point while its comments said "widest part". The codegen prompt now carries a **shape-word → helper table** (bulbous → `barrel_profile`, ogive → `ogive_profile`, dome → `dome_profile` not `sphere`, curved blade → `fin_blade`, hole → `hollow_port`…) and forbids substituting a plain cylinder for any of them. The planner uses the same vocabulary.
+- **Scale guard.** After each step the built scene's height is compared with the specification's overall height; more than 1.6× or under 0.5× fails the step and the retry is told exactly what to check. This would have caught the 0.59 m hull on the first attempt.
+
 ## 2.2.6
 
 - **Previews are readable now.** Three defects made every preview hard to judge:
