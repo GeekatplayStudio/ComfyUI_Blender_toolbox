@@ -90,19 +90,43 @@ def enable_gpu(scene):
     return "CPU"
 
 
-def render_preview(job_render, helpers):
+# Directions a preview camera looks FROM, as multiples of the scene radius. One three-quarter view
+# hides everything behind the object, which is exactly when parts look "piled together"; the
+# orthogonal views are what tell you whether a fin is at the base or halfway up the hull.
+PREVIEW_VIEWS = {
+    "three_quarter": (1.0, -1.3, 0.75),
+    "front": (0.0, -1.0, 0.06),
+    "right": (1.0, 0.0, 0.06),
+    "top": (0.0, -0.18, 1.0),
+    "back": (0.0, 1.0, 0.06),
+    "left": (-1.0, 0.0, 0.06),
+}
+VIEW_SETS = {
+    "single": ["three_quarter"],
+    "quad": ["three_quarter", "front", "right", "top"],
+    "six": ["three_quarter", "front", "right", "back", "left", "top"],
+}
+
+
+def setup_preview_environment(helpers, force=False):
+    """Neutral studio world and a three-point rig, scaled to whatever is in the scene.
+
+    `force` replaces whatever world the generated script set up. A review preview is for reading
+    geometry, and a script that picked a near-black night sky makes its own model unreadable - so
+    the builder's own camera mode always renders in a neutral studio.
+    """
     scene = bpy.context.scene
-    bpy.context.view_layer.update()
-    if scene.world is None:
+    if scene.world is None or force:
         # A gradient, not a flat colour: metal reflects its environment, so a uniform world makes
         # polished surfaces render as the background colour and the object looks like it vanished.
-        helpers.set_world(color=(0.62, 0.66, 0.72), strength=1.0, name="AI_Preview_World",
-                          gradient=True, horizon_color=(0.16, 0.17, 0.20))
+        # Kept light so silhouettes read against it instead of sinking into a dark field.
+        helpers.set_world(color=(0.88, 0.89, 0.92), strength=1.0, name="AI_Preview_World",
+                          gradient=True, horizon_color=(0.55, 0.57, 0.60))
     if not any(o.type == "LIGHT" for o in scene.objects):
         lo, hi = helpers.scene_bounds()
         size = max((hi - lo).length, 0.1)
         center = (lo + hi) / 2.0
-        # Three-point rig scaled to the subject: area lights fall off, so energy tracks size.
+        # Area lights fall off with distance, so energy has to track the subject's size.
         energy = max(size * size * 220.0, 12.0)
         helpers.add_light("AREA", location=(center.x - size, center.y - size * 1.2, center.z + size),
                           energy=energy, size=size * 1.2, name="AI_Preview_Key", target=center)
@@ -110,12 +134,30 @@ def render_preview(job_render, helpers):
                           energy=energy * 0.35, size=size * 1.4, name="AI_Preview_Fill", target=center)
         helpers.add_light("AREA", location=(center.x + size * 0.3, center.y + size * 1.3, center.z + size * 0.9),
                           energy=energy * 0.5, size=size, name="AI_Preview_Rim", target=center)
-    cam = scene.camera
-    if cam is None:
-        cam = helpers.add_camera(name="AI_Preview_Camera", lens_mm=35)
-        helpers.frame_camera_to_scene(cam, margin=1.2)
-    elif job_render.get("fit_camera", True) and cam.name == "AI_Preview_Camera":
-        helpers.frame_camera_to_scene(cam, margin=1.2)
+
+
+def render_preview(job_render, helpers):
+    """Render the scene for review. Returns a list of image paths (one per view).
+
+    Defaults to the builder's own camera rather than whatever camera the script happened to leave
+    behind: a model-placed camera is frequently pointed at nothing, and a preview you cannot read
+    is worse than no preview.
+    """
+    scene = bpy.context.scene
+    bpy.context.view_layer.update()
+    camera_mode = str(job_render.get("camera", "preview")).lower()
+    scene_cam = scene.camera
+    use_scene_cam = camera_mode == "scene" and scene_cam is not None
+    # Review mode gets a neutral studio; "scene" mode shows the lighting the script intended.
+    setup_preview_environment(helpers, force=not use_scene_cam)
+    if use_scene_cam:
+        cam = scene_cam
+    else:
+        cam = bpy.data.objects.get("AI_Preview_Camera")
+        if cam is None or cam.type != "CAMERA":
+            cam = helpers.add_camera(name="AI_Preview_Camera", lens_mm=50, make_active=False)
+        scene.camera = cam
+
     scene.render.resolution_x = int(job_render.get("width", 768))
     scene.render.resolution_y = int(job_render.get("height", 512))
     scene.render.resolution_percentage = 100
@@ -125,18 +167,41 @@ def render_preview(job_render, helpers):
     samples = int(job_render.get("samples", 16))
     if engine == "CYCLES":
         scene.cycles.samples = samples
-        scene.cycles.use_denoising = False
+        # Denoising is why a 16-sample preview can look clean instead of sandblasted. Previews are
+        # for reading shapes, not for final quality, so this is always worth it.
+        scene.cycles.use_denoising = True
         scene.cycles.use_adaptive_sampling = True
         enable_gpu(scene)
     else:
         try:
-            scene.eevee.taa_render_samples = samples
+            scene.eevee.taa_render_samples = max(samples, 16)
         except Exception:
             pass
-    os.makedirs(os.path.dirname(job_render["path"]), exist_ok=True)
-    scene.render.filepath = job_render["path"]
-    bpy.ops.render.render(write_still=True)
-    return job_render["path"] if os.path.exists(job_render["path"]) else None
+    try:
+        scene.view_settings.view_transform = "AgX"
+    except Exception:
+        pass
+
+    base = job_render["path"]
+    os.makedirs(os.path.dirname(base), exist_ok=True)
+    stem, ext = os.path.splitext(base)
+    views = VIEW_SETS.get(str(job_render.get("views", "single")).lower(), ["three_quarter"])
+    if use_scene_cam:
+        views = ["scene"]
+
+    written = []
+    for view in views:
+        if not use_scene_cam:
+            helpers.frame_camera_to_scene(cam, margin=1.06, direction=PREVIEW_VIEWS[view])
+        path = base if len(views) == 1 else f"{stem}_{view}{ext}"
+        scene.render.filepath = path
+        bpy.ops.render.render(write_still=True)
+        if os.path.exists(path):
+            written.append(path)
+            print(f"PREVIEW {view} {path}", flush=True)
+    if not use_scene_cam and scene_cam is not None:
+        scene.camera = scene_cam      # leave the scene's own camera as the active one
+    return written
 
 
 def focus_viewport_on_new(built):
@@ -309,7 +374,9 @@ def execute_job(job, save=True, scene_source=None):
         if job.get("render") and job["render"].get("path"):
             t_ren = time.time()
             try:
-                result["render_path"] = render_preview(job["render"], gap_helpers)
+                paths = render_preview(job["render"], gap_helpers)
+                result["render_paths"] = paths
+                result["render_path"] = paths[0] if paths else None
             except Exception as e:
                 result["render_error"] = f"{type(e).__name__}: {e}"
             result["timings"]["render_s"] = round(time.time() - t_ren, 2)

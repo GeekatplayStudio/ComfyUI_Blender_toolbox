@@ -62,8 +62,35 @@ def _load_image_tensor(path, fallback_size=(768, 512), text=""):
     return torch.from_numpy(arr)[None, ...]
 
 
+def _load_image_batch(paths, fallback_size=(768, 512)):
+    """Several renders of the same scene as one IMAGE batch, so Preview Image shows every view.
+
+    Views are rendered at the same resolution; any that differ are skipped rather than crashing
+    torch.cat, and a missing set falls back to a single placeholder.
+    """
+    paths = [p for p in (paths or []) if p and os.path.exists(p)]
+    if not paths:
+        return _blank_image(*fallback_size)
+    tensors, shape = [], None
+    for p in paths:
+        t = _load_image_tensor(p, fallback_size)
+        if shape is None:
+            shape = t.shape[1:3]
+        if tuple(t.shape[1:3]) == tuple(shape):
+            tensors.append(t)
+    return torch.cat(tensors, dim=0) if tensors else _blank_image(*fallback_size)
+
+
 def _blank_image(w=768, h=512):
     return torch.zeros((1, h, w, 3), dtype=torch.float32) + 0.16
+
+
+def _collect_render_paths(result):
+    """Every view a step rendered, newest API first, falling back to the single-path field."""
+    paths = result.get("render_paths") or []
+    if not paths and result.get("render_path"):
+        paths = [result["render_path"]]
+    return [p for p in paths if p]
 
 
 def _save_refs(session, images_b64):
@@ -93,6 +120,15 @@ def _exec_inputs():
         "auto_fix_doubles": ("BOOLEAN", {"default": True, "tooltip": "Merge duplicate vertices and delete loose geometry automatically."}),
         "safety_scan": ("BOOLEAN", {"default": True, "tooltip": "Block scripts that touch files, network or processes. Keyword scan, not a sandbox."}),
         "render_preview": ("BOOLEAN", {"default": True}),
+        "preview_views": (["quad", "single", "six"], {"default": config.DEFAULT_PREVIEW_VIEWS,
+                          "tooltip": "quad: three-quarter + front + right + top, as one image batch - "
+                                     "a single angle hides everything behind the object, which is when "
+                                     "parts look piled together. single: just the three-quarter view "
+                                     "(fastest). six: adds back and left."}),
+        "preview_camera": (["preview", "scene"], {"default": "preview",
+                           "tooltip": "preview: the builder frames its own camera on the scene (reliable). "
+                                      "scene: use the camera the generated script created - only useful "
+                                      "once you trust it to aim the camera well."}),
         "render_engine": (["CYCLES", "BLENDER_EEVEE"], {"default": config.DEFAULT_RENDER_ENGINE}),
         "render_width": ("INT", {"default": config.DEFAULT_RENDER_WIDTH, "min": 64, "max": 4096, "step": 8}),
         "render_height": ("INT", {"default": config.DEFAULT_RENDER_HEIGHT, "min": 64, "max": 4096, "step": 8}),
@@ -115,8 +151,8 @@ def _exec_optional_inputs():
 
 def _options_from(kwargs, log=None):
     keys = ["execution_mode", "dry_run", "max_retries", "validate", "auto_fix_normals", "auto_fix_doubles", "safety_scan",
-            "render_preview", "render_engine", "render_width", "render_height", "render_samples", "blender_timeout",
-            "blender_path", "live_host", "live_port", "live_save"]
+            "render_preview", "preview_views", "preview_camera", "render_engine", "render_width", "render_height",
+            "render_samples", "blender_timeout", "blender_path", "live_host", "live_port", "live_save"]
     opts = {k: kwargs[k] for k in keys if k in kwargs}
     opts["extra_reference_text"] = kwargs.get("extra_reference_notes", "")
     opts["log"] = log
@@ -124,17 +160,18 @@ def _options_from(kwargs, log=None):
 
 
 def _collect_outputs(session, results, report):
-    render = None
+    renders = []
     scripts, validations = [], []
     for r in results:
-        if r.get("render_path") and os.path.exists(r["render_path"]):
-            render = r["render_path"]
+        paths = _collect_render_paths(r.get("result") or {}) or _collect_render_paths(r)
+        if paths:
+            renders = paths          # keep the last step's views, which show the scene as it now is
         if r.get("code"):
             scripts.append(f"# ===== {os.path.basename(r.get('script_path', 'script'))} =====\n{r['code']}")
         v = (r.get("result") or {}).get("validation")
         if v:
             validations.append({"script": os.path.basename(r.get("script_path", "")), "validation": v})
-    preview = _load_image_tensor(render) if render else _blank_image()
+    preview = _load_image_batch(renders)
     header = f"AI Scene Builder report - session '{session.name}'\nfolder: {session.root}\nblend: {session.blend_path}\n" \
              f"NOTE: scripts ran with full Blender Python access (see docs/ai_builder/AI_SCENE_BUILDER.md#security).\n\n"
     return preview, session.blend_path, header + report, "\n\n".join(scripts), json.dumps(validations, indent=1)
@@ -566,7 +603,7 @@ class GapAIVisualRefiner:
         final = scores[-1] if scores else 0
         if len(scores) > 1:
             lines.append(f"score progression: {' -> '.join(str(s) for s in scores)}")
-        preview = _load_image_tensor(render_path) if render_path and os.path.exists(render_path) else _blank_image()
+        preview = _load_image_batch([render_path] if render_path else [])
         report = "\n".join(lines)
         critique_json = json.dumps([h["critique"] for h in history], indent=1)
         return {"ui": {"text": [report[-2000:]]},
@@ -820,7 +857,7 @@ class GapAISceneValidator:
             return {"ui": {"text": [report]}, "result": (_blank_image(), report, "{}", False)}
         result, summary = agent.validate_only(auto_fix_normals, auto_fix_doubles, render_preview)
         v = result.get("validation") or {}
-        preview = _load_image_tensor(result["render_path"]) if result.get("render_path") else _blank_image()
+        preview = _load_image_batch(_collect_render_paths(result))
         report = f"Validation of {sess.blend_path}\n{summary}"
         if result.get("error") and not v:
             report += f"\nerror: {result['error']}"

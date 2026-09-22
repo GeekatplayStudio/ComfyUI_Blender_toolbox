@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.6
+
+- **Previews are readable now.** Three defects made every preview hard to judge:
+  - Cycles denoising was **off**, so a 16-sample preview came back sandblasted with noise. It is now always on — previews exist to show shapes, not to be final frames.
+  - The preview reused whatever camera the generated script left behind and **never re-framed it**, so a script that aimed its camera at nothing produced a useless render. The builder now frames its own camera by default (`preview_camera = preview`); set it to `scene` to see the look the script intended.
+  - Only one three-quarter angle was rendered, which hides everything behind the object — exactly when parts look piled on top of each other. **`preview_views` now defaults to `quad`**: three-quarter, front, right and top, returned as a single IMAGE batch. The top view is usually what reveals parts stacked in the same place. `single` and `six` are also available.
+- Review previews render in a neutral bright studio world regardless of what the script set up, so a model that chose a near-black night sky no longer makes its own geometry invisible.
+
 ## 2.2.5
 
 - **All 20 workflows audited, repaired and verified.** New `tools/check_workflows.py` validates node types (against a running ComfyUI when given `--server`), link-table integrity, socket/link agreement, required inputs, and whether saved widget values still line up with the current node definitions. The test suite now fails if any shipped workflow breaks, so they cannot rot silently again.

@@ -414,6 +414,54 @@ class TestBlenderIntegration(unittest.TestCase):
         self.assertEqual({b["name"] for b in result["built"]}, {"Tower_Test", "Ground"})
         self.assertIn("Camera_Main", result["scene"]["cameras"])
 
+    def test_preview_renders_every_requested_view(self):
+        """A single angle hides whatever is behind the object, which is when parts look piled
+        together. The quad preview must actually produce four distinct, readable views."""
+        tmp = tempfile.mkdtemp(prefix="ai-views-")
+        s = SceneSession("views", root=os.path.join(tmp, "views")).open()
+        script = s.next_script_path(1)
+        with open(script, "w", encoding="utf-8") as f:
+            f.write("from gap_helpers import *\n"
+                    "coll = get_or_create_collection('V')\n"
+                    "m = make_material('Mat_V', (0.6, 0.6, 0.62), metallic=1.0, roughness=0.4)\n"
+                    "B = Builder(); B.cylinder((0,0,0), (0,0,0.2), 0.05, mat=m, n=24)\n"
+                    "log_built(B.build('Tube', coll, [m]))\n")
+        runner = BlenderRunner(s, blender_path=self.blender, timeout=600)
+        result = runner.run_headless(script, validate=False, save=False,
+                                     render={"path": s.render_path_for(script), "engine": "CYCLES",
+                                             "width": 160, "height": 160, "samples": 4,
+                                             "views": "quad", "camera": "preview"})
+        self.assertTrue(result["ok"], msg=result.get("error"))
+        paths = result.get("render_paths") or []
+        self.assertEqual(len(paths), 4, msg=f"expected 4 views, got {paths}")
+        for p in paths:
+            self.assertTrue(os.path.exists(p), f"missing view file {p}")
+        names = {os.path.basename(p) for p in paths}
+        for view in ("three_quarter", "front", "right", "top"):
+            self.assertTrue(any(view in n for n in names), f"no {view} view in {names}")
+        self.assertEqual(result["render_path"], paths[0], "render_path must stay the first view")
+
+        # and the node turns them into one IMAGE batch
+        from nodes.ai_builder_nodes import _collect_render_paths, _load_image_batch
+        batch = _load_image_batch(_collect_render_paths(result))
+        self.assertEqual(batch.shape[0], 4, "all four views should reach the preview as a batch")
+
+    def test_single_view_preview_keeps_one_path(self):
+        tmp = tempfile.mkdtemp(prefix="ai-view1-")
+        s = SceneSession("view1", root=os.path.join(tmp, "view1")).open()
+        script = s.next_script_path(1)
+        with open(script, "w", encoding="utf-8") as f:
+            f.write("from gap_helpers import *\nB = Builder(); B.box((0,0,0.1),(0.2,0.2,0.2))\n"
+                    "log_built(B.build('Cube', None, make_material('M', (0.5,0.5,0.5))))\n")
+        result = BlenderRunner(s, blender_path=self.blender, timeout=600).run_headless(
+            script, validate=False, save=False,
+            render={"path": s.render_path_for(script), "engine": "CYCLES", "width": 128,
+                    "height": 128, "samples": 4, "views": "single", "camera": "preview"})
+        self.assertTrue(result["ok"], msg=result.get("error"))
+        self.assertEqual(len(result.get("render_paths") or []), 1)
+        self.assertEqual(result["render_paths"][0], s.render_path_for(script),
+                         "a single view keeps the plain filename")
+
     def test_prompt_signatures_match_the_real_helpers(self):
         """The signatures advertised to the model must be the real ones.
 

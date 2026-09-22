@@ -64,6 +64,9 @@ DEFAULT_RENDER_ENGINE = "CYCLES"
 DEFAULT_RENDER_WIDTH = 768
 DEFAULT_RENDER_HEIGHT = 512
 DEFAULT_RENDER_SAMPLES = 16
+# One three-quarter view hides everything behind the object, which is exactly when parts look
+# "piled together". Four views tell you where things actually are.
+DEFAULT_PREVIEW_VIEWS = "quad"
 
 # Blender-side probe/validation are imported by the generated scripts too.
 HELPERS_MODULE_NAME = "gap_helpers"

@@ -259,6 +259,30 @@ ComfyUI/output/ai_scene_builder/<session>/
 
 ---
 
+## Reading the preview
+
+A single three-quarter render hides everything behind the object, which is exactly when parts look
+"piled together" and you cannot tell whether a fin is at the base or halfway up. So previews
+default to **`preview_views = quad`**: three-quarter, front, right and top, returned as one image
+batch that Preview Image steps through.
+
+- `quad` (default) — the four views above. The **top** view is usually the one that reveals
+  parts stacked on the same spot.
+- `single` — three-quarter only. Fastest; use it when you just want a progress glance.
+- `six` — adds back and left, for objects whose sides differ.
+
+`preview_camera` decides whose eye you are looking through:
+
+- `preview` (default) — the builder frames **its own** camera on the scene and renders in a neutral
+  bright studio with denoising on. A generated script often leaves a camera pointing at nothing, or
+  a near-black night sky, and a preview you cannot read is worse than no preview.
+- `scene` — use the camera and lighting the generated script created. Useful once the scene is
+  finished and you want to see the look it was going for.
+
+To inspect the result properly, send it to Blender: **Send Scene to Blender** (`mode=append`) puts
+the finished `.blend` into your open session with materials, collections, lights and cameras
+intact, so you can orbit it yourself.
+
 ## When a build comes out wrong: read the debug log
 
 `<session>/debug.log` records the whole run in order, so you can see *which stage* failed rather
