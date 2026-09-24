@@ -16,12 +16,19 @@ import base64
 import io
 import json
 import os
+import random
 import re
+import tempfile
 import time
 
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+
+try:
+    import folder_paths  # type: ignore
+except Exception:
+    folder_paths = None
 
 from .ai_builder import bridge, config
 from .ai_builder.agent import AgentOptions, SceneBuilderAgent
@@ -37,20 +44,213 @@ print("[AI Scene Builder] " + config.SANDBOX_WARNING.splitlines()[0] + " - see d
 
 
 # --------------------------------------------------------------------------- image helpers
+def _normalize_image_tensor(images, to_rgb=True):
+    """Normalize any image input (tensor, numpy array, PIL, list) to standard ComfyUI (B, H, W, C) float32 [0, 1]."""
+    if images is None:
+        return None
+    if isinstance(images, (list, tuple)):
+        if not images:
+            return None
+        processed = [_normalize_image_tensor(img, to_rgb=to_rgb) for img in images]
+        processed = [p for p in processed if p is not None]
+        if not processed:
+            return None
+        target_h, target_w = processed[0].shape[1:3]
+        matched = []
+        for p in processed:
+            if p.shape[1:3] != (target_h, target_w):
+                p_perm = p.permute(0, 3, 1, 2)
+                p_res = torch.nn.functional.interpolate(p_perm, size=(target_h, target_w), mode="bilinear", align_corners=False)
+                p = p_res.permute(0, 2, 3, 1)
+            matched.append(p)
+        return torch.cat(matched, dim=0)
+
+    if isinstance(images, Image.Image):
+        arr = np.array(images.convert("RGB")).astype(np.float32) / 255.0
+        return torch.from_numpy(arr)[None, ...]
+
+    if isinstance(images, np.ndarray):
+        images = torch.from_numpy(images)
+
+    if not isinstance(images, torch.Tensor):
+        return None
+
+    t = images.detach().cpu()
+    t = torch.nan_to_num(t, nan=0.0, posinf=1.0, neginf=0.0)
+
+    # Normalize value range
+    if t.dtype.is_floating_point:
+        if t.numel() > 0 and t.max() > 1.5:
+            t = t / 255.0
+    else:
+        t = t.float() / 255.0
+    t = torch.clamp(t, 0.0, 1.0)
+
+    # Normalize shapes to (B, H, W, C)
+    if t.ndim == 2:
+        t = t.unsqueeze(0).unsqueeze(-1)  # (1, H, W, 1)
+    elif t.ndim == 3:
+        if t.shape[2] in (1, 3, 4) and t.shape[0] > 4:
+            t = t.unsqueeze(0)  # (1, H, W, C)
+        elif t.shape[0] in (1, 3, 4) and t.shape[2] > 4:
+            t = t.permute(1, 2, 0).unsqueeze(0)  # (1, H, W, C)
+        else:
+            t = t.unsqueeze(-1)  # (B, H, W, 1)
+    elif t.ndim == 4:
+        if t.shape[1] in (1, 3, 4) and t.shape[3] not in (1, 3, 4):
+            t = t.permute(0, 2, 3, 1)  # (B, C, H, W) -> (B, H, W, C)
+
+    if to_rgb:
+        # Convert single-channel to 3-channel RGB
+        if t.shape[-1] == 1:
+            t = t.repeat(1, 1, 1, 3)
+        # Composite RGBA (4 channels) over clean neutral white background so transparent areas do not turn black
+        elif t.shape[-1] == 4:
+            alpha = t[..., 3:4]
+            rgb = t[..., :3] * alpha + (1.0 - alpha)  # white background (1.0)
+            t = torch.clamp(rgb, 0.0, 1.0)
+
+    return t
+
+
 def _tensor_to_b64_list(images, max_side=1024):
-    """Each image of a ComfyUI batch -> base64 PNG (downscaled so vision prompts stay small)."""
+    """Each image of any ComfyUI batch / tensor / PIL -> base64 PNG (downscaled so vision prompts stay small)."""
     out = []
     if images is None:
         return out
-    for i in range(images.shape[0]):
-        arr = (255.0 * images[i].cpu().numpy()).clip(0, 255).astype(np.uint8)
-        img = Image.fromarray(arr)
+    t = _normalize_image_tensor(images, to_rgb=True)
+    if t is None or t.numel() == 0:
+        return out
+    for i in range(t.shape[0]):
+        arr = (255.0 * t[i].numpy()).clip(0, 255).astype(np.uint8)
+        img = Image.fromarray(arr, mode="RGB")
         if max(img.size) > max_side:
             img.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         out.append(base64.b64encode(buf.getvalue()).decode("utf-8"))
     return out
+
+
+def _get_font(size=14):
+    for name in ("segoeui.ttf", "arial.ttf", "DejaVuSans.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except Exception:
+            pass
+    try:
+        return ImageFont.load_default()
+    except Exception:
+        return None
+
+
+def _label_for_view_name(name, default_index=0):
+    s = str(name).lower().replace("\\", "/")
+    base = os.path.basename(s).rsplit(".", 1)[0].lower()
+    if "three_quarter" in base or "perspective" in base:
+        return "3/4 Perspective"
+    if "front" in base:
+        return "Front View"
+    if "right" in base:
+        return "Right View"
+    if "left" in base:
+        return "Left View"
+    if "back" in base:
+        return "Back View"
+    if "top" in base:
+        return "Top View"
+    if "bottom" in base:
+        return "Bottom View"
+    fallback_views = ["3/4 Perspective", "Front View", "Right View", "Top View", "Back View", "Left View"]
+    if default_index < len(fallback_views):
+        return fallback_views[default_index]
+    return f"View {default_index + 1}"
+
+
+def _create_combined_preview_grid(pil_images, labels=None, divider_width=2, layout="auto",
+                                  show_labels=True, label_scale=1.0, divider_theme="dark"):
+    """Combines a list of PIL Images into a single CAD-style multi-view grid image tensor (1, H, W, 3)."""
+    if not pil_images:
+        return None
+    if len(pil_images) == 1 and not show_labels:
+        arr = np.asarray(pil_images[0].convert("RGB")).astype(np.float32) / 255.0
+        return torch.from_numpy(arr)[None, ...]
+
+    n = len(pil_images)
+    w0, h0 = pil_images[0].size
+    resized = []
+    for img in pil_images:
+        if img.size != (w0, h0):
+            resized.append(img.resize((w0, h0), Image.Resampling.BILINEAR))
+        else:
+            resized.append(img)
+    pil_images = resized
+
+    if layout == "2x2" or (layout == "auto" and n == 4):
+        cols, rows = 2, 2
+    elif layout == "3x2" or (layout == "auto" and n in (5, 6)):
+        cols, rows = 3, 2
+    elif layout == "2x3":
+        cols, rows = 2, 3
+    elif layout == "1x2" or (layout == "auto" and n == 2):
+        cols, rows = 2, 1
+    elif layout == "2x1":
+        cols, rows = 1, 2
+    elif layout == "horizontal":
+        cols, rows = n, 1
+    elif layout == "vertical":
+        cols, rows = 1, n
+    else:
+        cols = int(np.ceil(np.sqrt(n)))
+        rows = int(np.ceil(n / cols))
+
+    d_w = max(0, int(divider_width))
+    colors = {
+        "dark": (36, 38, 44),
+        "light": (210, 215, 222),
+        "accent": (56, 120, 220),
+    }
+    div_col = colors.get(divider_theme, (36, 38, 44))
+
+    total_w = cols * w0 + (cols - 1) * d_w
+    total_h = rows * h0 + (rows - 1) * d_w
+    canvas = Image.new("RGB", (total_w, total_h), div_col)
+
+    font_size = max(10, int(13 * label_scale))
+    font = _get_font(font_size)
+
+    for i, img in enumerate(pil_images):
+        r = i // cols
+        c = i % cols
+        x = c * (w0 + d_w)
+        y = r * (h0 + d_w)
+        canvas.paste(img, (x, y))
+
+        if show_labels:
+            lbl = labels[i] if (labels and i < len(labels)) else f"View {i+1}"
+            draw = ImageDraw.Draw(canvas)
+            if hasattr(font, "getbbox"):
+                bbox = font.getbbox(lbl)
+                tw = bbox[2] - bbox[0]
+                th = bbox[3] - bbox[1]
+                y_offset = bbox[1]
+            else:
+                tw, th = len(lbl) * 7, 12
+                y_offset = 0
+
+            px, py = 8, 4
+            pill_x = x + 12
+            pill_y = y + 12
+            pill_box = [pill_x, pill_y, pill_x + tw + px * 2, pill_y + th + py * 2]
+            try:
+                draw.rounded_rectangle(pill_box, radius=4, fill=(20, 22, 26), outline=(62, 66, 76))
+            except Exception:
+                draw.rectangle(pill_box, fill=(20, 22, 26), outline=(62, 66, 76))
+
+            draw.text((pill_x + px, pill_y + py - y_offset), lbl, fill=(242, 245, 250), font=font)
+
+    arr = np.asarray(canvas).astype(np.float32) / 255.0
+    return torch.from_numpy(arr)[None, ...]
 
 
 def _load_image_tensor(path, fallback_size=(768, 512), text=""):
@@ -62,22 +262,42 @@ def _load_image_tensor(path, fallback_size=(768, 512), text=""):
     return torch.from_numpy(arr)[None, ...]
 
 
-def _load_image_batch(paths, fallback_size=(768, 512)):
-    """Several renders of the same scene as one IMAGE batch, so Preview Image shows every view.
+def _load_image_batch(paths, fallback_size=(768, 512), combine=False):
+    """Several renders of the same scene loaded as an IMAGE tensor.
 
-    Views are rendered at the same resolution; any that differ are skipped rather than crashing
-    torch.cat, and a missing set falls back to a single placeholder.
+    If combine=True and len(paths) > 1, combines all views into a single CAD-style multi-view grid (B=1)
+    with clean dividers and view labels, eliminating ComfyUI multi-image loading lag.
+    If combine=False, returns standard batch (B, H, W, 3).
     """
     paths = [p for p in (paths or []) if p and os.path.exists(p)]
     if not paths:
         return _blank_image(*fallback_size)
-    tensors, shape = [], None
+
+    if combine and len(paths) > 1:
+        pil_images = []
+        labels = []
+        for i, p in enumerate(paths):
+            try:
+                img = Image.open(p).convert("RGB")
+            except Exception:
+                img = Image.new("RGB", fallback_size, (40, 40, 44))
+            pil_images.append(img)
+            labels.append(_label_for_view_name(p, default_index=i))
+        grid = _create_combined_preview_grid(pil_images, labels=labels, divider_width=2, layout="auto")
+        if grid is not None:
+            return grid
+
+    tensors, target_shape = [], None
     for p in paths:
         t = _load_image_tensor(p, fallback_size)
-        if shape is None:
-            shape = t.shape[1:3]
-        if tuple(t.shape[1:3]) == tuple(shape):
-            tensors.append(t)
+        if target_shape is None:
+            target_shape = t.shape[1:3]
+        elif tuple(t.shape[1:3]) != tuple(target_shape):
+            th, tw = target_shape
+            t_perm = t.permute(0, 3, 1, 2)
+            t_resized = torch.nn.functional.interpolate(t_perm, size=(th, tw), mode="bilinear", align_corners=False)
+            t = t_resized.permute(0, 2, 3, 1)
+        tensors.append(t)
     return torch.cat(tensors, dim=0) if tensors else _blank_image(*fallback_size)
 
 
@@ -120,11 +340,11 @@ def _exec_inputs():
         "auto_fix_doubles": ("BOOLEAN", {"default": True, "tooltip": "Merge duplicate vertices and delete loose geometry automatically."}),
         "safety_scan": ("BOOLEAN", {"default": True, "tooltip": "Block scripts that touch files, network or processes. Keyword scan, not a sandbox."}),
         "render_preview": ("BOOLEAN", {"default": True}),
-        "preview_views": (["quad", "single", "six"], {"default": config.DEFAULT_PREVIEW_VIEWS,
-                          "tooltip": "quad: three-quarter + front + right + top, as one image batch - "
-                                     "a single angle hides everything behind the object, which is when "
-                                     "parts look piled together. single: just the three-quarter view "
-                                     "(fastest). six: adds back and left."}),
+        "preview_views": (["quad", "single", "six", "quad_batch", "six_batch"], {"default": config.DEFAULT_PREVIEW_VIEWS,
+                          "tooltip": "quad: three-quarter + front + right + top combined into a single clear CAD-style grid (recommended; loads instantly without image batch lag). "
+                                     "single: just the three-quarter view (fastest). "
+                                     "six: adds back and left into a single combined grid. "
+                                     "quad_batch / six_batch: output as separate frames in an image batch."}),
         "preview_camera": (["preview", "scene"], {"default": "preview",
                            "tooltip": "preview: the builder frames its own camera on the scene (reliable). "
                                       "scene: use the camera the generated script created - only useful "
@@ -159,7 +379,7 @@ def _options_from(kwargs, log=None):
     return AgentOptions(**opts)
 
 
-def _collect_outputs(session, results, report):
+def _collect_outputs(session, results, report, combine=True):
     renders = []
     scripts, validations = [], []
     for r in results:
@@ -171,7 +391,7 @@ def _collect_outputs(session, results, report):
         v = (r.get("result") or {}).get("validation")
         if v:
             validations.append({"script": os.path.basename(r.get("script_path", "")), "validation": v})
-    preview = _load_image_batch(renders)
+    preview = _load_image_batch(renders, combine=combine)
     header = f"AI Scene Builder report - session '{session.name}'\nfolder: {session.root}\nblend: {session.blend_path}\n" \
              f"NOTE: scripts ran with full Blender Python access (see docs/ai_builder/AI_SCENE_BUILDER.md#security).\n\n"
     return preview, session.blend_path, header + report, "\n\n".join(scripts), json.dumps(validations, indent=1)
@@ -354,7 +574,7 @@ class GapAIReferenceAnalyzer:
         return {
             "required": {
                 "llm": (LLM_TYPE,),
-                "prompt": ("STRING", {"multiline": True, "default": "", "tooltip": "What you want built. The brief merges this with what the images show."}),
+                "prompt": ("STRING", {"multiline": True, "default": "", "tooltip": "What you want built. Leave empty to automatically analyze everything for full 3D reconstruction."}),
             },
             "optional": {
                 "images": ("IMAGE",),
@@ -377,10 +597,16 @@ class GapAIReferenceAnalyzer:
         if not b64s:
             brief = prompt.strip()
             return (brief, "[]")
+        effective_prompt = prompt.strip() or (
+            "Analyze and deconstruct the reference image(s) for 3D modeling in Blender: "
+            "identify the main subject, hierarchical parts, exact physical proportions, "
+            "geometric primitives to use, material properties, colors, surface textures, "
+            "and spatial orientation."
+        )
         sess = SceneSession.from_payload(session) if session else SceneSession("_reference_scratch").open()
         _save_refs(sess, b64s)
         agent = SceneBuilderAgent(sess, llm, AgentOptions(render_preview=False))
-        brief, analyses = agent.analyze_references(b64s, notes, prompt)
+        brief, analyses = agent.analyze_references(b64s, notes, effective_prompt)
         return (brief, json.dumps(analyses, indent=1))
 
 
@@ -397,6 +623,8 @@ class GapAIScenePlanner:
                 "max_steps": ("INT", {"default": 6, "min": 1, "max": 30}),
             },
             "optional": {
+                "images": ("IMAGE",),
+                "images_2": ("IMAGE",),
                 "reference_brief": ("STRING", {"forceInput": True}),
                 "manual_plan": ("STRING", {"multiline": True, "default": "", "tooltip": "Write your own steps, one per line ('Title: instruction'). When filled, the model planner is skipped."}),
             },
@@ -411,14 +639,26 @@ class GapAIScenePlanner:
     def IS_CHANGED(cls, **kwargs):
         return float("nan")
 
-    def plan(self, session, llm, prompt, max_steps, reference_brief="", manual_plan=""):
+    def plan(self, session, llm, prompt, max_steps, images=None, images_2=None, reference_brief="", manual_plan=""):
         sess = SceneSession.from_payload(session)
         agent = SceneBuilderAgent(sess, llm, AgentOptions(render_preview=False))
+        refs = _tensor_to_b64_list(images) + _tensor_to_b64_list(images_2)
+        if refs:
+            _save_refs(sess, refs)
+            if not reference_brief.strip():
+                print("[AI Scene Planner] Self-analyzing input reference images...")
+                eff_p = prompt.strip() or "Deconstruct the reference image(s) for 3D modeling."
+                reference_brief, _ = agent.analyze_references(refs, prompt=eff_p)
+
         steps = agent.parse_manual_plan(manual_plan)
         if steps:
             sess.set_plan(steps)
         else:
-            steps = agent.plan(prompt, reference_brief, max_steps)
+            eff_prompt = prompt.strip()
+            if not eff_prompt and reference_brief:
+                obj = agent.spec_object(reference_brief) or "the reference object"
+                eff_prompt = f"Decompose building {obj} into clean, modular steps."
+            steps = agent.plan(eff_prompt or "Build the scene.", reference_brief, max_steps)
         text = agent.plan_to_text(steps)
         print("[AI Scene Builder] Plan:\n" + text)
         return (json.dumps({"steps": steps}, indent=1), text)
@@ -442,7 +682,11 @@ class GapAISceneBuilder:
             "stop_on_failure": ("BOOLEAN", {"default": True}),
         }
         req.update(_exec_inputs())
-        opt = {"reference_brief": ("STRING", {"forceInput": True})}
+        opt = {
+            "images": ("IMAGE",),
+            "images_2": ("IMAGE",),
+            "reference_brief": ("STRING", {"forceInput": True}),
+        }
         opt.update(_exec_optional_inputs())
         return {"required": req, "optional": opt}
 
@@ -456,7 +700,7 @@ class GapAISceneBuilder:
     def IS_CHANGED(cls, **kwargs):
         return float("nan")
 
-    def build(self, session, llm, plan_json, prompt, stop_on_failure, reference_brief="", **kwargs):
+    def build(self, session, llm, plan_json, prompt, stop_on_failure, images=None, images_2=None, reference_brief="", **kwargs):
         sess = SceneSession.from_payload(session)
         start_fresh = bool(kwargs.pop("start_fresh", True))
         prefix = ""
@@ -467,13 +711,28 @@ class GapAISceneBuilder:
                       f"reset) to archive_*/ inside the session folder and built into an empty scene.\n\n")
             print("[AI Scene Builder] " + prefix.strip())
         agent = SceneBuilderAgent(sess, llm, _options_from(kwargs))
+
+        refs = _tensor_to_b64_list(images) + _tensor_to_b64_list(images_2)
+        if refs:
+            _save_refs(sess, refs)
+            if not reference_brief.strip():
+                print("[AI Scene Builder] Self-analyzing input reference images...")
+                eff_p = prompt.strip() or "Deconstruct and build the object from the reference images."
+                reference_brief, _ = agent.analyze_references(refs, prompt=eff_p)
+
         steps = agent.parse_manual_plan(plan_json)
         if not steps:
-            if not prompt.strip():
-                raise ValueError("Give the builder a plan_json (from AI Scene Planner) or a prompt.")
-            steps = [{"title": "Build", "category": "edit", "instruction": prompt.strip()}]
+            eff_prompt = prompt.strip()
+            if not eff_prompt:
+                if reference_brief.strip():
+                    obj = agent.spec_object(reference_brief) or "the reference object"
+                    eff_prompt = f"Build {obj} as described in the reference brief."
+                else:
+                    raise ValueError("Give the builder a plan_json (from AI Scene Planner), an input reference image, or a prompt.")
+            steps = [{"title": "Build", "category": "edit", "instruction": eff_prompt}]
         results, report = agent.run_plan(steps, reference_brief, stop_on_failure)
-        preview, blend, report, scripts, vjson = _collect_outputs(sess, results, prefix + report)
+        combine = not str(kwargs.get("preview_views", "")).lower().endswith("_batch")
+        preview, blend, report, scripts, vjson = _collect_outputs(sess, results, prefix + report, combine=combine)
         return {"ui": {"text": [report[-2000:]]}, "result": (preview, blend, report, scripts, vjson, sess.to_payload())}
 
 
@@ -545,7 +804,8 @@ class GapAIWholeObjectBuilder:
         if not refs and not agent.reference_images_b64():
             r["report"] += ("\n\nNOTE: no reference image was available, so there was nothing to critique against - "
                             "one round was built and kept. Connect the reference images to score and revise.")
-        preview, blend, report, scripts, _ = _collect_outputs(sess, [r], prefix + r["report"])
+        combine = not str(kwargs.get("preview_views", "")).lower().endswith("_batch")
+        preview, blend, report, scripts, _ = _collect_outputs(sess, [r], prefix + r["report"], combine=combine)
         critique_json = json.dumps([{"round": h["round"], "score": h["score"], "critique": h["critique"]}
                                     for h in r.get("history", [])], indent=1)
         return {"ui": {"text": [report[-2000:]]},
@@ -584,7 +844,11 @@ class GapAIStepBuilder:
             "step_title": ("STRING", {"default": "Edit"}),
         }
         req.update(_exec_inputs())
-        opt = {"reference_brief": ("STRING", {"forceInput": True})}
+        opt = {
+            "images": ("IMAGE",),
+            "images_2": ("IMAGE",),
+            "reference_brief": ("STRING", {"forceInput": True}),
+        }
         opt.update(_exec_optional_inputs())
         return {"required": req, "optional": opt}
 
@@ -598,14 +862,24 @@ class GapAIStepBuilder:
     def IS_CHANGED(cls, **kwargs):
         return float("nan")
 
-    def build_step(self, session, llm, instruction, step_title, reference_brief="", **kwargs):
+    def build_step(self, session, llm, instruction, step_title, images=None, images_2=None, reference_brief="", **kwargs):
         sess = SceneSession.from_payload(session)
+        agent = SceneBuilderAgent(sess, llm, _options_from(kwargs))
+
+        refs = _tensor_to_b64_list(images) + _tensor_to_b64_list(images_2)
+        if refs:
+            _save_refs(sess, refs)
+            if not reference_brief.strip():
+                print("[AI Step Builder] Self-analyzing input reference images...")
+                eff_p = instruction.strip() or "Deconstruct and add to the scene from the reference images."
+                reference_brief, _ = agent.analyze_references(refs, prompt=eff_p)
+
         warning = _identity_warning(sess, reference_brief)
         if warning:
             print("[AI Scene Builder] " + warning.strip())
-        agent = SceneBuilderAgent(sess, llm, _options_from(kwargs))
         r = agent.run_step(instruction, step_title or "Edit", reference_brief)
-        preview, blend, report, scripts, vjson = _collect_outputs(sess, [r], warning + r["report"])
+        combine = not str(kwargs.get("preview_views", "")).lower().endswith("_batch")
+        preview, blend, report, scripts, vjson = _collect_outputs(sess, [r], warning + r["report"], combine=combine)
         return {"ui": {"text": [report[-2000:]]}, "result": (preview, blend, report, scripts, vjson, sess.to_payload())}
 
 
@@ -640,7 +914,8 @@ class GapAIScriptRunner:
         sess = SceneSession.from_payload(session)
         agent = SceneBuilderAgent(sess, llm or LLMConfig(), _options_from(kwargs))
         r = agent.run_script(script, title or "Manual script")
-        preview, blend, report, _, vjson = _collect_outputs(sess, [r], r["report"])
+        combine = not str(kwargs.get("preview_views", "")).lower().endswith("_batch")
+        preview, blend, report, _, vjson = _collect_outputs(sess, [r], r["report"], combine=combine)
         return {"ui": {"text": [report[-2000:]]}, "result": (preview, blend, report, vjson, sess.to_payload())}
 
 
@@ -968,11 +1243,146 @@ class GapAISceneValidator:
             return {"ui": {"text": [report]}, "result": (_blank_image(), report, "{}", False)}
         result, summary = agent.validate_only(auto_fix_normals, auto_fix_doubles, render_preview)
         v = result.get("validation") or {}
-        preview = _load_image_batch(_collect_render_paths(result))
+        preview = _load_image_batch(_collect_render_paths(result), combine=True)
         report = f"Validation of {sess.blend_path}\n{summary}"
         if result.get("error") and not v:
             report += f"\nerror: {result['error']}"
         return {"ui": {"text": [report[-2000:]]}, "result": (preview, report, json.dumps(v, indent=1), bool(v.get("passed")))}
+
+
+class GapAIHeadlessPreview:
+    """Headless preview node showing all rendered views and objects combined in a clear multi-view CAD layout.
+
+    Avoids ComfyUI batch loading lag ('loading 1/4... 2/4...') by compositing all views into a single crisp
+    composite image with viewport labels and dividers. Can receive images directly from a builder node,
+    or read the latest renders from an AI Scene Session.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "layout": (["auto", "2x2", "1x2", "2x1", "3x2", "2x3", "horizontal", "vertical"], {"default": "auto",
+                           "tooltip": "Grid layout for arranging views. 'auto' selects 2x2 for 4 views, 3x2 for 6 views."}),
+                "show_labels": ("BOOLEAN", {"default": True,
+                                "tooltip": "Overlay crisp CAD-style viewport labels (3/4 Perspective, Front, Right, Top, etc.)."}),
+                "divider_width": ("INT", {"default": 2, "min": 0, "max": 16,
+                                  "tooltip": "Pixel width of border dividers separating viewports."}),
+                "divider_theme": (["dark", "light", "accent"], {"default": "dark",
+                                  "tooltip": "Color theme for viewport dividers."}),
+                "label_scale": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.5, "step": 0.1,
+                                "tooltip": "Scale of label text and badges."}),
+            },
+            "optional": {
+                "images": ("IMAGE", {"tooltip": "Image or batch of view images to combine."}),
+                "session": (SESSION_TYPE, {"tooltip": "AI Scene Session to automatically load latest renders from."}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("combined_image", "info")
+    FUNCTION = "preview"
+    CATEGORY = CATEGORY
+    OUTPUT_NODE = True
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("nan")
+
+    def preview(self, layout="auto", show_labels=True, divider_width=2, divider_theme="dark",
+                label_scale=1.0, images=None, session=None):
+        pil_images = []
+        labels = []
+        source_desc = ""
+
+        # Case 1: images tensor provided
+        if images is not None:
+            norm_images = _normalize_image_tensor(images, to_rgb=True)
+            if norm_images is not None and norm_images.numel() > 0:
+                b = norm_images.shape[0]
+                source_desc = f"Received IMAGE tensor with {b} frame(s), {norm_images.shape[2]}x{norm_images.shape[1]}"
+                for i in range(b):
+                    arr = (255.0 * norm_images[i].numpy()).clip(0, 255).astype(np.uint8)
+                    pil_images.append(Image.fromarray(arr, mode="RGB"))
+                    labels.append(_label_for_view_name(f"view_{i+1}", default_index=i))
+
+        # Case 2: no images tensor, but session provided
+        if not pil_images and session is not None:
+            sess = SceneSession.from_payload(session)
+            render_paths = []
+            turns = sess.state.get("turns", [])
+            for t in reversed(turns):
+                paths = t.get("render_paths") or []
+                if not paths and t.get("render"):
+                    paths = [t["render"]]
+                if paths:
+                    render_paths = paths
+                    break
+
+            if not render_paths and os.path.isdir(sess.renders_dir):
+                files = [os.path.join(sess.renders_dir, f) for f in os.listdir(sess.renders_dir)
+                         if f.lower().endswith((".png", ".jpg", ".webp"))]
+                if files:
+                    files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                    latest = files[0]
+                    base_prefix = os.path.basename(latest).split("_0")[0] if "_0" in os.path.basename(latest) else os.path.basename(latest).rsplit(".", 1)[0]
+                    matching = [p for p in files if os.path.basename(p).startswith(base_prefix)]
+                    matching.sort()
+                    render_paths = matching or [latest]
+
+            valid_paths = [p for p in render_paths if os.path.exists(p)]
+            if valid_paths:
+                source_desc = f"Loaded {len(valid_paths)} render(s) from session '{sess.name}'"
+                for i, p in enumerate(valid_paths):
+                    try:
+                        img = Image.open(p).convert("RGB")
+                        pil_images.append(img)
+                        labels.append(_label_for_view_name(p, default_index=i))
+                    except Exception as e:
+                        print(f"[GapAIHeadlessPreview] Warning: failed to load {p}: {e}")
+
+        # Case 3: neither provided or both empty
+        if not pil_images:
+            blank = _blank_image(768, 512)
+            msg = "No preview renders available. Connect an IMAGE batch or an AI Scene Session."
+            return {"ui": {"images": []}, "result": (blank, msg)}
+
+        combined_tensor = _create_combined_preview_grid(
+            pil_images,
+            labels=labels,
+            divider_width=divider_width,
+            layout=layout,
+            show_labels=show_labels,
+            label_scale=label_scale,
+            divider_theme=divider_theme,
+        )
+
+        if combined_tensor is None:
+            combined_tensor = _blank_image(768, 512)
+
+        results = []
+        try:
+            temp_dir = folder_paths.get_temp_directory() if (folder_paths and hasattr(folder_paths, "get_temp_directory")) else tempfile.gettempdir()
+            subfolder = "gap_preview"
+            out_folder = os.path.join(temp_dir, subfolder)
+            os.makedirs(out_folder, exist_ok=True)
+            fname = f"gap_headless_{time.strftime('%Y%m%d_%H%M%S')}_{random.randint(1000, 9999)}.png"
+            fpath = os.path.join(out_folder, fname)
+
+            arr = (255.0 * combined_tensor[0].cpu().numpy()).clip(0, 255).astype(np.uint8)
+            Image.fromarray(arr, mode="RGB").save(fpath, format="PNG", compress_level=1)
+
+            results.append({
+                "filename": fname,
+                "subfolder": subfolder,
+                "type": "temp",
+            })
+        except Exception as e:
+            print(f"[GapAIHeadlessPreview] Warning: saving temp preview failed: {e}")
+
+        h, w = combined_tensor.shape[1], combined_tensor.shape[2]
+        info = f"{source_desc}\nCombined {len(pil_images)} views into {w}x{h} composite image.\nViews: {', '.join(labels)}"
+        return {"ui": {"images": results}, "result": (combined_tensor, info)}
 
 
 NODE_CLASS_MAPPINGS = {
@@ -989,6 +1399,7 @@ NODE_CLASS_MAPPINGS = {
     "GapAISendSceneToBlender": GapAISendSceneToBlender,
     "GapAIDebugLog": GapAIDebugLog,
     "GapAISceneValidator": GapAISceneValidator,
+    "GapAIHeadlessPreview": GapAIHeadlessPreview,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1005,4 +1416,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GapAISendSceneToBlender": "Send Scene to Blender (Append/Link/Open)",
     "GapAIDebugLog": "AI Debug Log (Full Step-by-Step Trace)",
     "GapAISceneValidator": "AI Scene Validator (Polygons/Normals/Textures/Names)",
+    "GapAIHeadlessPreview": "AI Headless Preview (Combined Views)",
 }

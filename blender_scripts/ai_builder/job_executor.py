@@ -104,7 +104,9 @@ PREVIEW_VIEWS = {
 VIEW_SETS = {
     "single": ["three_quarter"],
     "quad": ["three_quarter", "front", "right", "top"],
+    "quad_batch": ["three_quarter", "front", "right", "top"],
     "six": ["three_quarter", "front", "right", "back", "left", "top"],
+    "six_batch": ["three_quarter", "front", "right", "back", "left", "top"],
 }
 
 
@@ -122,7 +124,11 @@ def setup_preview_environment(helpers, force=False):
         # Kept light so silhouettes read against it instead of sinking into a dark field.
         helpers.set_world(color=(0.88, 0.89, 0.92), strength=1.0, name="AI_Preview_World",
                           gradient=True, horizon_color=(0.55, 0.57, 0.60))
-    if not any(o.type == "LIGHT" for o in scene.objects):
+    preview_lights = [o for o in scene.objects if o.name.startswith("AI_Preview_") and o.type == "LIGHT"]
+    user_lights = [o for o in scene.objects if o.type == "LIGHT" and not o.name.startswith("AI_Preview_")]
+    if force or not user_lights:
+        for pl in preview_lights:
+            bpy.data.objects.remove(pl, do_unlink=True)
         lo, hi = helpers.scene_bounds()
         size = max((hi - lo).length, 0.1)
         center = (lo + hi) / 2.0
@@ -192,7 +198,7 @@ def render_preview(job_render, helpers):
     written = []
     for view in views:
         if not use_scene_cam:
-            helpers.frame_camera_to_scene(cam, margin=1.06, direction=PREVIEW_VIEWS[view])
+            helpers.frame_camera_to_scene(cam, margin=1.18, direction=PREVIEW_VIEWS[view])
         path = base if len(views) == 1 else f"{stem}_{view}{ext}"
         scene.render.filepath = path
         bpy.ops.render.render(write_still=True)

@@ -300,13 +300,16 @@ ComfyUI/output/ai_scene_builder/<session>/
 
 A single three-quarter render hides everything behind the object, which is exactly when parts look
 "piled together" and you cannot tell whether a fin is at the base or halfway up. So previews
-default to **`preview_views = quad`**: three-quarter, front, right and top, returned as one image
-batch that Preview Image steps through.
+default to **`preview_views = quad`**: three-quarter, front, right and top, composited into a single
+crisp CAD-style grid with viewport labels and dividers. Because it returns a single image (`B=1`),
+ComfyUI's Preview Image displays it instantly without multi-file sequential loading lag (`loading 1/4... 2/4...`).
 
-- `quad` (default) — the four views above. The **top** view is usually the one that reveals
+- `quad` (default) — all four views combined into a 2x2 grid. The **top** view is usually the one that reveals
   parts stacked on the same spot.
-- `single` — three-quarter only. Fastest; use it when you just want a progress glance.
-- `six` — adds back and left, for objects whose sides differ.
+- `single` — three-quarter only. Fastest; use it when you just want a quick progress glance.
+- `six` — adds back and left into a 3x2 combined grid, for objects whose sides differ.
+- `quad_batch` / `six_batch` — returns views as separate frames in an image batch if sequential frame stepping is preferred.
+- **`AI Headless Preview (Combined Views)`** — dedicated preview node supporting custom layouts (`auto`, `2x2`, `3x2`, `horizontal`, `vertical`), label badges, and divider styles. Connects directly to builder nodes or loads from session renders.
 
 `preview_camera` decides whose eye you are looking through:
 

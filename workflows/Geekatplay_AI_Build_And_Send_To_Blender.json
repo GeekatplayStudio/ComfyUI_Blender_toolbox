@@ -78,7 +78,13 @@
         8119,
         10,
         false
-      ]
+      ],
+      "widgets_values_named": {
+        "host": "127.0.0.1",
+        "port": 8119,
+        "timeout_s": 10,
+        "raise_on_failure": false
+      }
     },
     {
       "id": 3,
@@ -155,7 +161,13 @@
         false,
         "",
         ""
-      ]
+      ],
+      "widgets_values_named": {
+        "session_name": "send_to_blender",
+        "reset": false,
+        "blend_file": "",
+        "notes": ""
+      }
     },
     {
       "id": 5,
@@ -203,7 +215,20 @@
         "auto",
         "10m",
         900
-      ]
+      ],
+      "widgets_values_named": {
+        "provider": "ollama",
+        "model": "auto",
+        "vision_model": "auto",
+        "url": "http://127.0.0.1:11434",
+        "temperature": 0.2,
+        "num_ctx": 16384,
+        "max_tokens": 8192,
+        "api_key": "",
+        "embed_model": "auto",
+        "keep_alive": "10m",
+        "timeout_s": 900
+      }
     },
     {
       "id": 6,
@@ -229,6 +254,16 @@
           "name": "llm",
           "type": "GAP_AI_LLM",
           "link": 3
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "images_2",
+          "type": "IMAGE",
+          "link": null
         },
         {
           "name": "reference_brief",
@@ -304,7 +339,31 @@
         8119,
         false,
         ""
-      ]
+      ],
+      "widgets_values_named": {
+        "instruction": "Build a detailed brass desk bell: a domed body 0.09 m across and 0.07 m tall on a stepped base, with a trim ring at the rim, a ring of 16 rivets above it, and a turned handle 0.05 m tall on top.",
+        "step_title": "Object",
+        "execution_mode": "headless",
+        "dry_run": false,
+        "max_retries": 2,
+        "validate": true,
+        "auto_fix_normals": true,
+        "auto_fix_doubles": true,
+        "safety_scan": true,
+        "render_preview": true,
+        "preview_views": "quad",
+        "preview_camera": "preview",
+        "render_engine": "CYCLES",
+        "render_width": 768,
+        "render_height": 512,
+        "render_samples": 16,
+        "blender_timeout": 900,
+        "blender_path": "",
+        "live_host": "127.0.0.1",
+        "live_port": 8119,
+        "live_save": false,
+        "extra_reference_notes": ""
+      }
     },
     {
       "id": 7,
@@ -361,7 +420,17 @@
         180,
         "",
         ""
-      ]
+      ],
+      "widgets_values_named": {
+        "mode": "append",
+        "host": "127.0.0.1",
+        "port": 8119,
+        "frame_viewport": true,
+        "clear_scene_first": false,
+        "timeout_s": 180,
+        "blend_path": "",
+        "collections": ""
+      }
     },
     {
       "id": 8,

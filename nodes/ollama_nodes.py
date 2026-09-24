@@ -27,14 +27,47 @@ def ollama_request(url, payload, api_key=""):
 def tensor_to_base64(image_tensor):
     """
     Converts a ComfyUI image tensor (batch) to a base64 encoded PNG string.
-    Takes the first image from the batch.
+    Takes the first image from the batch, self-adjusting to any input format or channel layout.
     """
-    i = 255. * image_tensor[0].cpu().numpy()
-    img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+    if image_tensor is None:
+        return ""
+    if not isinstance(image_tensor, torch.Tensor):
+        image_tensor = torch.from_numpy(np.array(image_tensor))
+    t = image_tensor.detach().cpu()
+    t = torch.nan_to_num(t, nan=0.0, posinf=1.0, neginf=0.0)
+    if t.dtype.is_floating_point:
+        if t.numel() > 0 and t.max() > 1.5:
+            t = t / 255.0
+    else:
+        t = t.float() / 255.0
+    t = torch.clamp(t, 0.0, 1.0)
+
+    if t.ndim == 2:
+        t = t.unsqueeze(0).unsqueeze(-1)
+    elif t.ndim == 3:
+        if t.shape[2] in (1, 3, 4) and t.shape[0] > 4:
+            t = t.unsqueeze(0)
+        elif t.shape[0] in (1, 3, 4) and t.shape[2] > 4:
+            t = t.permute(1, 2, 0).unsqueeze(0)
+        else:
+            t = t.unsqueeze(-1)
+    elif t.ndim == 4:
+        if t.shape[1] in (1, 3, 4) and t.shape[3] not in (1, 3, 4):
+            t = t.permute(0, 2, 3, 1)
+
+    if t.shape[-1] == 1:
+        t = t.repeat(1, 1, 1, 3)
+    elif t.shape[-1] == 4:
+        alpha = t[..., 3:4]
+        t = torch.clamp(t[..., :3] * alpha + (1.0 - alpha), 0.0, 1.0)
+
+    arr = (255.0 * t[0].numpy()).clip(0, 255).astype(np.uint8)
+    img = Image.fromarray(arr, mode="RGB")
     
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
 
 class OllamaVision:
     @classmethod

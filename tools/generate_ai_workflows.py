@@ -54,11 +54,14 @@ class Graph:
         self.next_id += 1
         values, connect = values or {}, connect or {}
         inputs, outputs, widgets = [], [], []
+        widgets_named = {}
         if type_name in BUILTIN:
             b = BUILTIN[type_name]
             widgets = [text] if type_name == "Note" else list(b["widgets"])
             if type_name == "LoadImage" and "image" in values:
                 widgets[0] = values["image"]
+            if type_name == "LoadImage" and len(widgets) >= 2:
+                widgets_named = {"image": widgets[0], "upload": widgets[1]}
             for name, typ in b["inputs"]:
                 inputs.append({"name": name, "type": typ, "link": None})
             for name, typ in b["outputs"]:
@@ -74,6 +77,7 @@ class Graph:
                     else:
                         val = opts.get("default", {"INT": 0, "FLOAT": 0.0, "STRING": "", "BOOLEAN": False}[typ])
                     widgets.append(val)
+                    widgets_named[name] = val
                     if name in connect:
                         inputs.append({"name": name, "type": typ if isinstance(typ, str) else "COMBO", "link": None,
                                        "widget": {"name": name}})
@@ -87,6 +91,8 @@ class Graph:
                 "mode": 0, "inputs": inputs, "outputs": outputs,
                 "properties": {"Node name for S&R": type_name} if type_name != "Note" else {"text": text},
                 "widgets_values": widgets}
+        if widgets_named:
+            node["widgets_values_named"] = widgets_named
         if title:
             node["title"] = title
         if type_name == "Note":

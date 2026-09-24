@@ -522,7 +522,9 @@ def scene_bounds(exclude_types=("CAMERA", "LIGHT", "EMPTY")):
     hi = Vector((-1e18, -1e18, -1e18))
     found = False
     for ob in bpy.context.scene.objects:
-        if ob.type in exclude_types or ob.type != "MESH" or ob.hide_render:
+        if ob.type in exclude_types or ob.hide_render:
+            continue
+        if not hasattr(ob, "bound_box") or not ob.bound_box:
             continue
         for corner in ob.bound_box:
             w = ob.matrix_world @ Vector(corner)

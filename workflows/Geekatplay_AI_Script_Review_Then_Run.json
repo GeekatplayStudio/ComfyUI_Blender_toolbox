@@ -67,7 +67,13 @@
         false,
         "",
         ""
-      ]
+      ],
+      "widgets_values_named": {
+        "session_name": "reviewed_scene",
+        "reset": false,
+        "blend_file": "",
+        "notes": ""
+      }
     },
     {
       "id": 3,
@@ -116,7 +122,20 @@
         "auto",
         "10m",
         900
-      ]
+      ],
+      "widgets_values_named": {
+        "provider": "ollama",
+        "model": "auto",
+        "vision_model": "auto",
+        "url": "http://127.0.0.1:11434",
+        "temperature": 0.2,
+        "num_ctx": 16384,
+        "max_tokens": 8192,
+        "api_key": "",
+        "embed_model": "auto",
+        "keep_alive": "10m",
+        "timeout_s": 900
+      }
     },
     {
       "id": 4,
@@ -142,6 +161,16 @@
           "name": "llm",
           "type": "GAP_AI_LLM",
           "link": 2
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "images_2",
+          "type": "IMAGE",
+          "link": null
         },
         {
           "name": "reference_brief",
@@ -215,7 +244,31 @@
         8119,
         false,
         ""
-      ]
+      ],
+      "widgets_values_named": {
+        "instruction": "Build a wooden dock extending 12 m over a water plane, with mooring posts, a lantern at the end and a rowing boat tied to it.",
+        "step_title": "Dock",
+        "execution_mode": "headless",
+        "dry_run": true,
+        "max_retries": 2,
+        "validate": true,
+        "auto_fix_normals": true,
+        "auto_fix_doubles": true,
+        "safety_scan": true,
+        "render_preview": false,
+        "preview_views": "quad",
+        "preview_camera": "preview",
+        "render_engine": "CYCLES",
+        "render_width": 768,
+        "render_height": 512,
+        "render_samples": 16,
+        "blender_timeout": 900,
+        "blender_path": "",
+        "live_host": "127.0.0.1",
+        "live_port": 8119,
+        "live_save": false,
+        "extra_reference_notes": ""
+      }
     },
     {
       "id": 5,
@@ -338,7 +391,29 @@
         8119,
         false,
         ""
-      ]
+      ],
+      "widgets_values_named": {
+        "script": "from gap_helpers import *\n\ncoll = get_or_create_collection('Manual')\nB = Builder()\nB.box((0, 0, 1), (2, 2, 2))\nlog_built(B.build('Test_Cube', coll, make_material('Mat_Test', (0.8, 0.3, 0.2))))\n",
+        "title": "Reviewed dock script",
+        "execution_mode": "headless",
+        "validate": true,
+        "auto_fix_normals": true,
+        "auto_fix_doubles": true,
+        "safety_scan": true,
+        "render_preview": true,
+        "preview_views": "quad",
+        "preview_camera": "preview",
+        "render_engine": "CYCLES",
+        "render_width": 768,
+        "render_height": 512,
+        "render_samples": 16,
+        "blender_timeout": 900,
+        "blender_path": "",
+        "live_host": "127.0.0.1",
+        "live_port": 8119,
+        "live_save": false,
+        "extra_reference_notes": ""
+      }
     },
     {
       "id": 7,

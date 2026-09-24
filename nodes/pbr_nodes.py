@@ -4,6 +4,39 @@
 import torch
 import numpy as np
 
+
+def _prepare_image_tensor(images):
+    """Normalize any image input to standard ComfyUI [B, H, W, 3] float32 [0, 1]."""
+    if images is None:
+        return None
+    if not isinstance(images, torch.Tensor):
+        images = torch.from_numpy(np.array(images))
+    images = torch.nan_to_num(images, nan=0.0, posinf=1.0, neginf=0.0)
+    if images.dtype.is_floating_point:
+        if images.numel() > 0 and images.max() > 1.5:
+            images = images / 255.0
+    else:
+        images = images.float() / 255.0
+    images = torch.clamp(images, 0.0, 1.0)
+    if images.ndim == 2:
+        images = images.unsqueeze(0).unsqueeze(-1)
+    elif images.ndim == 3:
+        if images.shape[2] in (1, 3, 4) and images.shape[0] > 4:
+            images = images.unsqueeze(0)
+        elif images.shape[0] in (1, 3, 4) and images.shape[2] > 4:
+            images = images.permute(1, 2, 0).unsqueeze(0)
+        else:
+            images = images.unsqueeze(-1)
+    elif images.ndim == 4 and images.shape[1] in (1, 3, 4) and images.shape[3] not in (1, 3, 4):
+        images = images.permute(0, 2, 3, 1)
+    if images.shape[-1] == 1:
+        images = images.repeat(1, 1, 1, 3)
+    elif images.shape[-1] == 4:
+        alpha = images[..., 3:4]
+        images = torch.clamp(images[..., :3] * alpha + (1.0 - alpha), 0.0, 1.0)
+    return images
+
+
 class SimplePBRGenerator:
     @classmethod
     def INPUT_TYPES(s):
@@ -21,7 +54,9 @@ class SimplePBRGenerator:
     CATEGORY = "Geekatplay Studio/360 HDRI/PBR"
 
     def generate(self, images, roughness_intensity, normal_strength):
-        # images is [B, H, W, C]
+        # Self-adjust: normalize images to [B, H, W, 3] float32 [0, 1]
+        images = _prepare_image_tensor(images)
+
         
         # 1. Grayscale for processing
         # Luminance: 0.299 R + 0.587 G + 0.114 B
@@ -135,6 +170,7 @@ class SimpleHeightmapNormalizer:
     
     def normalize(self, images):
         # Normalize batch to 0.0 - 1.0 range to maximize displacement detail
+        images = _prepare_image_tensor(images)
         results = []
         for img in images:
             # Force Grayscale if RGB
@@ -274,6 +310,7 @@ class ColorToHeightmap:
     CATEGORY = "Geekatplay Studio/360 HDRI/Terrain"
 
     def convert(self, images, invert, auto_levels, gamma):
+        images = _prepare_image_tensor(images)
         results = []
         for img in images:
             # 1. Grayscale Conversion (Luminance)

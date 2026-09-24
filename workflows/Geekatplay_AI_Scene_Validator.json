@@ -66,7 +66,13 @@
         false,
         "",
         ""
-      ]
+      ],
+      "widgets_values_named": {
+        "session_name": "castle_scene",
+        "reset": false,
+        "blend_file": "",
+        "notes": ""
+      }
     },
     {
       "id": 3,
@@ -134,7 +140,20 @@
         "",
         "127.0.0.1",
         8119
-      ]
+      ],
+      "widgets_values_named": {
+        "execution_mode": "headless",
+        "auto_fix_normals": false,
+        "auto_fix_doubles": false,
+        "render_preview": true,
+        "render_engine": "CYCLES",
+        "render_width": 768,
+        "render_height": 512,
+        "render_samples": 16,
+        "blender_path": "",
+        "live_host": "127.0.0.1",
+        "live_port": 8119
+      }
     },
     {
       "id": 4,

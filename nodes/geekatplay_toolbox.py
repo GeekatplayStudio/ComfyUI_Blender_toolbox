@@ -91,6 +91,33 @@ class GapSmartResizer:
     CATEGORY = "Geekatplay Studio/3D Toolbox"
 
     def resize(self, image, model_target, aspect_ratio, processing_method, custom_width=1024, custom_height=1024):
+        # Self-adjust: normalize image tensor to standard ComfyUI [B, H, W, 3] float32 [0, 1]
+        if not isinstance(image, torch.Tensor):
+            image = torch.from_numpy(np.array(image))
+        image = torch.nan_to_num(image, nan=0.0, posinf=1.0, neginf=0.0)
+        if image.dtype.is_floating_point:
+            if image.numel() > 0 and image.max() > 1.5:
+                image = image / 255.0
+        else:
+            image = image.float() / 255.0
+        image = torch.clamp(image, 0.0, 1.0)
+        if image.ndim == 2:
+            image = image.unsqueeze(0).unsqueeze(-1)
+        elif image.ndim == 3:
+            if image.shape[2] in (1, 3, 4) and image.shape[0] > 4:
+                image = image.unsqueeze(0)
+            elif image.shape[0] in (1, 3, 4) and image.shape[2] > 4:
+                image = image.permute(1, 2, 0).unsqueeze(0)
+            else:
+                image = image.unsqueeze(-1)
+        elif image.ndim == 4 and image.shape[1] in (1, 3, 4) and image.shape[3] not in (1, 3, 4):
+            image = image.permute(0, 2, 3, 1)
+        if image.shape[-1] == 1:
+            image = image.repeat(1, 1, 1, 3)
+        elif image.shape[-1] == 4:
+            alpha = image[..., 3:4]
+            image = torch.clamp(image[..., :3] * alpha + (1.0 - alpha), 0.0, 1.0)
+
         # 1. Determine Target Pixel Count
         target_pixels = 0
         if model_target == "SD 1.5":
